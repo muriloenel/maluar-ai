@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../components/SupabaseAuthProvider';
 import AuthScreen from '../components/AuthScreen';
 import Sidebar from '../components/Sidebar';
@@ -157,7 +157,10 @@ export default function Home() {
     plan: 'free',
   };
 
-  const userForComponents = { name: effectiveProfile.name, level: effectiveProfile.level };
+  const userForComponents = useMemo(() => ({
+    name: effectiveProfile.name,
+    level: effectiveProfile.level,
+  }), [effectiveProfile.name, effectiveProfile.level]);
 
   return (
     <div className="flex h-screen bg-surface">

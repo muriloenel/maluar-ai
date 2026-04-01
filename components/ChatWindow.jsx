@@ -19,6 +19,7 @@ export default function ChatWindow({ user, userId, pendingPrompt, chatId, initia
   const fileInputRef = useRef(null);
   const chatAreaRef = useRef(null);
   const titleSetRef = useRef(false);
+  const chatIdRef = useRef(null);
   const msgIdRef = useRef(0);
   const nextId = () => ++msgIdRef.current;
 
@@ -38,13 +39,15 @@ export default function ChatWindow({ user, userId, pendingPrompt, chatId, initia
 
   // Set welcome message only for brand new chats (no initialMessages)
   useEffect(() => {
+    // Only reset messages when chatId actually changes
+    if (chatIdRef.current === chatId && messages.length > 1) return;
+    chatIdRef.current = chatId;
+
     if (initialMessages && initialMessages.length > 0) {
       setMessages(initialMessages);
       titleSetRef.current = true;
       return;
     }
-    // Only show welcome if messages are empty (avoid resetting during conversation)
-    if (messages.length > 1) return;
     titleSetRef.current = false;
     const welcome = {
       role: 'assistant',
@@ -57,7 +60,7 @@ export default function ChatWindow({ user, userId, pendingPrompt, chatId, initia
       }\n\nMe pergunta sobre técnicas, produtos, preços ou manda foto pra eu analisar.`,
     };
     setMessages([welcome]);
-  }, [user, initialMessages]);
+  }, [chatId, initialMessages]);
 
   // Persist messages to Supabase
   const persistMessage = useCallback(
