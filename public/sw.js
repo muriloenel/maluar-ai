@@ -1,5 +1,5 @@
-const CACHE_NAME = 'maluar-ai-v2';
-const STATIC_ASSETS = ['/', '/manifest.json'];
+const CACHE_NAME = 'maluar-ai-v3';
+const STATIC_ASSETS = ['/'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
