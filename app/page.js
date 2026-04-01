@@ -32,6 +32,17 @@ export default function Home() {
   const [dataLoaded, setDataLoaded] = useState(false);
   const [loadedUserId, setLoadedUserId] = useState(null);
 
+  // useMemo DEVE ficar antes de qualquer return condicional (regra dos hooks)
+  const effectiveProfile = profile || {
+    name: user?.user_metadata?.name || user?.email?.split('@')[0] || 'Nail Designer',
+    level: user?.user_metadata?.level || 'iniciante',
+    plan: 'free',
+  };
+  const userForComponents = useMemo(() => ({
+    name: effectiveProfile.name,
+    level: effectiveProfile.level,
+  }), [effectiveProfile.name, effectiveProfile.level]);
+
   // Load data when user is ready — only once per user
   useEffect(() => {
     if (!user) return;
@@ -150,17 +161,6 @@ export default function Home() {
   if (!user) {
     return <AuthScreen />;
   }
-
-  const effectiveProfile = profile || {
-    name: user.user_metadata?.name || user.email?.split('@')[0] || 'Nail Designer',
-    level: user.user_metadata?.level || 'iniciante',
-    plan: 'free',
-  };
-
-  const userForComponents = useMemo(() => ({
-    name: effectiveProfile.name,
-    level: effectiveProfile.level,
-  }), [effectiveProfile.name, effectiveProfile.level]);
 
   return (
     <div className="flex h-screen bg-surface">
