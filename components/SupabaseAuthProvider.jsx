@@ -107,17 +107,23 @@ export default function SupabaseAuthProvider({ children }) {
     });
 
     // Listen to auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (session?.user) {
-          setUser(session.user);
-          await fetchProfile(session.user);
-        } else {
-          setUser(null);
-          setProfile(null);
+    let subscription;
+    try {
+      const { data } = supabase.auth.onAuthStateChange(
+        async (event, session) => {
+          if (session?.user) {
+            setUser(session.user);
+            await fetchProfile(session.user);
+          } else {
+            setUser(null);
+            setProfile(null);
+          }
         }
-      }
-    );
+      );
+      subscription = data?.subscription;
+    } catch (err) {
+      console.error('onAuthStateChange error:', err);
+    }
 
     return () => {
       mounted = false;

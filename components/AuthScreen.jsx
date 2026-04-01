@@ -23,6 +23,7 @@ export default function AuthScreen() {
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    if (!supabase) { setError('Serviço indisponível. Tente novamente.'); return; }
     setLoading(true);
     setError('');
     const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -52,6 +53,7 @@ export default function AuthScreen() {
     setLoading(true);
     setError('');
 
+    if (!supabase) { setError('Serviço indisponível. Tente novamente.'); setLoading(false); return; }
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -84,6 +86,7 @@ export default function AuthScreen() {
     }
     setLoading(true);
     setError('');
+    if (!supabase) { setError('Serviço indisponível.'); setLoading(false); return; }
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/`,
     });
