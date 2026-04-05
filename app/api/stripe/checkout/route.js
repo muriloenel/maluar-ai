@@ -58,7 +58,11 @@ export async function POST(req) {
       return Response.json({ error: `Plano inválido ou preço não configurado (${plan})` }, { status: 400 });
     }
 
-    console.log(`[STRIPE] Criando checkout: plan=${plan}, priceId=${priceId}, user=${user.id}`);
+    console.log(`[STRIPE] Criando checkout: plan=${plan}, priceId=${priceId}, user=${user.id}, APP_URL="${APP_URL}", SECRET_KEY_PREFIX="${STRIPE_SECRET?.slice(0, 7)}..."`);
+
+    const successUrl = `${APP_URL}?checkout=success`;
+    const cancelUrl = `${APP_URL}?checkout=cancel`;
+    console.log(`[STRIPE] success_url="${successUrl}", cancel_url="${cancelUrl}"`);
 
     // Criar Checkout Session no Stripe
     const session = await stripeRequest('/checkout/sessions', {
@@ -66,13 +70,15 @@ export async function POST(req) {
       'mode': 'subscription',
       'line_items[0][price]': priceId,
       'line_items[0][quantity]': '1',
-      'success_url': `${APP_URL}?checkout=success`,
-      'cancel_url': `${APP_URL}?checkout=cancel`,
+      'success_url': successUrl,
+      'cancel_url': cancelUrl,
       'client_reference_id': user.id,
       'customer_email': user.email,
       'metadata[user_id]': user.id,
       'metadata[plan]': plan,
     });
+
+    console.log(`[STRIPE] Response:`, JSON.stringify(session).slice(0, 500));
 
     if (session.error) {
       console.error('[STRIPE] Checkout error:', JSON.stringify(session.error));
