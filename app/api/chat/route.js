@@ -258,7 +258,15 @@ export async function POST(req) {
             controller.close();
             // Log usage async
             logUsage(authUser?.id, model, totalInputTokens, totalOutputTokens, 'chat');
-          } catch {
+          } catch (streamErr) {
+            console.error('[STREAM] Erro durante streaming:', streamErr?.message || streamErr);
+            try {
+              const errMsg = streamErr?.message?.includes('credit')
+                ? 'Serviço temporariamente indisponível.'
+                : 'Erro ao gerar resposta. Tente novamente.';
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: errMsg })}\n\n`));
+              controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+            } catch {}
             controller.close();
           }
         },
