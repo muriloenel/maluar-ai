@@ -74,8 +74,23 @@ export async function POST(req) {
         const userId = session.metadata?.user_id || session.client_reference_id;
         const plan = session.metadata?.plan;
         console.log(`[WEBHOOK] checkout.session.completed: userId=${userId}, plan=${plan}, customer=${session.customer}, subscription=${session.subscription}`);
+        console.log(`[WEBHOOK] session.metadata:`, JSON.stringify(session.metadata));
         if (userId && plan) {
-          const { error: updateError } = await supabase
+          // Primeiro, verificar se o profile existe
+          const { data: existingProfile, error: selectError } = await supabase
+            .from('profiles')
+            .select('id, plan')
+            .eq('id', userId)
+            .single();
+          console.log(`[WEBHOOK] Profile existente:`, existingProfile, 'selectError:', selectError?.message || 'none');
+
+          if (!existingProfile) {
+            console.error(`[WEBHOOK] Profile NÃO encontrado para userId=${userId}`);
+            break;
+          }
+
+          // Update com .select() para confirmar que retornou dados
+          const { data: updated, error: updateError } = await supabase
             .from('profiles')
             .update({
               plan,
@@ -83,12 +98,25 @@ export async function POST(req) {
               stripe_subscription_id: session.subscription,
               updated_at: new Date().toISOString(),
             })
-            .eq('id', userId);
+            .eq('id', userId)
+            .select('id, plan, stripe_customer_id')
+            .single();
+
           if (updateError) {
             console.error(`[WEBHOOK] Erro ao atualizar profile:`, updateError);
+          } else if (!updated) {
+            console.error(`[WEBHOOK] Update retornou null — nenhuma row afetada para userId=${userId}`);
           } else {
-            console.log(`[WEBHOOK] Plano ${plan} ativado para ${userId}`);
+            console.log(`[WEBHOOK] Plano atualizado com sucesso:`, JSON.stringify(updated));
           }
+
+          // Verificação final: ler o profile de novo pra confirmar
+          const { data: verification } = await supabase
+            .from('profiles')
+            .select('id, plan, stripe_customer_id')
+            .eq('id', userId)
+            .single();
+          console.log(`[WEBHOOK] Verificação final:`, JSON.stringify(verification));
         } else {
           console.warn(`[WEBHOOK] userId ou plan faltando: userId=${userId}, plan=${plan}`);
         }
