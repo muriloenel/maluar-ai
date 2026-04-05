@@ -2,10 +2,22 @@ import { createClient } from '@supabase/supabase-js';
 
 const STRIPE_SECRET = process.env.STRIPE_SECRET_KEY;
 const STRIPE_API = 'https://api.stripe.com/v1';
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://maluar-ai.vercel.app';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+function getAppUrl(req) {
+  // Tentar variável de ambiente primeiro (trim para remover \n ou espaços extras)
+  const envUrl = (process.env.NEXT_PUBLIC_APP_URL || '').trim();
+  if (envUrl && envUrl.startsWith('http')) return envUrl.replace(/\/$/, '');
+  // Fallback: construir a partir do header Host
+  const host = req.headers.get('host');
+  if (host) {
+    const proto = host.includes('localhost') ? 'http' : 'https';
+    return `${proto}://${host}`;
+  }
+  return 'https://maluar-ai.vercel.app';
+}
 
 // Preços dos planos (criar no Stripe Dashboard)
 const PLAN_PRICES = {
@@ -58,11 +70,12 @@ export async function POST(req) {
       return Response.json({ error: `Plano inválido ou preço não configurado (${plan})` }, { status: 400 });
     }
 
-    console.log(`[STRIPE] Criando checkout: plan=${plan}, priceId=${priceId}, user=${user.id}, APP_URL="${APP_URL}", SECRET_KEY_PREFIX="${STRIPE_SECRET?.slice(0, 7)}..."`);
+    console.log(`[STRIPE] Criando checkout: plan=${plan}, priceId=${priceId}, user=${user.id}`);
 
-    const successUrl = `${APP_URL}?checkout=success`;
-    const cancelUrl = `${APP_URL}?checkout=cancel`;
-    console.log(`[STRIPE] success_url="${successUrl}", cancel_url="${cancelUrl}"`);
+    const appUrl = getAppUrl(req);
+    const successUrl = `${appUrl}?checkout=success`;
+    const cancelUrl = `${appUrl}?checkout=cancel`;
+    console.log(`[STRIPE] appUrl="${appUrl}", success_url="${successUrl}"`);
 
     // Criar Checkout Session no Stripe
     const session = await stripeRequest('/checkout/sessions', {
