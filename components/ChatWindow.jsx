@@ -110,17 +110,6 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
     try {
       // Verificar quota de mensagens diárias
       if (userId) {
-        // Guest mode — limite local de 10 mensagens
-        if (userId.startsWith('guest-')) {
-          try {
-            const guestCount = parseInt(localStorage.getItem('maluar-guest-msgs') || '0', 10);
-            if (guestCount >= 10) {
-              setQuotaModal({ limit: 10, isGuest: true });
-              return;
-            }
-            localStorage.setItem('maluar-guest-msgs', String(guestCount + 1));
-          } catch {}
-        } else {
           try {
             const quota = await dbCheckMessageQuota(userId, userEmail);
             if (!quota.allowed) {
@@ -130,7 +119,6 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
           } catch (err) {
             console.warn('Erro ao verificar quota, permitindo envio:', err);
           }
-        }
       }
 
       const userContent = imageBase64
@@ -194,9 +182,16 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
-        // Se 401, a sessão expirou — forçar re-login
+        // Se 401, a sessão expirou — informar e forçar re-login
         if (res.status === 401) {
-          onAuthExpired?.();
+          const errorMsg = {
+            role: 'assistant',
+            content: '⚠️ Sua sessão expirou. Você será redirecionado para o login...',
+            isError: true,
+            timestamp: Date.now(),
+          };
+          setMessages(prev => [...prev, errorMsg]);
+          setTimeout(() => onAuthExpired?.(), 2000);
           return;
         }
         throw new Error(errorData.error || 'Erro na API');
@@ -513,11 +508,6 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
                   💎 Ver planos
                 </button>
               </div>
-            )}
-            {quotaModal.isGuest && (
-              <p className="text-xs text-text-light">
-                Crie uma conta grátis pra ter 50 mensagens por dia!
-              </p>
             )}
             <button
               onClick={() => setQuotaModal(null)}

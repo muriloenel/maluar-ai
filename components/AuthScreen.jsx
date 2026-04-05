@@ -9,17 +9,29 @@ export default function AuthScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
   const [level, setLevel] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const toast = useToast();
-  const { supabase, enterGuestMode } = useAuth();
+  const { supabase } = useAuth();
 
   const levels = [
     { id: 'iniciante', label: 'Iniciante', desc: 'Tô começando do zero', icon: '🌱' },
     { id: 'intermediario', label: 'Intermediária', desc: 'Já faço algumas unhas', icon: '💅' },
     { id: 'avancada', label: 'Avançada', desc: 'Já atendo clientes', icon: '✨' },
   ];
+
+  const formatPhone = (value) => {
+    const digits = value.replace(/\D/g, '').slice(0, 11);
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  };
+
+  const handlePhoneChange = (e) => {
+    setPhone(formatPhone(e.target.value));
+  };
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -28,13 +40,12 @@ export default function AuthScreen() {
     setError('');
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
-      console.error('Login error:', error);
       setError(
         error.message.includes('Invalid login')
           ? 'Email ou senha incorretos'
           : error.message.includes('Email not confirmed')
-          ? 'Confirme seu email antes de entrar'
-          : `Erro ao entrar: ${error.message}`
+          ? 'Confirme seu email antes de entrar. Verifique sua caixa de entrada.'
+          : 'Erro ao entrar. Verifique seus dados.'
       );
     }
     setLoading(false);
@@ -44,6 +55,11 @@ export default function AuthScreen() {
     e.preventDefault();
     if (!name.trim() || !level) {
       setError('Preencha seu nome e nível');
+      return;
+    }
+    const phoneDigits = phone.replace(/\D/g, '');
+    if (phoneDigits.length < 10 || phoneDigits.length > 11) {
+      setError('Telefone inválido. Use DDD + número (ex: 11 99999-9999)');
       return;
     }
     if (password.length < 6) {
@@ -58,16 +74,16 @@ export default function AuthScreen() {
       email,
       password,
       options: {
-        data: { name: name.trim(), level },
+        data: { name: name.trim(), level, phone: phoneDigits },
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     });
 
     if (error) {
-      console.error('Signup error:', error);
       setError(
         error.message.includes('already registered')
           ? 'Este email já está cadastrado'
-          : `Erro ao criar conta: ${error.message}`
+          : 'Erro ao criar conta. Tente novamente.'
       );
     } else if (data?.user?.identities?.length === 0) {
       setError('Este email já está cadastrado');
@@ -88,7 +104,7 @@ export default function AuthScreen() {
     setError('');
     if (!supabase) { setError('Serviço indisponível.'); setLoading(false); return; }
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/`,
+      redirectTo: `${window.location.origin}/auth/callback?type=recovery`,
     });
     if (error) {
       setError('Erro ao enviar email de recuperação');
@@ -100,13 +116,13 @@ export default function AuthScreen() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-surface p-4 relative overflow-hidden">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-surface px-4 py-6 relative overflow-hidden">
       {/* Subtle background gradient */}
       <div className="absolute inset-0 bg-gradient-to-br from-accent/[0.03] via-transparent to-rose/[0.03]" />
       <div className="absolute top-0 right-0 w-96 h-96 bg-accent/[0.04] rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
       <div className="absolute bottom-0 left-0 w-80 h-80 bg-rose/[0.04] rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
 
-      <div className="w-full max-w-sm relative">
+      <div className="w-full max-w-sm relative flex-1 flex flex-col justify-center">
         {/* Logo */}
         <div className="text-center mb-8 animate-scale-in">
           <div className="relative inline-block">
@@ -120,14 +136,6 @@ export default function AuthScreen() {
             Sua mentora de Nail Design
           </p>
         </div>
-
-        {/* Botão convidado */}
-        <button
-          onClick={enterGuestMode}
-          className="w-full mb-6 py-3 rounded-xl font-semibold text-sm border-2 border-accent/30 text-accent hover:bg-accent hover:text-white hover:border-accent hover:shadow-glow transition-all duration-300"
-        >
-          Continuar sem login →
-        </button>
 
         {/* Login form */}
         {mode === 'login' && (
@@ -167,7 +175,7 @@ export default function AuthScreen() {
 
             <button
               type="button"
-              onClick={() => setMode('forgot')}
+              onClick={() => { setMode('forgot'); setError(''); }}
               className="w-full text-center text-xs text-text-muted hover:text-accent transition-colors"
             >
               Esqueci minha senha
@@ -198,6 +206,17 @@ export default function AuthScreen() {
                 placeholder="Como posso te chamar?"
                 className="w-full bg-surface-card border border-border rounded-xl px-4 py-3 text-text placeholder-text-light focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all shadow-soft"
                 maxLength={50}
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-text text-sm font-medium mb-1.5">WhatsApp / Telefone</label>
+              <input
+                type="tel"
+                value={phone}
+                onChange={handlePhoneChange}
+                placeholder="(11) 99999-9999"
+                className="w-full bg-surface-card border border-border rounded-xl px-4 py-3 text-text placeholder-text-light focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all shadow-soft"
                 required
               />
             </div>
@@ -253,7 +272,7 @@ export default function AuthScreen() {
 
             <button
               type="submit"
-              disabled={loading || !name.trim() || !level}
+              disabled={loading || !name.trim() || !level || !phone.replace(/\D/g, '')}
               className="w-full py-3.5 rounded-xl font-semibold text-sm btn-gradient shadow-soft"
             >
               {loading ? 'Criando conta...' : 'Criar conta grátis'}
@@ -313,8 +332,8 @@ export default function AuthScreen() {
         )}
       </div>
 
-      {/* Links LGPD */}
-      <div className="text-center mt-6 text-[11px] text-text-light space-x-3">
+      {/* Links LGPD — sempre abaixo do formulário */}
+      <div className="w-full max-w-sm text-center mt-6 pb-2 text-[11px] text-text-light space-x-3 relative">
         <a href="/termos" className="hover:text-accent transition-colors">Termos de Uso</a>
         <span>·</span>
         <a href="/privacidade" className="hover:text-accent transition-colors">Política de Privacidade</a>

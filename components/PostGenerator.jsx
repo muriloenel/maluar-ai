@@ -5,6 +5,7 @@ import PostImageEditor from './PostImageEditor';
 import { useToast } from './Toast';
 import { dbLoadPostHistory, dbSavePost, dbDeletePost } from '../lib/db';
 import { useAuth } from './SupabaseAuthProvider';
+import UpgradePrompt from './UpgradePrompt';
 
 const PLATFORMS = [
   { id: 'instagram', label: 'Instagram', icon: '📸' },
@@ -21,7 +22,7 @@ const POST_TYPES = [
   { id: 'tendencia', label: 'Tendência / Inspiração' },
 ];
 
-export default function PostGenerator({ user, userId, initialPrompt }) {
+export default function PostGenerator({ user, userId, initialPrompt, plan = 'free', onUpgrade }) {
   const [platform, setPlatformRaw] = useState('instagram');
   const [postType, setPostTypeRaw] = useState('resultado');
 
@@ -37,6 +38,15 @@ export default function PostGenerator({ user, userId, initialPrompt }) {
   const [showHistory, setShowHistory] = useState(false);
   const [postHistory, setPostHistory] = useState([]);
   const { getAccessToken } = useAuth();
+
+  const isFree = plan === 'free' || !plan;
+  const POST_LIMITS = { free: 2, pro: 15, premium: 9999 };
+  const dailyLimit = POST_LIMITS[plan] || POST_LIMITS.free;
+  // Count today's posts from history
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayPosts = postHistory.filter(p => p.created_at?.slice(0, 10) === todayStr).length;
+  const postsRemaining = Math.max(0, dailyLimit - todayPosts);
+  const atLimit = postsRemaining <= 0 && isFree;
 
   // Load post history from Supabase on mount
   useEffect(() => {
@@ -354,11 +364,26 @@ CTA: (chamada pra ação curta: "Agende pelo WhatsApp", "Chame no direct", etc.)
           </div>
 
           {/* Generate button */}
-          <button
-            onClick={generatePost}
-            disabled={isLoading}
-            className="w-full py-3.5 rounded-xl font-semibold text-sm transition-all bg-accent text-white hover:bg-accent-hover shadow-soft disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          >
+          {atLimit ? (
+            <div className="rounded-xl border border-accent/20 bg-accent-bg p-4 text-center">
+              <p className="text-xs font-semibold text-text mb-1">Limite de posts atingido hoje ({dailyLimit}/{dailyLimit})</p>
+              <p className="text-[11px] text-text-muted mb-3">Faça upgrade pra gerar até {POST_LIMITS.pro} posts/dia</p>
+              <button onClick={onUpgrade} className="px-4 py-2 rounded-lg bg-accent text-white text-xs font-semibold hover:bg-accent-hover transition-colors">
+                Fazer upgrade 💅
+              </button>
+            </div>
+          ) : (
+          <div>
+            {isFree && (
+              <p className="text-[11px] text-text-light text-center mb-1.5">
+                {postsRemaining} de {dailyLimit} posts restantes hoje
+              </p>
+            )}
+            <button
+              onClick={generatePost}
+              disabled={isLoading}
+              className="w-full py-3.5 rounded-xl font-semibold text-sm transition-all bg-accent text-white hover:bg-accent-hover shadow-soft disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
             {isLoading ? (
               <>
                 <span className="typing-dot w-1.5 h-1.5 bg-white rounded-full inline-block" />
@@ -374,7 +399,9 @@ CTA: (chamada pra ação curta: "Agende pelo WhatsApp", "Chame no direct", etc.)
                 Gerar Post
               </>
             )}
-          </button>
+            </button>
+          </div>
+          )}
 
           {/* Image Editor - aparece com ou sem resultado da IA */}
           {imagePreview && !result && (

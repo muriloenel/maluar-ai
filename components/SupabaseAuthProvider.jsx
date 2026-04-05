@@ -8,7 +8,6 @@ const AuthContext = createContext({
   profile: null,
   signOut: async () => {},
   getAccessToken: async () => null,
-  enterGuestMode: () => {},
 });
 
 export function useAuth() {
@@ -72,6 +71,7 @@ export default function SupabaseAuthProvider({ children }) {
           id: authUser.id,
           name: meta.name || meta.full_name || 'Nail Designer',
           level: meta.level || 'iniciante',
+          phone: meta.phone || null,
         })
         .select()
         .single();
@@ -135,6 +135,24 @@ export default function SupabaseAuthProvider({ children }) {
       async (event, session) => {
         resolved = true;
         clearTimeout(timeout);
+
+        // Token expirado — Supabase dispara SIGNED_OUT quando refresh falha
+        if (event === 'SIGNED_OUT') {
+          setUser(null);
+          setProfile(null);
+          return;
+        }
+
+        // Recovery de senha — redirecionar para formulário de nova senha
+        if (event === 'PASSWORD_RECOVERY') {
+          if (session?.user) {
+            setUser(session.user);
+          }
+          // Redireciona para a página de redefinição de senha
+          window.location.href = '/auth/reset-password';
+          return;
+        }
+
         if (session?.user) {
           // Evitar setUser com nova referência no TOKEN_REFRESHED (causa re-render desnecessário)
           if (event === 'TOKEN_REFRESHED') {
@@ -155,22 +173,10 @@ export default function SupabaseAuthProvider({ children }) {
     };
   }, [supabase, fetchProfile]);
 
-  const enterGuestMode = useCallback(() => {
-    let guestId = null;
-    try { guestId = localStorage.getItem('maluar-guest-id'); } catch {}
-    if (!guestId) {
-      guestId = 'guest-' + crypto.randomUUID();
-      try { localStorage.setItem('maluar-guest-id', guestId); } catch {}
-    }
-    setUser({ id: guestId, email: 'convidado', user_metadata: { name: 'Nail Designer', level: 'iniciante' } });
-    setProfile({ id: guestId, name: 'Nail Designer', level: 'iniciante', plan: 'free', messages_today: 0 });
-  }, []);
-
   const signOut = useCallback(async () => {
     // Limpar state imediatamente (não esperar o Supabase que pode travar no lock)
     setUser(null);
     setProfile(null);
-    try { localStorage.removeItem('maluar-guest-id'); } catch {}
     try { localStorage.removeItem('maluar-auth'); } catch {}
     // Tentar signOut no Supabase com timeout (não bloquear se travar)
     if (supabase) {
@@ -226,7 +232,7 @@ export default function SupabaseAuthProvider({ children }) {
   }, [user, supabase]);
 
   return (
-    <AuthContext.Provider value={{ user, profile, signOut, updateProfile, patchProfile, refreshProfile, supabase, getAccessToken, enterGuestMode }}>
+    <AuthContext.Provider value={{ user, profile, signOut, updateProfile, patchProfile, refreshProfile, supabase, getAccessToken }}>
       {children}
     </AuthContext.Provider>
   );

@@ -182,10 +182,6 @@ export default function Home() {
 
   const handleChangeLevel = async (newLevel) => {
     if (!user) return;
-    if (user.id?.startsWith('guest-')) {
-      await updateProfile({ level: newLevel });
-      return;
-    }
     const updated = await dbUpdateProfile(user.id, { level: newLevel });
     if (updated) await updateProfile({ level: newLevel });
   };
@@ -290,6 +286,7 @@ export default function Home() {
         onDeleteChat={handleDeleteChat}
         onSignOut={signOut}
         currentPlan={effectiveProfile.plan || 'free'}
+        onUpgrade={handleUpgrade}
       />
 
       <main className="flex-1 flex flex-col min-w-0">
@@ -395,7 +392,7 @@ export default function Home() {
         ) : (
           <div className="tab-content flex-1 flex flex-col min-h-0">
             {activeTab === 'business' ? (
-              <BusinessHub onSendPrompt={handleBusinessPrompt} />
+              <BusinessHub onSendPrompt={handleBusinessPrompt} plan={effectiveProfile.plan || 'free'} onUpgrade={handleUpgrade} />
             ) : activeTab === 'favorites' ? (
               <FavoritesGallery
                 favorites={favorites}
@@ -411,7 +408,7 @@ export default function Home() {
                 onManageSubscription={handleManageSubscription}
               />
             ) : (
-              <PostGenerator key={postKey} user={userForComponents} userId={user.id} initialPrompt={postPrompt} />
+              <PostGenerator key={postKey} user={userForComponents} userId={user.id} initialPrompt={postPrompt} plan={effectiveProfile.plan || 'free'} onUpgrade={handleUpgrade} />
             )}
           </div>
         )}

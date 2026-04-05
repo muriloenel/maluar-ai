@@ -12,3 +12,7 @@ ALTER TABLE public.profiles
 CREATE INDEX IF NOT EXISTS idx_profiles_stripe_customer
   ON public.profiles (stripe_customer_id)
   WHERE stripe_customer_id IS NOT NULL;
+
+-- 2. Adicionar coluna de telefone na tabela profiles
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS phone text;

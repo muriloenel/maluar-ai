@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useTheme } from './ThemeProvider';
+import { UpgradeInlineBadge } from './UpgradePrompt';
 
 const LEVEL_LABELS = {
   iniciante: { label: 'Iniciante', icon: '🌱' },
@@ -216,13 +217,14 @@ const MODULES_BY_LEVEL = {
   ],
 };
 
-export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activeTab, onTabChange, onChangeLevel, isOpen, onClose, chatList, activeChatId, onSelectChat, onDeleteChat, onSignOut, currentPlan }) {
+export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activeTab, onTabChange, onChangeLevel, isOpen, onClose, chatList, activeChatId, onSelectChat, onDeleteChat, onSignOut, currentPlan, onUpgrade }) {
   const [showLevelPicker, setShowLevelPicker] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [historySearch, setHistorySearch] = useState('');
   const { theme, toggle: toggleTheme } = useTheme();
   const modules = MODULES_BY_LEVEL[user?.level] || MODULES_BY_LEVEL.iniciante;
   const levelInfo = LEVEL_LABELS[user?.level] || LEVEL_LABELS.iniciante;
+  const isFree = currentPlan === 'free' || !currentPlan;
 
   const filteredChats = historySearch.trim()
     ? chatList.filter((c) => c.title?.toLowerCase().includes(historySearch.toLowerCase()))
@@ -325,26 +327,36 @@ export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activ
           {/* Level picker dropdown */}
           {showLevelPicker && (
             <div className="mt-1.5 bg-surface-card border border-border rounded-xl shadow-elevated overflow-hidden animate-fade-in">
-              {Object.entries(LEVEL_LABELS).map(([key, val]) => (
+              {Object.entries(LEVEL_LABELS).map(([key, val]) => {
+                const levelLocked = isFree && key !== 'iniciante';
+                return (
                 <button
                   key={key}
                   onClick={() => {
+                    if (levelLocked) {
+                      onUpgrade?.();
+                      return;
+                    }
                     onChangeLevel(key);
                     setShowLevelPicker(false);
                   }}
                   className={`w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-surface-alt transition-colors ${
                     user?.level === key ? 'bg-accent-bg' : ''
-                  }`}
+                  } ${levelLocked ? 'opacity-60' : ''}`}
                 >
                   <span className="text-sm">{val.icon}</span>
                   <span className="text-xs font-medium text-text">{val.label}</span>
-                  {user?.level === key && (
+                  {levelLocked && (
+                    <span className="ml-auto"><UpgradeInlineBadge label="Pro" onUpgrade={onUpgrade} /></span>
+                  )}
+                  {!levelLocked && user?.level === key && (
                     <svg className="w-3.5 h-3.5 ml-auto text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                     </svg>
                   )}
                 </button>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
