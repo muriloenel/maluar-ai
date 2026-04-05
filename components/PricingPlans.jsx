@@ -80,12 +80,12 @@ export default function PricingPlans({ currentPlan = 'free', getAccessToken, onM
           ]);
         } catch {
           console.warn('[PRICING] getAccessToken timeout, tentando session storage...');
-          // Fallback: buscar token direto do localStorage do Supabase
+          // Fallback: buscar token direto do localStorage (storageKey = 'maluar-auth')
           try {
-            const storageKey = Object.keys(localStorage).find(k => k.includes('supabase') && k.includes('auth'));
-            if (storageKey) {
-              const session = JSON.parse(localStorage.getItem(storageKey));
-              token = session?.access_token || session?.currentSession?.access_token || null;
+            const raw = localStorage.getItem('maluar-auth');
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              token = parsed?.access_token || parsed?.currentSession?.access_token || null;
             }
           } catch {}
         }

@@ -25,9 +25,27 @@ export default function SupabaseAuthProvider({ children }) {
     if (!supabase) return null;
     try {
       const { data: { session }, error } = await supabase.auth.getSession();
-      if (error || !session?.access_token) return null;
+      if (error || !session?.access_token) {
+        // Fallback: ler direto do localStorage (storageKey = 'maluar-auth')
+        try {
+          const raw = localStorage.getItem('maluar-auth');
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            return parsed?.access_token || null;
+          }
+        } catch {}
+        return null;
+      }
       return session.access_token;
     } catch {
+      // Fallback em caso de exceção (lock travado, etc.)
+      try {
+        const raw = localStorage.getItem('maluar-auth');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          return parsed?.access_token || null;
+        }
+      } catch {}
       return null;
     }
   }, [supabase]);
@@ -140,10 +158,20 @@ export default function SupabaseAuthProvider({ children }) {
   }, []);
 
   const signOut = useCallback(async () => {
-    if (supabase) await supabase.auth.signOut();
-    try { localStorage.removeItem('maluar-guest-id'); } catch {}
+    // Limpar state imediatamente (não esperar o Supabase que pode travar no lock)
     setUser(null);
     setProfile(null);
+    try { localStorage.removeItem('maluar-guest-id'); } catch {}
+    try { localStorage.removeItem('maluar-auth'); } catch {}
+    // Tentar signOut no Supabase com timeout (não bloquear se travar)
+    if (supabase) {
+      try {
+        await Promise.race([
+          supabase.auth.signOut(),
+          new Promise((resolve) => setTimeout(resolve, 3000)),
+        ]);
+      } catch {}
+    }
   }, [supabase]);
 
   const updateProfile = useCallback(async (updates) => {
