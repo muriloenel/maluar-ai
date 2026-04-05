@@ -53,7 +53,7 @@ export async function POST(req) {
   try {
     if (!STRIPE_SECRET) {
       console.error('[STRIPE] STRIPE_SECRET_KEY não configurada');
-      return Response.json({ error: 'Stripe não configurado. Verifique STRIPE_SECRET_KEY.' }, { status: 500 });
+      return Response.json({ error: 'Stripe não configurado' }, { status: 500 });
     }
 
     const user = await getAuthUser(req);
@@ -62,18 +62,18 @@ export async function POST(req) {
     }
 
     const { plan } = await req.json();
+    if (!['pro', 'premium'].includes(plan)) {
+      return Response.json({ error: 'Plano inválido' }, { status: 400 });
+    }
     const priceId = PLAN_PRICES[plan];
     if (!priceId) {
-      console.error(`[STRIPE] Price ID vazio para plano "${plan}". STRIPE_PRICE_PRO="${process.env.STRIPE_PRICE_PRO ? 'SET' : 'EMPTY'}", STRIPE_PRICE_PREMIUM="${process.env.STRIPE_PRICE_PREMIUM ? 'SET' : 'EMPTY'}"`);
-      return Response.json({ error: `Plano inválido ou preço não configurado (${plan})` }, { status: 400 });
+      console.error(`[STRIPE] Price ID não configurado para plano "${plan}"`);
+      return Response.json({ error: 'Preço não configurado para este plano' }, { status: 400 });
     }
-
-    console.log(`[STRIPE] Criando checkout: plan=${plan}, priceId=${priceId}, user=${user.id}`);
 
     const appUrl = getAppUrl(req);
     const successUrl = `${appUrl}?checkout=success`;
     const cancelUrl = `${appUrl}?checkout=cancel`;
-    console.log(`[STRIPE] appUrl="${appUrl}", success_url="${successUrl}"`);
 
     // Criar Checkout Session no Stripe
     const session = await stripeRequest('/checkout/sessions', {
@@ -89,11 +89,9 @@ export async function POST(req) {
       'metadata[plan]': plan,
     });
 
-    console.log(`[STRIPE] Response:`, JSON.stringify(session).slice(0, 500));
-
     if (session.error) {
-      console.error('[STRIPE] Checkout error:', JSON.stringify(session.error));
-      return Response.json({ error: `Stripe: ${session.error.message || 'Erro ao criar sessão'}` }, { status: 500 });
+      console.error('[STRIPE] Checkout error:', session.error.code);
+      return Response.json({ error: 'Erro ao criar sessão de pagamento' }, { status: 500 });
     }
 
     return Response.json({ url: session.url });

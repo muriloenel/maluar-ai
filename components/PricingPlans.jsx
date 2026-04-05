@@ -68,8 +68,6 @@ export default function PricingPlans({ currentPlan = 'free', getAccessToken, onM
     setError(null);
 
     try {
-      console.log('[PRICING] Iniciando upgrade para:', planId);
-
       // Timeout de 5s para getAccessToken (evita lock travado do Supabase)
       let token = null;
       if (getAccessToken) {
@@ -79,7 +77,6 @@ export default function PricingPlans({ currentPlan = 'free', getAccessToken, onM
             new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000)),
           ]);
         } catch {
-          console.warn('[PRICING] getAccessToken timeout, tentando session storage...');
           // Fallback: buscar token direto do localStorage (storageKey = 'maluar-auth')
           try {
             const raw = localStorage.getItem('maluar-auth');
@@ -91,13 +88,11 @@ export default function PricingPlans({ currentPlan = 'free', getAccessToken, onM
         }
       }
 
-      console.log('[PRICING] Token obtido:', token ? 'SIM' : 'NÃO');
       if (!token) {
         setError('Sessão expirada. Recarregue a página e tente novamente.');
         return;
       }
 
-      console.log('[PRICING] Chamando /api/stripe/checkout...');
       const res = await fetch('/api/stripe/checkout', {
         method: 'POST',
         headers: {
@@ -107,20 +102,17 @@ export default function PricingPlans({ currentPlan = 'free', getAccessToken, onM
         body: JSON.stringify({ plan: planId }),
       });
 
-      console.log('[PRICING] Resposta:', res.status);
       const data = await res.json();
-      console.log('[PRICING] Data:', JSON.stringify(data));
 
       if (!res.ok) {
-        setError(data.error || `Erro ${res.status} ao iniciar pagamento.`);
+        setError(data.error || `Erro ao iniciar pagamento.`);
         return;
       }
 
       if (data.url) {
-        console.log('[PRICING] Redirecionando para Stripe...');
         window.location.href = data.url;
       } else {
-        setError('Stripe não retornou URL de checkout.');
+        setError('Não foi possível iniciar o pagamento.');
       }
     } catch (err) {
       console.error('[PRICING] Erro:', err);

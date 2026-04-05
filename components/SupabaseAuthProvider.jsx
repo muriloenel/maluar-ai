@@ -59,8 +59,6 @@ export default function SupabaseAuthProvider({ children }) {
         .eq('id', authUser.id)
         .single();
 
-      console.log('[fetchProfile] plan:', data?.plan, 'error:', error?.message || 'none');
-
       if (data) {
         setProfile(data);
         return data;
@@ -186,7 +184,6 @@ export default function SupabaseAuthProvider({ children }) {
         .select('*')
         .eq('id', user.id)
         .single();
-      console.log('[refreshProfile] data:', data?.plan, 'error:', error?.message || 'none');
       if (data) {
         setProfile(data);
         return data;

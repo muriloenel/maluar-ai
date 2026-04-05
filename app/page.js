@@ -54,19 +54,13 @@ export default function Home() {
     setPendingPrompt(null);
   }, []);
 
-  // Após checkout Stripe: polling via fetch direto + fallback reload
-  // Roda UMA VEZ, sem deps que mudam, sem useRef, sem cancelamento
+  // Após checkout Stripe: polling via API server-side + fallback reload
   useEffect(() => {
     if (!isCheckoutSuccess) return;
 
-    // Limpar URL imediatamente
     window.history.replaceState({}, '', '/');
     setCheckoutLoading(true);
 
-    console.log('[CHECKOUT] Detectado checkout=success. Aguardando ativação do plano...');
-
-    // Estratégia: tentar buscar o plano via API a cada 3s.
-    // Se funcionar, atualiza o state direto. Se falhar, recarrega a página.
     let didUpdate = false;
 
     const tryFetchPlan = async () => {
@@ -75,16 +69,12 @@ export default function Home() {
         await new Promise(r => setTimeout(r, 4000));
 
         for (let i = 1; i <= 15; i++) {
-          console.log(`[CHECKOUT] Tentativa ${i}/15...`);
           try {
-            const res = await fetch('/api/account/plan', {
-              headers: {}, // Sem auth por enquanto no primeiro teste
-            });
+            // Tentar sem auth primeiro
+            const res = await fetch('/api/account/plan');
 
-            // Se 401, precisamos do token — tentar pegá-lo
             if (res.status === 401) {
-              console.log('[CHECKOUT] API requer auth. Tentando com token...');
-              // Ler token direto do localStorage (mais confiável que getSession após redirect)
+              // Ler token direto do localStorage
               let token = null;
               try {
                 const raw = localStorage.getItem('maluar-auth');
@@ -95,7 +85,6 @@ export default function Home() {
               } catch {}
 
               if (!token) {
-                console.warn('[CHECKOUT] Token não encontrado no localStorage');
                 await new Promise(r => setTimeout(r, 3000));
                 continue;
               }
@@ -104,37 +93,29 @@ export default function Home() {
                 headers: { 'Authorization': `Bearer ${token}` },
               });
               const data = await authRes.json();
-              console.log(`[CHECKOUT] Resposta com auth: plan=${data.plan}`);
 
               if (data.plan && data.plan !== 'free') {
-                console.log(`[CHECKOUT] Plano ${data.plan} confirmado! Recarregando página...`);
-                // Salvar plano confirmado no sessionStorage como safety net
+                didUpdate = true;
                 try { sessionStorage.setItem('maluar-confirmed-plan', data.plan); } catch {}
-                // Recarregar página — fetchProfile vai ler o plano correto do banco
                 window.location.href = '/';
                 return;
               }
             } else {
               const data = await res.json();
               if (data.plan && data.plan !== 'free') {
-                console.log(`[CHECKOUT] Plano ${data.plan} confirmado! Recarregando página...`);
+                didUpdate = true;
                 try { sessionStorage.setItem('maluar-confirmed-plan', data.plan); } catch {}
                 window.location.href = '/';
                 return;
               }
             }
-          } catch (err) {
-            console.error(`[CHECKOUT] Erro fetch:`, err.message);
-          }
+          } catch {}
           await new Promise(r => setTimeout(r, 3000));
         }
-      } catch (err) {
-        console.error('[CHECKOUT] Erro geral:', err.message);
-      }
+      } catch {}
 
-      // Se não conseguiu atualizar via polling, recarregar a página como fallback
+      // Fallback: recarregar a página
       if (!didUpdate) {
-        console.log('[CHECKOUT] Fallback: recarregando página...');
         setCheckoutLoading(false);
         window.location.href = '/';
       }

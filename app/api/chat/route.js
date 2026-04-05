@@ -17,7 +17,7 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 // Limites por plano
 const DAILY_LIMITS = { free: 50, pro: 150, premium: 9999 };
-const UNLIMITED_EMAILS = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+const UNLIMITED_EMAILS = (process.env.ADMIN_EMAILS || process.env.NEXT_PUBLIC_ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
 
 // Verificação server-side de quota (bloqueante)
 async function checkQuotaServer(userId, userEmail) {
@@ -237,9 +237,9 @@ export async function POST(req) {
     return Response.json(
       {
         error: isCredits
-          ? 'Sem créditos na conta Anthropic. Acesse console.anthropic.com pra adicionar.'
+          ? 'Serviço temporariamente indisponível. Tente novamente mais tarde.'
           : isAuth
-          ? 'API key inválida. Verifique o .env.local.'
+          ? 'Erro de configuração do servidor. Contate o suporte.'
           : 'Erro ao processar mensagem',
       },
       { status: error?.status || 500 }

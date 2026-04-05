@@ -52,10 +52,8 @@ async function stripeGet(endpoint) {
 
 export async function POST(req) {
   try {
-    console.log('[WEBHOOK] Recebido evento');
-
     if (!STRIPE_SECRET || !supabaseServiceKey) {
-      console.error('[WEBHOOK] Configuração incompleta:', { hasSecret: !!STRIPE_SECRET, hasServiceKey: !!supabaseServiceKey });
+      console.error('[WEBHOOK] Configuração incompleta');
       return Response.json({ error: 'Configuração incompleta' }, { status: 500 });
     }
 
@@ -65,7 +63,6 @@ export async function POST(req) {
       return Response.json({ error: 'Assinatura inválida' }, { status: 400 });
     }
 
-    console.log(`[WEBHOOK] Evento: ${event.type}`);
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     switch (event.type) {
@@ -73,76 +70,60 @@ export async function POST(req) {
         const session = event.data.object;
         const userId = session.metadata?.user_id || session.client_reference_id;
         const plan = session.metadata?.plan;
-        console.log(`[WEBHOOK] checkout.session.completed: userId=${userId}, plan=${plan}, customer=${session.customer}, subscription=${session.subscription}`);
-        console.log(`[WEBHOOK] session.metadata:`, JSON.stringify(session.metadata));
-        if (userId && plan) {
-          // Primeiro, verificar se o profile existe
-          const { data: existingProfile, error: selectError } = await supabase
-            .from('profiles')
-            .select('id, plan')
-            .eq('id', userId)
-            .single();
-          console.log(`[WEBHOOK] Profile existente:`, existingProfile, 'selectError:', selectError?.message || 'none');
 
-          if (!existingProfile) {
-            console.error(`[WEBHOOK] Profile NÃO encontrado para userId=${userId}`);
-            break;
-          }
+        if (!userId || !plan) {
+          console.warn(`[WEBHOOK] userId ou plan faltando`);
+          break;
+        }
 
-          // Update com .select() para confirmar que retornou dados
-          const { data: updated, error: updateError } = await supabase
-            .from('profiles')
-            .update({
-              plan,
-              stripe_customer_id: session.customer,
-              stripe_subscription_id: session.subscription,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', userId)
-            .select('id, plan, stripe_customer_id')
-            .single();
+        // Verificar se o profile existe
+        const { data: existingProfile } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('id', userId)
+          .single();
 
-          if (updateError) {
-            console.error(`[WEBHOOK] Erro ao atualizar profile:`, updateError);
-          } else if (!updated) {
-            console.error(`[WEBHOOK] Update retornou null — nenhuma row afetada para userId=${userId}`);
-          } else {
-            console.log(`[WEBHOOK] Plano atualizado com sucesso:`, JSON.stringify(updated));
-          }
+        if (!existingProfile) {
+          console.error(`[WEBHOOK] Profile não encontrado para userId=${userId}`);
+          break;
+        }
 
-          // Verificação final: ler o profile de novo pra confirmar
-          const { data: verification } = await supabase
-            .from('profiles')
-            .select('id, plan, stripe_customer_id')
-            .eq('id', userId)
-            .single();
-          console.log(`[WEBHOOK] Verificação final:`, JSON.stringify(verification));
-        } else {
-          console.warn(`[WEBHOOK] userId ou plan faltando: userId=${userId}, plan=${plan}`);
+        // Atualizar plano
+        const { data: updated, error: updateError } = await supabase
+          .from('profiles')
+          .update({
+            plan,
+            stripe_customer_id: session.customer,
+            stripe_subscription_id: session.subscription,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', userId)
+          .select('id, plan')
+          .single();
+
+        if (updateError) {
+          console.error(`[WEBHOOK] Erro ao atualizar profile:`, updateError.message);
+        } else if (!updated) {
+          console.error(`[WEBHOOK] Update retornou null para userId=${userId}`);
         }
         break;
       }
 
       case 'customer.subscription.updated': {
         const sub = event.data.object;
-        const customerId = sub.customer;
-        // Buscar usuário pelo customer_id
         const { data: profile } = await supabase
           .from('profiles')
           .select('id')
-          .eq('stripe_customer_id', customerId)
+          .eq('stripe_customer_id', sub.customer)
           .single();
 
         if (profile) {
           const status = sub.status;
-          if (status === 'active') {
-            // Manter plano ativo
-          } else if (status === 'canceled' || status === 'unpaid' || status === 'past_due') {
+          if (status === 'canceled' || status === 'unpaid' || status === 'past_due') {
             await supabase
               .from('profiles')
               .update({ plan: 'free', updated_at: new Date().toISOString() })
               .eq('id', profile.id);
-            console.log(`[STRIPE] Plano revertido para free: ${profile.id}`);
           }
         }
         break;
@@ -161,7 +142,6 @@ export async function POST(req) {
             .from('profiles')
             .update({ plan: 'free', stripe_subscription_id: null, updated_at: new Date().toISOString() })
             .eq('id', profile.id);
-          console.log(`[STRIPE] Assinatura cancelada: ${profile.id}`);
         }
         break;
       }
@@ -169,7 +149,7 @@ export async function POST(req) {
 
     return Response.json({ received: true });
   } catch (err) {
-    console.error('[STRIPE WEBHOOK] Error:', err.message);
+    console.error('[WEBHOOK] Error:', err.message);
     return Response.json({ error: 'Erro interno' }, { status: 500 });
   }
 }
