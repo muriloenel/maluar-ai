@@ -70,10 +70,30 @@ export default function PricingPlans({ currentPlan = 'free', getAccessToken, onM
     try {
       console.log('[PRICING] Iniciando upgrade para:', planId);
 
-      const token = getAccessToken ? await getAccessToken() : null;
+      // Timeout de 5s para getAccessToken (evita lock travado do Supabase)
+      let token = null;
+      if (getAccessToken) {
+        try {
+          token = await Promise.race([
+            getAccessToken(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000)),
+          ]);
+        } catch {
+          console.warn('[PRICING] getAccessToken timeout, tentando session storage...');
+          // Fallback: buscar token direto do localStorage do Supabase
+          try {
+            const storageKey = Object.keys(localStorage).find(k => k.includes('supabase') && k.includes('auth'));
+            if (storageKey) {
+              const session = JSON.parse(localStorage.getItem(storageKey));
+              token = session?.access_token || session?.currentSession?.access_token || null;
+            }
+          } catch {}
+        }
+      }
+
       console.log('[PRICING] Token obtido:', token ? 'SIM' : 'NÃO');
       if (!token) {
-        setError('Faça login para assinar um plano.');
+        setError('Sessão expirada. Recarregue a página e tente novamente.');
         return;
       }
 
