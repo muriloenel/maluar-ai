@@ -53,16 +53,16 @@ export default function Home() {
     return false;
   })[0];
 
-  // Após checkout Stripe: poll o perfil até o webhook atualizar o plano
+  // Após checkout Stripe: poll a API /api/account/plan (bypassa RLS) até atualizar
   useEffect(() => {
-    if (!checkoutSuccessRef || !user || !refreshProfile) return;
+    if (!checkoutSuccessRef || !user || !getAccessToken) return;
     if (user.id?.startsWith('guest-')) return;
 
-    console.log('[CHECKOUT] Detectado checkout=success, iniciando polling do perfil...');
+    console.log('[CHECKOUT] Detectado checkout=success, iniciando polling do plano...');
 
     let cancelled = false;
     let attempts = 0;
-    const maxAttempts = 15; // 15 tentativas
+    const maxAttempts = 20;
 
     const poll = async () => {
       // Espera inicial de 2s pro webhook processar
@@ -70,26 +70,38 @@ export default function Home() {
 
       while (!cancelled && attempts < maxAttempts) {
         attempts++;
-        console.log(`[CHECKOUT] Polling tentativa ${attempts}/${maxAttempts}...`);
-        const updated = await refreshProfile();
-        console.log(`[CHECKOUT] Profile retornado:`, updated?.plan);
-        if (updated && updated.plan && updated.plan !== 'free') {
-          console.log(`[CHECKOUT] Plano atualizado para ${updated.plan}!`);
-          return;
+        try {
+          const token = await getAccessToken();
+          if (!token) {
+            console.warn(`[CHECKOUT] Sem token, tentativa ${attempts}/${maxAttempts}`);
+            await new Promise(r => setTimeout(r, 3000));
+            continue;
+          }
+          const res = await fetch('/api/account/plan', {
+            headers: { 'Authorization': `Bearer ${token}` },
+          });
+          const data = await res.json();
+          console.log(`[CHECKOUT] Tentativa ${attempts}/${maxAttempts}: plan=${data.plan}`);
+          if (data.plan && data.plan !== 'free') {
+            console.log(`[CHECKOUT] Plano confirmado: ${data.plan}! Atualizando perfil...`);
+            // Atualizar o profile local com o plano correto
+            if (refreshProfile) await refreshProfile();
+            return;
+          }
+        } catch (err) {
+          console.error(`[CHECKOUT] Erro no polling:`, err.message);
         }
-        // Esperar 3s entre tentativas
         await new Promise(r => setTimeout(r, 3000));
       }
       if (!cancelled) {
-        console.warn('[CHECKOUT] Polling expirou sem detectar mudança de plano');
-        // Última tentativa forçada
-        await refreshProfile();
+        console.warn('[CHECKOUT] Polling expirou. Forçando refresh...');
+        if (refreshProfile) await refreshProfile();
       }
     };
 
     poll();
     return () => { cancelled = true; };
-  }, [checkoutSuccessRef, user, refreshProfile]);
+  }, [checkoutSuccessRef, user, getAccessToken, refreshProfile]);
 
   // useMemo DEVE ficar antes de qualquer return condicional (regra dos hooks)
   const effectiveProfile = profile || {
