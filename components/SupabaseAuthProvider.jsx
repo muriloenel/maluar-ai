@@ -53,11 +53,13 @@ export default function SupabaseAuthProvider({ children }) {
   const fetchProfile = useCallback(async (authUser) => {
     if (!supabase) return null;
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', authUser.id)
         .single();
+
+      console.log('[fetchProfile] plan:', data?.plan, 'error:', error?.message || 'none');
 
       if (data) {
         setProfile(data);

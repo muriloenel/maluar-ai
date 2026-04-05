@@ -24,7 +24,7 @@ const BusinessHub = dynamic(() => import('../components/BusinessHub'), { ssr: fa
 const PricingPlans = dynamic(() => import('../components/PricingPlans'), { ssr: false });
 
 export default function Home() {
-  const { user, profile, signOut, updateProfile, patchProfile, refreshProfile, getAccessToken } = useAuth();
+  const { user, profile, signOut, updateProfile, refreshProfile, getAccessToken } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [pendingPrompt, setPendingPrompt] = useState(null);
   const [activeTab, setActiveTab] = useState('chat');
@@ -99,24 +99,19 @@ export default function Home() {
               console.log(`[CHECKOUT] Resposta com auth: plan=${data.plan}`);
 
               if (data.plan && data.plan !== 'free') {
-                console.log(`[CHECKOUT] Plano ${data.plan} confirmado! Atualizando UI...`);
-                didUpdate = true;
-                setCheckoutLoading(false);
-                // patchProfile atualiza o state LOCAL sem precisar de Supabase client/RLS
-                if (typeof patchProfile === 'function') {
-                  patchProfile({ plan: data.plan });
-                }
+                console.log(`[CHECKOUT] Plano ${data.plan} confirmado! Recarregando página...`);
+                // Salvar plano confirmado no sessionStorage como safety net
+                try { sessionStorage.setItem('maluar-confirmed-plan', data.plan); } catch {}
+                // Recarregar página — fetchProfile vai ler o plano correto do banco
+                window.location.href = '/';
                 return;
               }
             } else {
-              // Não deveria chegar aqui (API requer auth), mas por segurança
               const data = await res.json();
               if (data.plan && data.plan !== 'free') {
-                didUpdate = true;
-                setCheckoutLoading(false);
-                if (typeof patchProfile === 'function') {
-                  patchProfile({ plan: data.plan });
-                }
+                console.log(`[CHECKOUT] Plano ${data.plan} confirmado! Recarregando página...`);
+                try { sessionStorage.setItem('maluar-confirmed-plan', data.plan); } catch {}
+                window.location.href = '/';
                 return;
               }
             }
@@ -141,11 +136,25 @@ export default function Home() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // useMemo DEVE ficar antes de qualquer return condicional (regra dos hooks)
-  const effectiveProfile = profile || {
-    name: user?.user_metadata?.name || user?.email?.split('@')[0] || 'Nail Designer',
-    level: user?.user_metadata?.level || 'iniciante',
-    plan: 'free',
-  };
+  // Safety net: se sessionStorage tiver plano confirmado pelo checkout, usar como override
+  const confirmedPlan = typeof window !== 'undefined' ? (() => {
+    try { return sessionStorage.getItem('maluar-confirmed-plan'); } catch { return null; }
+  })() : null;
+
+  const effectiveProfile = profile
+    ? { ...profile, plan: confirmedPlan || profile.plan || 'free' }
+    : {
+        name: user?.user_metadata?.name || user?.email?.split('@')[0] || 'Nail Designer',
+        level: user?.user_metadata?.level || 'iniciante',
+        plan: confirmedPlan || 'free',
+      };
+
+  // Limpar sessionStorage quando profile tiver plano != free (banco já retornou correto)
+  useEffect(() => {
+    if (profile?.plan && profile.plan !== 'free' && confirmedPlan) {
+      try { sessionStorage.removeItem('maluar-confirmed-plan'); } catch {}
+    }
+  }, [profile?.plan, confirmedPlan]);
   const userForComponents = useMemo(() => ({
     name: effectiveProfile.name,
     level: effectiveProfile.level,
