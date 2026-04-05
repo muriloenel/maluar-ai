@@ -42,40 +42,54 @@ export default function Home() {
     setPendingPrompt(null);
   }, []);
 
+  // Detectar checkout=success ANTES de qualquer render (salvar em ref)
+  const checkoutSuccessRef = useState(() => {
+    if (typeof window === 'undefined') return false;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('checkout') === 'success') {
+      window.history.replaceState({}, '', '/');
+      return true;
+    }
+    return false;
+  })[0];
+
   // Após checkout Stripe: poll o perfil até o webhook atualizar o plano
   useEffect(() => {
-    if (!user || !refreshProfile) return;
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('checkout') !== 'success') return;
+    if (!checkoutSuccessRef || !user || !refreshProfile) return;
+    if (user.id?.startsWith('guest-')) return;
 
-    // Limpar query string da URL (sem recarregar)
-    window.history.replaceState({}, '', '/');
+    console.log('[CHECKOUT] Detectado checkout=success, iniciando polling do perfil...');
 
     let cancelled = false;
     let attempts = 0;
-    const maxAttempts = 12; // 12 tentativas x 5s = 60s
+    const maxAttempts = 15; // 15 tentativas
 
     const poll = async () => {
+      // Espera inicial de 2s pro webhook processar
+      await new Promise(r => setTimeout(r, 2000));
+
       while (!cancelled && attempts < maxAttempts) {
         attempts++;
+        console.log(`[CHECKOUT] Polling tentativa ${attempts}/${maxAttempts}...`);
         const updated = await refreshProfile();
+        console.log(`[CHECKOUT] Profile retornado:`, updated?.plan);
         if (updated && updated.plan && updated.plan !== 'free') {
-          console.log(`[CHECKOUT] Plano atualizado para ${updated.plan}`);
+          console.log(`[CHECKOUT] Plano atualizado para ${updated.plan}!`);
           return;
         }
-        // Esperar 5s antes da próxima tentativa
-        await new Promise(r => setTimeout(r, 5000));
+        // Esperar 3s entre tentativas
+        await new Promise(r => setTimeout(r, 3000));
       }
       if (!cancelled) {
-        // Última tentativa
+        console.warn('[CHECKOUT] Polling expirou sem detectar mudança de plano');
+        // Última tentativa forçada
         await refreshProfile();
       }
     };
 
-    // Começa com delay de 3s (dar tempo pro webhook processar)
-    const timer = setTimeout(poll, 3000);
-    return () => { cancelled = true; clearTimeout(timer); };
-  }, [user, refreshProfile]);
+    poll();
+    return () => { cancelled = true; };
+  }, [checkoutSuccessRef, user, refreshProfile]);
 
   // useMemo DEVE ficar antes de qualquer return condicional (regra dos hooks)
   const effectiveProfile = profile || {

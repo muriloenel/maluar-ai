@@ -178,11 +178,12 @@ export default function SupabaseAuthProvider({ children }) {
   const refreshProfile = useCallback(async () => {
     if (!user || !supabase || user.id?.startsWith('guest-')) return null;
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', user.id)
         .single();
+      console.log('[refreshProfile] data:', data?.plan, 'error:', error?.message || 'none');
       if (data) {
         setProfile(data);
         return data;
