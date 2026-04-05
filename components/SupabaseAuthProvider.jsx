@@ -174,6 +174,25 @@ export default function SupabaseAuthProvider({ children }) {
     }
   }, [supabase]);
 
+  // Re-fetch profile do Supabase (usado após checkout Stripe, etc.)
+  const refreshProfile = useCallback(async () => {
+    if (!user || !supabase || user.id?.startsWith('guest-')) return null;
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+      if (data) {
+        setProfile(data);
+        return data;
+      }
+    } catch (err) {
+      console.error('refreshProfile error:', err);
+    }
+    return null;
+  }, [user, supabase]);
+
   const updateProfile = useCallback(async (updates) => {
     if (!user) return;
     // Guest mode — update local state only
@@ -193,7 +212,7 @@ export default function SupabaseAuthProvider({ children }) {
   }, [user, supabase]);
 
   return (
-    <AuthContext.Provider value={{ user, profile, signOut, updateProfile, supabase, getAccessToken, enterGuestMode }}>
+    <AuthContext.Provider value={{ user, profile, signOut, updateProfile, refreshProfile, supabase, getAccessToken, enterGuestMode }}>
       {children}
     </AuthContext.Provider>
   );

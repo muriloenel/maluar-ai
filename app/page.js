@@ -24,7 +24,7 @@ const BusinessHub = dynamic(() => import('../components/BusinessHub'), { ssr: fa
 const PricingPlans = dynamic(() => import('../components/PricingPlans'), { ssr: false });
 
 export default function Home() {
-  const { user, profile, signOut, updateProfile, getAccessToken } = useAuth();
+  const { user, profile, signOut, updateProfile, refreshProfile, getAccessToken } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [pendingPrompt, setPendingPrompt] = useState(null);
   const [activeTab, setActiveTab] = useState('chat');
@@ -41,6 +41,41 @@ export default function Home() {
   const clearPendingPrompt = useCallback(() => {
     setPendingPrompt(null);
   }, []);
+
+  // Após checkout Stripe: poll o perfil até o webhook atualizar o plano
+  useEffect(() => {
+    if (!user || !refreshProfile) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('checkout') !== 'success') return;
+
+    // Limpar query string da URL (sem recarregar)
+    window.history.replaceState({}, '', '/');
+
+    let cancelled = false;
+    let attempts = 0;
+    const maxAttempts = 12; // 12 tentativas x 5s = 60s
+
+    const poll = async () => {
+      while (!cancelled && attempts < maxAttempts) {
+        attempts++;
+        const updated = await refreshProfile();
+        if (updated && updated.plan && updated.plan !== 'free') {
+          console.log(`[CHECKOUT] Plano atualizado para ${updated.plan}`);
+          return;
+        }
+        // Esperar 5s antes da próxima tentativa
+        await new Promise(r => setTimeout(r, 5000));
+      }
+      if (!cancelled) {
+        // Última tentativa
+        await refreshProfile();
+      }
+    };
+
+    // Começa com delay de 3s (dar tempo pro webhook processar)
+    const timer = setTimeout(poll, 3000);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [user, refreshProfile]);
 
   // useMemo DEVE ficar antes de qualquer return condicional (regra dos hooks)
   const effectiveProfile = profile || {
