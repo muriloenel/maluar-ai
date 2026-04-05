@@ -26,7 +26,15 @@ async function checkQuotaServer(userId, userEmail) {
 
   try {
     const sb = createClient(supabaseUrl, supabaseServiceKey);
-    const { data: profile } = await sb.from('profiles').select('plan, status, messages_today, messages_reset_at').eq('id', userId).single();
+    // Tenta com status; se coluna não existir, tenta sem
+    let profile = null;
+    const { data, error } = await sb.from('profiles').select('plan, status, messages_today, messages_reset_at').eq('id', userId).single();
+    if (error && error.message?.includes('status')) {
+      const { data: data2 } = await sb.from('profiles').select('plan, messages_today, messages_reset_at').eq('id', userId).single();
+      profile = data2 ? { ...data2, status: 'active' } : null;
+    } else {
+      profile = data;
+    }
     if (!profile) return { allowed: true };
 
     // Usuário desativado
@@ -227,7 +235,7 @@ export async function POST(req) {
         : '';
     const isComplex = imageRequest || lastText.length > 500 || /plano de ação|diagnóstico|análise|estratégia|financeiro|business/i.test(lastText);
     const model = isComplex ? 'claude-sonnet-4-20250514' : 'claude-haiku-4-20250514';
-    console.log(`[CHAT] Modelo: ${model}, Complexo: ${isComplex}, Stream: ${!!stream}`);
+    console.log(`[CHAT] Modelo: ${model}, Complexo: ${isComplex}, Stream: ${!!stream}, User: ${authUser?.email || 'anon'}, Plan: ${userPlan}`);
 
     // Streaming mode
     if (stream) {
@@ -242,8 +250,26 @@ export async function POST(req) {
           stream: true,
         });
       } catch (createErr) {
-        console.error('[CHAT] Erro ao criar stream:', createErr?.status, createErr?.message || createErr);
-        return Response.json({ error: 'Erro ao conectar com a IA. Tente novamente.' }, { status: 502 });
+        console.error('[CHAT] Erro ao criar stream:', createErr?.status, createErr?.error?.type, createErr?.message || JSON.stringify(createErr));
+        // Se modelo não existe, tentar fallback
+        if (createErr?.status === 404 || createErr?.error?.type === 'not_found_error') {
+          console.log('[CHAT] Modelo não encontrado, tentando fallback claude-3-5-haiku-20241022');
+          try {
+            response = await client.messages.create({
+              model: 'claude-3-5-haiku-20241022',
+              max_tokens: imageRequest ? 3000 : 1200,
+              temperature: imageRequest ? 0.1 : 0.5,
+              system: safeSystem,
+              messages,
+              stream: true,
+            });
+          } catch (fallbackErr) {
+            console.error('[CHAT] Fallback também falhou:', fallbackErr?.status, fallbackErr?.message);
+            return Response.json({ error: 'Erro ao conectar com a IA. Tente novamente.' }, { status: 502 });
+          }
+        } else {
+          return Response.json({ error: 'Erro ao conectar com a IA. Tente novamente.' }, { status: 502 });
+        }
       }
 
       const encoder = new TextEncoder();
