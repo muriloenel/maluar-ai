@@ -195,6 +195,11 @@ export default function SupabaseAuthProvider({ children }) {
     return null;
   }, [user, supabase]);
 
+  // Atualiza profile LOCAL (sem tocar no banco) — usado após confirmar plano via API
+  const patchProfile = useCallback((updates) => {
+    setProfile(prev => prev ? { ...prev, ...updates } : null);
+  }, []);
+
   const updateProfile = useCallback(async (updates) => {
     if (!user) return;
     // Guest mode — update local state only
@@ -214,7 +219,7 @@ export default function SupabaseAuthProvider({ children }) {
   }, [user, supabase]);
 
   return (
-    <AuthContext.Provider value={{ user, profile, signOut, updateProfile, refreshProfile, supabase, getAccessToken, enterGuestMode }}>
+    <AuthContext.Provider value={{ user, profile, signOut, updateProfile, patchProfile, refreshProfile, supabase, getAccessToken, enterGuestMode }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { useAuth } from '../components/SupabaseAuthProvider';
 import AuthScreen from '../components/AuthScreen';
@@ -24,7 +24,7 @@ const BusinessHub = dynamic(() => import('../components/BusinessHub'), { ssr: fa
 const PricingPlans = dynamic(() => import('../components/PricingPlans'), { ssr: false });
 
 export default function Home() {
-  const { user, profile, signOut, updateProfile, refreshProfile, getAccessToken } = useAuth();
+  const { user, profile, signOut, updateProfile, patchProfile, refreshProfile, getAccessToken } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [pendingPrompt, setPendingPrompt] = useState(null);
   const [activeTab, setActiveTab] = useState('chat');
@@ -36,88 +36,109 @@ export default function Home() {
   const [favorites, setFavorites] = useState([]);
   const [dataLoaded, setDataLoaded] = useState(false);
   const [loadedUserId, setLoadedUserId] = useState(null);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
 
   // Callback para o ChatWindow avisar que consumiu o prompt
   const clearPendingPrompt = useCallback(() => {
     setPendingPrompt(null);
   }, []);
 
-  // Detectar checkout=success ANTES de qualquer render (salvar em ref)
-  const checkoutSuccessRef = useState(() => {
-    if (typeof window === 'undefined') return false;
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('checkout') === 'success') {
-      window.history.replaceState({}, '', '/');
-      return true;
-    }
-    return false;
-  })[0];
+  // Detectar checkout=success na URL
+  const isCheckoutSuccess = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('checkout') === 'success';
 
-  // Refs estáveis para evitar que mudanças de referência cancelem o polling
-  // (Supabase emite TOKEN_REFRESHED que muda user/callbacks e causa cleanup do useEffect)
-  const getAccessTokenRef = useRef(getAccessToken);
-  const refreshProfileRef = useRef(refreshProfile);
-  const userRef = useRef(user);
-  useEffect(() => { getAccessTokenRef.current = getAccessToken; }, [getAccessToken]);
-  useEffect(() => { refreshProfileRef.current = refreshProfile; }, [refreshProfile]);
-  useEffect(() => { userRef.current = user; }, [user]);
-
-  // Após checkout Stripe: poll via API server-side (bypass RLS)
-  // useEffect depende SOMENTE de checkoutSuccessRef — refs garantem estabilidade
+  // Após checkout Stripe: polling via fetch direto + fallback reload
+  // Roda UMA VEZ, sem deps que mudam, sem useRef, sem cancelamento
   useEffect(() => {
-    if (!checkoutSuccessRef) return;
+    if (!isCheckoutSuccess) return;
 
-    let cancelled = false;
+    // Limpar URL imediatamente
+    window.history.replaceState({}, '', '/');
+    setCheckoutLoading(true);
 
-    const poll = async () => {
-      // 1. Esperar o user ficar disponível (auth provider pode demorar)
-      console.log('[CHECKOUT] Detectado checkout=success. Aguardando autenticação...');
-      for (let wait = 0; wait < 30 && !cancelled; wait++) {
-        if (userRef.current && !userRef.current.id?.startsWith('guest-')) break;
-        await new Promise(r => setTimeout(r, 500));
-      }
-      if (cancelled || !userRef.current) return;
-      console.log('[CHECKOUT] Usuário autenticado. Iniciando polling do plano...');
+    console.log('[CHECKOUT] Detectado checkout=success. Aguardando ativação do plano...');
 
-      // 2. Espera inicial de 3s pro webhook do Stripe processar
-      await new Promise(r => setTimeout(r, 3000));
+    // Estratégia: tentar buscar o plano via API a cada 3s.
+    // Se funcionar, atualiza o state direto. Se falhar, recarrega a página.
+    let didUpdate = false;
 
-      // 3. Polling: consultar API server-side a cada 3s
-      for (let attempt = 1; attempt <= 20 && !cancelled; attempt++) {
-        try {
-          const token = await getAccessTokenRef.current();
-          if (!token) {
-            console.warn(`[CHECKOUT] Sem token, tentativa ${attempt}/20`);
-            await new Promise(r => setTimeout(r, 3000));
-            continue;
+    const tryFetchPlan = async () => {
+      try {
+        // Esperar 4s pro webhook processar
+        await new Promise(r => setTimeout(r, 4000));
+
+        for (let i = 1; i <= 15; i++) {
+          console.log(`[CHECKOUT] Tentativa ${i}/15...`);
+          try {
+            const res = await fetch('/api/account/plan', {
+              headers: {}, // Sem auth por enquanto no primeiro teste
+            });
+
+            // Se 401, precisamos do token — tentar pegá-lo
+            if (res.status === 401) {
+              console.log('[CHECKOUT] API requer auth. Tentando com token...');
+              // Ler token direto do localStorage (mais confiável que getSession após redirect)
+              let token = null;
+              try {
+                const raw = localStorage.getItem('maluar-auth');
+                if (raw) {
+                  const parsed = JSON.parse(raw);
+                  token = parsed?.access_token || null;
+                }
+              } catch {}
+
+              if (!token) {
+                console.warn('[CHECKOUT] Token não encontrado no localStorage');
+                await new Promise(r => setTimeout(r, 3000));
+                continue;
+              }
+
+              const authRes = await fetch('/api/account/plan', {
+                headers: { 'Authorization': `Bearer ${token}` },
+              });
+              const data = await authRes.json();
+              console.log(`[CHECKOUT] Resposta com auth: plan=${data.plan}`);
+
+              if (data.plan && data.plan !== 'free') {
+                console.log(`[CHECKOUT] Plano ${data.plan} confirmado! Atualizando UI...`);
+                didUpdate = true;
+                setCheckoutLoading(false);
+                // patchProfile atualiza o state LOCAL sem precisar de Supabase client/RLS
+                if (typeof patchProfile === 'function') {
+                  patchProfile({ plan: data.plan });
+                }
+                return;
+              }
+            } else {
+              // Não deveria chegar aqui (API requer auth), mas por segurança
+              const data = await res.json();
+              if (data.plan && data.plan !== 'free') {
+                didUpdate = true;
+                setCheckoutLoading(false);
+                if (typeof patchProfile === 'function') {
+                  patchProfile({ plan: data.plan });
+                }
+                return;
+              }
+            }
+          } catch (err) {
+            console.error(`[CHECKOUT] Erro fetch:`, err.message);
           }
-          const res = await fetch('/api/account/plan', {
-            headers: { 'Authorization': `Bearer ${token}` },
-          });
-          const data = await res.json();
-          console.log(`[CHECKOUT] Tentativa ${attempt}/20: plan=${data.plan}`);
-
-          if (data.plan && data.plan !== 'free') {
-            console.log(`[CHECKOUT] Plano confirmado: ${data.plan}! Atualizando perfil...`);
-            if (refreshProfileRef.current) await refreshProfileRef.current();
-            return;
-          }
-        } catch (err) {
-          console.error(`[CHECKOUT] Erro tentativa ${attempt}:`, err.message);
+          await new Promise(r => setTimeout(r, 3000));
         }
-        await new Promise(r => setTimeout(r, 3000));
+      } catch (err) {
+        console.error('[CHECKOUT] Erro geral:', err.message);
       }
 
-      // 4. Timeout: tentar refresh direto como fallback
-      if (!cancelled) {
-        console.warn('[CHECKOUT] Polling expirou (60s). Forçando refresh final...');
-        if (refreshProfileRef.current) await refreshProfileRef.current();
+      // Se não conseguiu atualizar via polling, recarregar a página como fallback
+      if (!didUpdate) {
+        console.log('[CHECKOUT] Fallback: recarregando página...');
+        setCheckoutLoading(false);
+        window.location.href = '/';
       }
     };
 
-    poll();
-    return () => { cancelled = true; };
-  }, [checkoutSuccessRef]);
+    tryFetchPlan();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // useMemo DEVE ficar antes de qualquer return condicional (regra dos hooks)
   const effectiveProfile = profile || {
