@@ -288,3 +288,29 @@ h1, h2, h3 {
   color: #7F77DD;
   text-decoration: underline;
 }
+
+/* Spinner */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--color-border);
+  border-top-color: #7F77DD;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+.spinner-sm {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--color-border);
+  border-top-color: #7F77DD;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+/* Tab content transition */
+.tab-content {
+  animation: fadeInUp 0.2s ease-out;
+}

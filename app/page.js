@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
 import dynamic from 'next/dynamic';
 import { useAuth } from '../components/SupabaseAuthProvider';
 import AuthScreen from '../components/AuthScreen';
@@ -17,11 +17,20 @@ import {
 } from '../lib/db';
 
 // Lazy load componentes que não são necessários no primeiro render
-const PostGenerator = dynamic(() => import('../components/PostGenerator'), { ssr: false });
-const FavoritesGallery = dynamic(() => import('../components/FavoritesGallery'), { ssr: false });
-const PricingCalculator = dynamic(() => import('../components/PricingCalculator'), { ssr: false });
-const BusinessHub = dynamic(() => import('../components/BusinessHub'), { ssr: false });
-const PricingPlans = dynamic(() => import('../components/PricingPlans'), { ssr: false });
+const PostGenerator = dynamic(() => import('../components/PostGenerator'), { ssr: false, loading: () => <TabSpinner /> });
+const FavoritesGallery = dynamic(() => import('../components/FavoritesGallery'), { ssr: false, loading: () => <TabSpinner /> });
+const PricingCalculator = dynamic(() => import('../components/PricingCalculator'), { ssr: false, loading: () => <TabSpinner /> });
+const BusinessHub = dynamic(() => import('../components/BusinessHub'), { ssr: false, loading: () => <TabSpinner /> });
+const PricingPlans = dynamic(() => import('../components/PricingPlans'), { ssr: false, loading: () => <TabSpinner /> });
+
+// Spinner para transição entre abas
+function TabSpinner() {
+  return (
+    <div className="flex-1 flex items-center justify-center">
+      <div className="spinner" />
+    </div>
+  );
+}
 
 export default function Home() {
   const { user, profile, signOut, updateProfile, refreshProfile, getAccessToken } = useAuth();
@@ -36,15 +45,14 @@ export default function Home() {
   const [favorites, setFavorites] = useState([]);
   const [dataLoaded, setDataLoaded] = useState(false);
   const [loadedUserId, setLoadedUserId] = useState(null);
-  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  // Detectar checkout=success na URL
+  const isCheckoutSuccess = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('checkout') === 'success';
+  const [checkoutLoading, setCheckoutLoading] = useState(isCheckoutSuccess);
 
   // Callback para o ChatWindow avisar que consumiu o prompt
   const clearPendingPrompt = useCallback(() => {
     setPendingPrompt(null);
   }, []);
-
-  // Detectar checkout=success na URL
-  const isCheckoutSuccess = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('checkout') === 'success';
 
   // Após checkout Stripe: polling via fetch direto + fallback reload
   // Roda UMA VEZ, sem deps que mudam, sem useRef, sem cancelamento
@@ -341,12 +349,27 @@ export default function Home() {
   }, [getAccessToken]);
 
   // Loading state
-  if (user === undefined) {
+  if (user === undefined || checkoutLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-surface">
-        <div className="flex flex-col items-center gap-3 animate-pulse">
-          <img src="/logo-icon.png" alt="Maluar" className="w-14 h-14 rounded-2xl object-contain" />
-          <p className="text-sm text-text-muted">Carregando...</p>
+        <div className="flex flex-col items-center gap-4 animate-scale-in">
+          <div className="relative">
+            <img src="/logo-icon.png" alt="Maluar" className="w-16 h-16 rounded-2xl object-contain" />
+            {checkoutLoading && (
+              <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center animate-pulse">
+                <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+              </div>
+            )}
+          </div>
+          <div className="flex flex-col items-center gap-1">
+            <p className="text-sm font-medium text-text">
+              {checkoutLoading ? 'Ativando seu plano...' : 'Carregando...'}
+            </p>
+            {checkoutLoading && (
+              <p className="text-xs text-text-muted">Isso pode levar alguns segundos</p>
+            )}
+          </div>
+          <div className="spinner" />
         </div>
       </div>
     );
@@ -476,24 +499,28 @@ export default function Home() {
             onAuthExpired={handleAuthExpired}
             onUpgrade={handleUpgrade}
           />
-        ) : activeTab === 'business' ? (
-          <BusinessHub onSendPrompt={handleBusinessPrompt} />
-        ) : activeTab === 'favorites' ? (
-          <FavoritesGallery
-            favorites={favorites}
-            onDelete={handleDeleteFavorite}
-            onUsePrompt={handleFavoritePrompt}
-          />
-        ) : activeTab === 'pricing' ? (
-          <PricingCalculator />
-        ) : activeTab === 'plans' ? (
-          <PricingPlans
-            currentPlan={effectiveProfile.plan || 'free'}
-            getAccessToken={getAccessToken}
-            onManageSubscription={handleManageSubscription}
-          />
         ) : (
-          <PostGenerator key={postKey} user={userForComponents} userId={user.id} initialPrompt={postPrompt} />
+          <div className="tab-content flex-1 flex flex-col min-h-0">
+            {activeTab === 'business' ? (
+              <BusinessHub onSendPrompt={handleBusinessPrompt} />
+            ) : activeTab === 'favorites' ? (
+              <FavoritesGallery
+                favorites={favorites}
+                onDelete={handleDeleteFavorite}
+                onUsePrompt={handleFavoritePrompt}
+              />
+            ) : activeTab === 'pricing' ? (
+              <PricingCalculator />
+            ) : activeTab === 'plans' ? (
+              <PricingPlans
+                currentPlan={effectiveProfile.plan || 'free'}
+                getAccessToken={getAccessToken}
+                onManageSubscription={handleManageSubscription}
+              />
+            ) : (
+              <PostGenerator key={postKey} user={userForComponents} userId={user.id} initialPrompt={postPrompt} />
+            )}
+          </div>
         )}
       </main>
     </div>
