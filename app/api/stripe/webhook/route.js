@@ -1,11 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 
-const STRIPE_SECRET = process.env.STRIPE_SECRET_KEY;
-const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
+const STRIPE_SECRET = (process.env.STRIPE_SECRET_KEY || '').trim();
+const STRIPE_WEBHOOK_SECRET = (process.env.STRIPE_WEBHOOK_SECRET || '').trim();
 const STRIPE_API = 'https://api.stripe.com/v1';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
 
 async function verifyStripeSignature(req) {
   const signature = req.headers.get('stripe-signature');

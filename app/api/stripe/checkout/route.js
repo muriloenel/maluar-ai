@@ -1,16 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
 
-const STRIPE_SECRET = process.env.STRIPE_SECRET_KEY;
+const STRIPE_SECRET = (process.env.STRIPE_SECRET_KEY || '').trim();
 const STRIPE_API = 'https://api.stripe.com/v1';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 function getAppUrl(req) {
-  // Tentar variável de ambiente primeiro (trim para remover \n ou espaços extras)
   const envUrl = (process.env.NEXT_PUBLIC_APP_URL || '').trim();
   if (envUrl && envUrl.startsWith('http')) return envUrl.replace(/\/$/, '');
-  // Fallback: construir a partir do header Host
   const host = req.headers.get('host');
   if (host) {
     const proto = host.includes('localhost') ? 'http' : 'https';
@@ -21,8 +19,8 @@ function getAppUrl(req) {
 
 // Preços dos planos (criar no Stripe Dashboard)
 const PLAN_PRICES = {
-  pro: process.env.STRIPE_PRICE_PRO,
-  premium: process.env.STRIPE_PRICE_PREMIUM,
+  pro: (process.env.STRIPE_PRICE_PRO || '').trim(),
+  premium: (process.env.STRIPE_PRICE_PREMIUM || '').trim(),
 };
 
 async function getAuthUser(req) {

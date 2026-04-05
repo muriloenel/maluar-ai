@@ -1,11 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 
-const STRIPE_SECRET = process.env.STRIPE_SECRET_KEY;
+const STRIPE_SECRET = (process.env.STRIPE_SECRET_KEY || '').trim();
 const STRIPE_API = 'https://api.stripe.com/v1';
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://maluar-ai.vercel.app';
+const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || 'https://maluar-ai.vercel.app').trim();
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
 
 async function getAuthUser(req) {
   const authHeader = req.headers.get('authorization');
