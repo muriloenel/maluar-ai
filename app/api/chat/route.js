@@ -99,6 +99,8 @@ async function logUsage(userId, model, inputTokens, outputTokens, feature = 'cha
     const COSTS = {
       'claude-haiku-4-20250514': { input: 0.25, output: 1.25 },
       'claude-sonnet-4-20250514': { input: 3.0, output: 15.0 },
+      'claude-3-5-haiku-latest': { input: 0.25, output: 1.25 },
+      'claude-3-5-sonnet-latest': { input: 3.0, output: 15.0 },
     };
     const rates = COSTS[model] || COSTS['claude-haiku-4-20250514'];
     const cost = (inputTokens * rates.input + outputTokens * rates.output) / 1_000_000;
@@ -225,17 +227,24 @@ export async function POST(req) {
         : '';
     const isComplex = imageRequest || lastText.length > 500 || /plano de ação|diagnóstico|análise|estratégia|financeiro|business/i.test(lastText);
     const model = isComplex ? 'claude-sonnet-4-20250514' : 'claude-haiku-4-20250514';
+    console.log(`[CHAT] Modelo: ${model}, Complexo: ${isComplex}, Stream: ${!!stream}`);
 
     // Streaming mode
     if (stream) {
-      const response = await client.messages.create({
-        model,
+      let response;
+      try {
+        response = await client.messages.create({
+          model,
         max_tokens: imageRequest ? 3000 : 1200,
         temperature: imageRequest ? 0.1 : 0.5,
-        system: safeSystem,
-        messages,
-        stream: true,
-      });
+          system: safeSystem,
+          messages,
+          stream: true,
+        });
+      } catch (createErr) {
+        console.error('[CHAT] Erro ao criar stream:', createErr?.status, createErr?.message || createErr);
+        return Response.json({ error: 'Erro ao conectar com a IA. Tente novamente.' }, { status: 502 });
+      }
 
       const encoder = new TextEncoder();
       const readable = new ReadableStream({
