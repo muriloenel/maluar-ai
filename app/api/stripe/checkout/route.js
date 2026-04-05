@@ -76,9 +76,10 @@ export async function POST(req) {
     const cancelUrl = `${appUrl}?checkout=cancel`;
 
     // Criar Checkout Session no Stripe
+    // Sem payment_method_types — Stripe auto-detecta (card, boleto, pix) conforme configurado no Dashboard
     const session = await stripeRequest('/checkout/sessions', {
-      'payment_method_types[]': 'card',
       'mode': 'subscription',
+      'currency': 'brl',
       'line_items[0][price]': priceId,
       'line_items[0][quantity]': '1',
       'success_url': successUrl,
