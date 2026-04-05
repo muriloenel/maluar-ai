@@ -26,8 +26,11 @@ async function checkQuotaServer(userId, userEmail) {
 
   try {
     const sb = createClient(supabaseUrl, supabaseServiceKey);
-    const { data: profile } = await sb.from('profiles').select('plan, messages_today, messages_reset_at').eq('id', userId).single();
+    const { data: profile } = await sb.from('profiles').select('plan, status, messages_today, messages_reset_at').eq('id', userId).single();
     if (!profile) return { allowed: true };
+
+    // Usuário desativado
+    if (profile.status === 'inactive') return { allowed: false, status: 'inactive' };
 
     const limit = DAILY_LIMITS[profile.plan] || DAILY_LIMITS.free;
     const now = new Date();
@@ -88,6 +91,31 @@ const hasImage = (messages) =>
     (m) => Array.isArray(m.content) && m.content.some((c) => c.type === 'image')
   );
 
+// Registrar uso de IA para monitoramento de custos (async, não bloqueia)
+async function logUsage(userId, model, inputTokens, outputTokens, feature = 'chat') {
+  if (!supabaseServiceKey || !supabaseUrl) return;
+  try {
+    // Custos por 1M tokens (abril 2026 - estimativas)
+    const COSTS = {
+      'claude-haiku-4-20250514': { input: 0.25, output: 1.25 },
+      'claude-sonnet-4-20250514': { input: 3.0, output: 15.0 },
+    };
+    const rates = COSTS[model] || COSTS['claude-haiku-4-20250514'];
+    const cost = (inputTokens * rates.input + outputTokens * rates.output) / 1_000_000;
+
+    const modelShort = model.includes('haiku') ? 'haiku' : 'sonnet';
+    const sb = createClient(supabaseUrl, supabaseServiceKey);
+    await sb.from('usage_logs').insert({
+      user_id: userId || null,
+      model: modelShort,
+      input_tokens: inputTokens,
+      output_tokens: outputTokens,
+      cost_usd: Math.round(cost * 1_000_000) / 1_000_000,
+      feature,
+    });
+  } catch {}
+}
+
 // Rate limiter em memória — diferenciado por plano
 const rateLimitMap = new Map();
 const RATE_LIMITS_BY_PLAN = { free: 15, pro: 30, premium: 60 };
@@ -124,6 +152,15 @@ export async function POST(req) {
     if (authUser) {
       const quota = await checkQuotaServer(authUser.id, authUser.email);
       userPlan = quota.plan || 'free';
+
+      // Checar se usuário está desativado
+      if (quota.status === 'inactive') {
+        return Response.json(
+          { error: 'Sua conta está desativada. Entre em contato com o suporte.' },
+          { status: 403 }
+        );
+      }
+
       if (!quota.allowed) {
         return Response.json(
           { error: 'Limite diário atingido', quota: { remaining: 0, limit: quota.limit } },
@@ -204,13 +241,23 @@ export async function POST(req) {
       const readable = new ReadableStream({
         async start(controller) {
           try {
+            let totalInputTokens = 0;
+            let totalOutputTokens = 0;
             for await (const event of response) {
               if (event.type === 'content_block_delta' && event.delta?.text) {
                 controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: event.delta.text })}\n\n`));
               }
+              if (event.type === 'message_delta' && event.usage) {
+                totalOutputTokens = event.usage.output_tokens || 0;
+              }
+              if (event.type === 'message_start' && event.message?.usage) {
+                totalInputTokens = event.message.usage.input_tokens || 0;
+              }
             }
             controller.enqueue(encoder.encode('data: [DONE]\n\n'));
             controller.close();
+            // Log usage async
+            logUsage(authUser?.id, model, totalInputTokens, totalOutputTokens, 'chat');
           } catch {
             controller.close();
           }
@@ -233,6 +280,15 @@ export async function POST(req) {
       system: safeSystem,
       messages,
     });
+
+    // Log usage async
+    logUsage(
+      authUser?.id,
+      'claude-sonnet-4-20250514',
+      response.usage?.input_tokens || 0,
+      response.usage?.output_tokens || 0,
+      'post'
+    );
 
     return Response.json({
       content: response.content,
