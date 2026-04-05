@@ -52,15 +52,20 @@ async function stripeGet(endpoint) {
 
 export async function POST(req) {
   try {
+    console.log('[WEBHOOK] Recebido evento');
+
     if (!STRIPE_SECRET || !supabaseServiceKey) {
+      console.error('[WEBHOOK] Configuração incompleta:', { hasSecret: !!STRIPE_SECRET, hasServiceKey: !!supabaseServiceKey });
       return Response.json({ error: 'Configuração incompleta' }, { status: 500 });
     }
 
     const event = await verifyStripeSignature(req);
     if (!event) {
+      console.error('[WEBHOOK] Assinatura inválida');
       return Response.json({ error: 'Assinatura inválida' }, { status: 400 });
     }
 
+    console.log(`[WEBHOOK] Evento: ${event.type}`);
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     switch (event.type) {
@@ -68,8 +73,9 @@ export async function POST(req) {
         const session = event.data.object;
         const userId = session.metadata?.user_id || session.client_reference_id;
         const plan = session.metadata?.plan;
+        console.log(`[WEBHOOK] checkout.session.completed: userId=${userId}, plan=${plan}, customer=${session.customer}, subscription=${session.subscription}`);
         if (userId && plan) {
-          await supabase
+          const { error: updateError } = await supabase
             .from('profiles')
             .update({
               plan,
@@ -78,7 +84,13 @@ export async function POST(req) {
               updated_at: new Date().toISOString(),
             })
             .eq('id', userId);
-          console.log(`[STRIPE] Plano ${plan} ativado para ${userId}`);
+          if (updateError) {
+            console.error(`[WEBHOOK] Erro ao atualizar profile:`, updateError);
+          } else {
+            console.log(`[WEBHOOK] Plano ${plan} ativado para ${userId}`);
+          }
+        } else {
+          console.warn(`[WEBHOOK] userId ou plan faltando: userId=${userId}, plan=${plan}`);
         }
         break;
       }
