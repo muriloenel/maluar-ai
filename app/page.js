@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { useAuth } from '../components/SupabaseAuthProvider';
 import AuthScreen from '../components/AuthScreen';
@@ -53,27 +53,41 @@ export default function Home() {
     return false;
   })[0];
 
-  // Após checkout Stripe: poll a API /api/account/plan (bypassa RLS) até atualizar
-  useEffect(() => {
-    if (!checkoutSuccessRef || !user || !getAccessToken) return;
-    if (user.id?.startsWith('guest-')) return;
+  // Refs estáveis para evitar que mudanças de referência cancelem o polling
+  // (Supabase emite TOKEN_REFRESHED que muda user/callbacks e causa cleanup do useEffect)
+  const getAccessTokenRef = useRef(getAccessToken);
+  const refreshProfileRef = useRef(refreshProfile);
+  const userRef = useRef(user);
+  useEffect(() => { getAccessTokenRef.current = getAccessToken; }, [getAccessToken]);
+  useEffect(() => { refreshProfileRef.current = refreshProfile; }, [refreshProfile]);
+  useEffect(() => { userRef.current = user; }, [user]);
 
-    console.log('[CHECKOUT] Detectado checkout=success, iniciando polling do plano...');
+  // Após checkout Stripe: poll via API server-side (bypass RLS)
+  // useEffect depende SOMENTE de checkoutSuccessRef — refs garantem estabilidade
+  useEffect(() => {
+    if (!checkoutSuccessRef) return;
 
     let cancelled = false;
-    let attempts = 0;
-    const maxAttempts = 20;
 
     const poll = async () => {
-      // Espera inicial de 2s pro webhook processar
-      await new Promise(r => setTimeout(r, 2000));
+      // 1. Esperar o user ficar disponível (auth provider pode demorar)
+      console.log('[CHECKOUT] Detectado checkout=success. Aguardando autenticação...');
+      for (let wait = 0; wait < 30 && !cancelled; wait++) {
+        if (userRef.current && !userRef.current.id?.startsWith('guest-')) break;
+        await new Promise(r => setTimeout(r, 500));
+      }
+      if (cancelled || !userRef.current) return;
+      console.log('[CHECKOUT] Usuário autenticado. Iniciando polling do plano...');
 
-      while (!cancelled && attempts < maxAttempts) {
-        attempts++;
+      // 2. Espera inicial de 3s pro webhook do Stripe processar
+      await new Promise(r => setTimeout(r, 3000));
+
+      // 3. Polling: consultar API server-side a cada 3s
+      for (let attempt = 1; attempt <= 20 && !cancelled; attempt++) {
         try {
-          const token = await getAccessToken();
+          const token = await getAccessTokenRef.current();
           if (!token) {
-            console.warn(`[CHECKOUT] Sem token, tentativa ${attempts}/${maxAttempts}`);
+            console.warn(`[CHECKOUT] Sem token, tentativa ${attempt}/20`);
             await new Promise(r => setTimeout(r, 3000));
             continue;
           }
@@ -81,27 +95,29 @@ export default function Home() {
             headers: { 'Authorization': `Bearer ${token}` },
           });
           const data = await res.json();
-          console.log(`[CHECKOUT] Tentativa ${attempts}/${maxAttempts}: plan=${data.plan}`);
+          console.log(`[CHECKOUT] Tentativa ${attempt}/20: plan=${data.plan}`);
+
           if (data.plan && data.plan !== 'free') {
             console.log(`[CHECKOUT] Plano confirmado: ${data.plan}! Atualizando perfil...`);
-            // Atualizar o profile local com o plano correto
-            if (refreshProfile) await refreshProfile();
+            if (refreshProfileRef.current) await refreshProfileRef.current();
             return;
           }
         } catch (err) {
-          console.error(`[CHECKOUT] Erro no polling:`, err.message);
+          console.error(`[CHECKOUT] Erro tentativa ${attempt}:`, err.message);
         }
         await new Promise(r => setTimeout(r, 3000));
       }
+
+      // 4. Timeout: tentar refresh direto como fallback
       if (!cancelled) {
-        console.warn('[CHECKOUT] Polling expirou. Forçando refresh...');
-        if (refreshProfile) await refreshProfile();
+        console.warn('[CHECKOUT] Polling expirou (60s). Forçando refresh final...');
+        if (refreshProfileRef.current) await refreshProfileRef.current();
       }
     };
 
     poll();
     return () => { cancelled = true; };
-  }, [checkoutSuccessRef, user, getAccessToken, refreshProfile]);
+  }, [checkoutSuccessRef]);
 
   // useMemo DEVE ficar antes de qualquer return condicional (regra dos hooks)
   const effectiveProfile = profile || {

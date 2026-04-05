@@ -128,11 +128,12 @@ export default function SupabaseAuthProvider({ children }) {
         resolved = true;
         clearTimeout(timeout);
         if (session?.user) {
-          setUser(session.user);
-          // Não re-fetch profile no TOKEN_REFRESHED (desnecessário)
-          if (event !== 'TOKEN_REFRESHED') {
-            await fetchProfile(session.user);
+          // Evitar setUser com nova referência no TOKEN_REFRESHED (causa re-render desnecessário)
+          if (event === 'TOKEN_REFRESHED') {
+            return; // user já está correto, não precisa re-setar
           }
+          setUser(session.user);
+          await fetchProfile(session.user);
         } else {
           setUser(null);
           setProfile(null);
