@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { sendUpgradeEmail } from '../../../lib/email';
+import { sendUpgradeEmail } from '../../../../lib/email';
 
 const STRIPE_SECRET = (process.env.STRIPE_SECRET_KEY || '').trim();
 const STRIPE_WEBHOOK_SECRET = (process.env.STRIPE_WEBHOOK_SECRET || '').trim();
