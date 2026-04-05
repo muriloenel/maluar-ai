@@ -42,7 +42,8 @@ async function stripeRequest(endpoint, body) {
 export async function POST(req) {
   try {
     if (!STRIPE_SECRET) {
-      return Response.json({ error: 'Stripe não configurado' }, { status: 500 });
+      console.error('[STRIPE] STRIPE_SECRET_KEY não configurada');
+      return Response.json({ error: 'Stripe não configurado. Verifique STRIPE_SECRET_KEY.' }, { status: 500 });
     }
 
     const user = await getAuthUser(req);
@@ -53,8 +54,11 @@ export async function POST(req) {
     const { plan } = await req.json();
     const priceId = PLAN_PRICES[plan];
     if (!priceId) {
-      return Response.json({ error: 'Plano inválido' }, { status: 400 });
+      console.error(`[STRIPE] Price ID vazio para plano "${plan}". STRIPE_PRICE_PRO="${process.env.STRIPE_PRICE_PRO ? 'SET' : 'EMPTY'}", STRIPE_PRICE_PREMIUM="${process.env.STRIPE_PRICE_PREMIUM ? 'SET' : 'EMPTY'}"`);
+      return Response.json({ error: `Plano inválido ou preço não configurado (${plan})` }, { status: 400 });
     }
+
+    console.log(`[STRIPE] Criando checkout: plan=${plan}, priceId=${priceId}, user=${user.id}`);
 
     // Criar Checkout Session no Stripe
     const session = await stripeRequest('/checkout/sessions', {
@@ -71,8 +75,8 @@ export async function POST(req) {
     });
 
     if (session.error) {
-      console.error('[STRIPE] Checkout error:', session.error);
-      return Response.json({ error: 'Erro ao criar sessão de pagamento' }, { status: 500 });
+      console.error('[STRIPE] Checkout error:', JSON.stringify(session.error));
+      return Response.json({ error: `Stripe: ${session.error.message || 'Erro ao criar sessão'}` }, { status: 500 });
     }
 
     return Response.json({ url: session.url });
