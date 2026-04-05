@@ -11,7 +11,7 @@ function formatTime(ts) {
   return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
 
-export default function Message({ role, content, isTyping, imagePreview, timestamp, isError, onRetry, onSaveFavorite, onFeedback }) {
+export default function Message({ role, content, isTyping, imagePreview, timestamp, isError, onRetry, onSaveFavorite }) {
   const [copied, setCopied] = useState(false);
   const [saved, setSaved] = useState(false);
   const [feedback, setFeedback] = useState(null); // 'up' | 'down' | null
@@ -46,7 +46,14 @@ export default function Message({ role, content, isTyping, imagePreview, timesta
   const handleExportPDF = () => {
     const win = window.open('', '_blank');
     if (!win) return;
-    win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Maluar AI — Recria Design</title><style>body{font-family:Inter,system-ui,sans-serif;max-width:700px;margin:40px auto;padding:20px;color:#1A1A2E;line-height:1.7;}h1{color:#7F77DD;font-size:1.3em;border-bottom:2px solid #7F77DD;padding-bottom:8px;}strong{color:#1A1A2E;}ul,ol{padding-left:1.5em;}li{margin-bottom:4px;}.footer{margin-top:32px;padding-top:12px;border-top:1px solid #d8d4e8;color:#6B7280;font-size:0.85em;text-align:center;}</style></head><body><h1>💅 Maluar AI — Recria Design</h1>${content.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}<div class="footer">Gerado por Maluar AI · ${new Date().toLocaleDateString('pt-BR')}</div></body></html>`);;
+    // Sanitizar conteúdo para evitar XSS
+    const escaped = content
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\n/g, '<br>')
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Maluar AI — Recria Design</title><style>body{font-family:Inter,system-ui,sans-serif;max-width:700px;margin:40px auto;padding:20px;color:#1A1A2E;line-height:1.7;}h1{color:#7F77DD;font-size:1.3em;border-bottom:2px solid #7F77DD;padding-bottom:8px;}strong{color:#1A1A2E;}ul,ol{padding-left:1.5em;}li{margin-bottom:4px;}.footer{margin-top:32px;padding-top:12px;border-top:1px solid #d8d4e8;color:#6B7280;font-size:0.85em;text-align:center;}</style></head><body><h1>💅 Maluar AI — Recria Design</h1>${escaped}<div class="footer">Gerado por Maluar AI · ${new Date().toLocaleDateString('pt-BR')}</div></body></html>`);
     win.document.close();
     setTimeout(() => { win.print(); }, 500);
   };

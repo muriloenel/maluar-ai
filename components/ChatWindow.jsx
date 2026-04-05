@@ -6,14 +6,15 @@ import { searchKnowledge } from '../lib/knowledge-base';
 import { buildSystemPrompt } from '../lib/system-prompt';
 import { dbSaveMessage, dbUpdateChatTitle, dbSaveFavorite, dbDeleteErrorMessages, dbCheckMessageQuota, dbIncrementMessageCount } from '../lib/db';
 
-export default function ChatWindow({ user, userId, pendingPrompt, chatId, initialMessages, onChatUpdated, onFavoritesChanged }) {
+export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onPromptConsumed, chatId, initialMessages, onChatUpdated, onFavoritesChanged, onOpenSidebar, getAccessToken, onAuthExpired, onUpgrade }) {
   const [messages, setMessages] = useState(initialMessages || []);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [lastFailedMsg, setLastFailedMsg] = useState(null);
-  const [pendingFile, setPendingFile] = useState(null); // { base64, mediaType, dataUrl, name }
+  const [pendingFile, setPendingFile] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [quotaModal, setQuotaModal] = useState(null);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -21,7 +22,15 @@ export default function ChatWindow({ user, userId, pendingPrompt, chatId, initia
   const titleSetRef = useRef(false);
   const chatIdRef = useRef(null);
   const msgIdRef = useRef(0);
+  const messagesRef = useRef(messages);
+  const abortRef = useRef(null);
+  const busyRef = useRef(false); // ref real pra saber se está ocupado (evita stale closure)
   const nextId = () => ++msgIdRef.current;
+
+  // Manter ref sincronizado com state
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -31,11 +40,10 @@ export default function ChatWindow({ user, userId, pendingPrompt, chatId, initia
     scrollToBottom();
   }, [messages, isLoading]);
 
+  // Cleanup: abortar streaming ao desmontar componente
   useEffect(() => {
-    if (pendingPrompt) {
-      sendMessage(pendingPrompt);
-    }
-  }, [pendingPrompt]);
+    return () => { abortRef.current?.abort(); };
+  }, []);
 
   // Set welcome message only for brand new chats (no initialMessages)
   useEffect(() => {
@@ -62,84 +70,135 @@ export default function ChatWindow({ user, userId, pendingPrompt, chatId, initia
     setMessages([welcome]);
   }, [chatId, initialMessages]);
 
-  // Persist messages to Supabase
+  // Handle pendingPrompt — DEVE vir DEPOIS do chatId effect
+  const processedPromptRef = useRef(null);
+  useEffect(() => {
+    if (!pendingPrompt) return;
+    if (pendingPrompt === processedPromptRef.current) return;
+    processedPromptRef.current = pendingPrompt;
+    const text = typeof pendingPrompt === 'string' ? pendingPrompt : pendingPrompt.text;
+    if (!text) return;
+
+    const timer = setTimeout(() => {
+      sendMessage(text);
+      onPromptConsumed?.();
+    }, 0);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingPrompt]);
+
+  // Persist messages to Supabase (silently fails in guest mode)
   const persistMessage = useCallback(
     async (msg) => {
-      if (chatId) {
-        await dbSaveMessage(chatId, msg);
-        onChatUpdated?.();
+      if (chatId && !chatId.startsWith('local-')) {
+        try {
+          await dbSaveMessage(chatId, msg);
+          onChatUpdated?.();
+        } catch {}
       }
     },
     [chatId, onChatUpdated]
   );
 
   const sendMessage = async (text, imageBase64 = null, mediaType = 'image/jpeg', imageDataUrl = null) => {
-    if ((!text.trim() && !imageBase64) || isLoading || isStreaming) return;
-
-    // Verificar quota de mensagens diárias
-    if (userId) {
-      try {
-        const quota = await dbCheckMessageQuota(userId);
-        if (!quota.allowed) {
-          setMessages((prev) => [...prev, {
-            _id: nextId(), role: 'assistant', content: `⚠️ Você atingiu o limite diário de **${quota.limit} mensagens** do seu plano. Aguarde até amanhã ou faça upgrade para continuar.`, isError: true, timestamp: Date.now()
-          }]);
-          return;
-        }
-      } catch {}
-    }
-
-    const userContent = imageBase64
-      ? [
-          { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageBase64 } },
-          { type: 'text', text: text || 'Analisa essa unha seguindo o MÉTODO DE ANÁLISE OBRIGATÓRIO: primeiro descreva LITERALMENTE o que vê (cores, formas, se há sombras/volume ou não), depois identifique as técnicas baseando-se SOMENTE nas observações. Lembre: sem sombra = não é 3D, é pintura plana.' },
-        ]
-      : text;
-
-    const userMessage = { role: 'user', content: userContent };
-    const displayText = imageBase64 ? `${text || 'Foto enviada para análise'}` : text;
-
-    // Set chat title from first user message
-    if (!titleSetRef.current && chatId) {
-      dbUpdateChatTitle(chatId, displayText);
-      titleSetRef.current = true;
-      onChatUpdated?.();
-    }
-
-    const newUserMsg = { _id: nextId(), role: 'user', content: displayText, imagePreview: imageDataUrl || null, timestamp: Date.now() };
-    setMessages((prev) => [...prev, newUserMsg]);
-    // Persist user message to DB
-    persistMessage({ role: 'user', content: displayText, imagePreview: imageDataUrl || null });
-    setInput('');
+    if ((!text.trim() && !imageBase64)) return;
+    // Usar REF pra checar estado real (evita stale closure do useEffect)
+    if (busyRef.current) return;
+    busyRef.current = true;
     setIsLoading(true);
-    setLastFailedMsg(null);
 
     try {
+      // Verificar quota de mensagens diárias
+      if (userId) {
+        // Guest mode — limite local de 10 mensagens
+        if (userId.startsWith('guest-')) {
+          try {
+            const guestCount = parseInt(localStorage.getItem('maluar-guest-msgs') || '0', 10);
+            if (guestCount >= 10) {
+              setQuotaModal({ limit: 10, isGuest: true });
+              return;
+            }
+            localStorage.setItem('maluar-guest-msgs', String(guestCount + 1));
+          } catch {}
+        } else {
+          try {
+            const quota = await dbCheckMessageQuota(userId, userEmail);
+            if (!quota.allowed) {
+              setQuotaModal({ limit: quota.limit });
+              return; // finally vai resetar isLoading
+            }
+          } catch (err) {
+            console.warn('Erro ao verificar quota, permitindo envio:', err);
+          }
+        }
+      }
+
+      const userContent = imageBase64
+        ? [
+            { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageBase64 } },
+            { type: 'text', text: text || 'Analisa essa unha seguindo o MÉTODO DE ANÁLISE OBRIGATÓRIO: primeiro descreva LITERALMENTE o que vê (cores, formas, se há sombras/volume ou não), depois identifique as técnicas baseando-se SOMENTE nas observações. Lembre: sem sombra = não é 3D, é pintura plana.' },
+          ]
+        : text;
+
+      const userMessage = { role: 'user', content: userContent };
+      const displayText = imageBase64 ? `${text || 'Foto enviada para análise'}` : text;
+
+      // Set chat title from first user message
+      if (!titleSetRef.current && chatId && !chatId.startsWith('local-')) {
+        dbUpdateChatTitle(chatId, displayText).catch(() => {});
+        titleSetRef.current = true;
+        onChatUpdated?.();
+      }
+
+      const newUserMsg = { _id: nextId(), role: 'user', content: displayText, imagePreview: imageDataUrl || null, timestamp: Date.now() };
+      setMessages((prev) => [...prev, newUserMsg]);
+      persistMessage({ role: 'user', content: displayText, imagePreview: imageDataUrl || null });
+      setInput('');
+      setLastFailedMsg(null);
+
       const knowledgeContext = searchKnowledge(typeof userContent === 'string' ? userContent : text);
       const systemPrompt = buildSystemPrompt(user.name, user.level, knowledgeContext);
 
+      const currentMessages = messagesRef.current;
       const allMessages = [
-        ...messages.filter((m) => m.role !== 'assistant' || messages.indexOf(m) !== 0),
+        ...currentMessages.filter((m, idx) => m.role !== 'assistant' || idx !== 0),
         userMessage,
       ].map((m) => ({
         role: m.role,
         content: m.content,
       }));
 
-      const apiMessages = allMessages.slice(-6);
+      const apiMessages = allMessages.slice(-12);
+
+      // Cancelar streaming anterior se existir
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+
+      // Obter token de auth para a API (opcional — modo convidado funciona sem)
+      const authToken = getAccessToken ? await getAccessToken() : null;
+
+      const fetchHeaders = { 'Content-Type': 'application/json' };
+      if (authToken) fetchHeaders['Authorization'] = `Bearer ${authToken}`;
 
       const res = await fetch('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: fetchHeaders,
         body: JSON.stringify({
           messages: apiMessages,
           system: systemPrompt,
           stream: true,
         }),
+        signal: controller.signal,
       });
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
+        // Se 401, a sessão expirou — forçar re-login
+        if (res.status === 401) {
+          onAuthExpired?.();
+          return;
+        }
         throw new Error(errorData.error || 'Erro na API');
       }
 
@@ -176,32 +235,31 @@ export default function ChatWindow({ user, userId, pendingPrompt, chatId, initia
         }
       }
 
-      setIsStreaming(false);
       // Persist final assistant message to DB
-      setMessages((prev) => {
-        const final = [...prev];
-        const finalContent = assistantText || 'Ops, não consegui processar. Tenta de novo!';
-        if (!assistantText) {
+      const finalContent = assistantText || 'Ops, não consegui processar. Tenta de novo!';
+      if (!assistantText) {
+        setMessages((prev) => {
+          const final = [...prev];
           final[final.length - 1] = { _id: assistantId, role: 'assistant', content: finalContent, timestamp: Date.now() };
-        }
-        persistMessage({ role: 'assistant', content: finalContent });
-        return final;
-      });
-      // Incrementar quota
+          return final;
+        });
+      }
+      persistMessage({ role: 'assistant', content: finalContent });
       if (userId) dbIncrementMessageCount(userId).catch(() => {});
     } catch (err) {
-      setIsStreaming(false);
+      if (err.name === 'AbortError') return; // finally vai limpar
       setLastFailedMsg({ text, imageBase64, mediaType, imageDataUrl });
       const errContent = err.message || 'Eita, deu um erro aqui. Tenta mandar de novo! 💅';
-      setMessages((prev) => {
-        const updated = [
-          ...prev,
-          { _id: nextId(), role: 'assistant', content: errContent, isError: true, timestamp: Date.now() },
-        ];
-        return updated;
-      });
+      setMessages((prev) => [
+        ...prev,
+        { _id: nextId(), role: 'assistant', content: errContent, isError: true, timestamp: Date.now() },
+      ]);
       persistMessage({ role: 'assistant', content: errContent, isError: true });
+    } finally {
+      // SEMPRE resetar — nunca fica preso
+      busyRef.current = false;
       setIsLoading(false);
+      setIsStreaming(false);
     }
   };
 
@@ -289,7 +347,7 @@ export default function ChatWindow({ user, userId, pendingPrompt, chatId, initia
   return (
     <div
       ref={chatAreaRef}
-      className={`flex flex-col h-full bg-surface relative ${isDragging ? 'ring-2 ring-accent ring-inset' : ''}`}
+      className={`flex flex-col flex-1 min-h-0 bg-surface relative ${isDragging ? 'ring-2 ring-accent ring-inset' : ''}`}
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
@@ -309,7 +367,19 @@ export default function ChatWindow({ user, userId, pendingPrompt, chatId, initia
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-6">
+      <div className="flex-1 overflow-y-auto px-4 py-6 relative">
+        {/* Floating sidebar button — mobile only */}
+        {onOpenSidebar && (
+          <button
+            onClick={onOpenSidebar}
+            className="fixed bottom-24 left-3 z-30 w-10 h-10 rounded-full bg-surface-card border border-border shadow-elevated flex items-center justify-center text-text-muted hover:text-accent transition-colors md:hidden"
+            aria-label="Abrir menu"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+        )}
         <div className="max-w-2xl mx-auto space-y-1">
           {messages.map((msg, i) => (
             <Message key={msg._id || `m-${i}`} role={msg.role} content={msg.content} imagePreview={msg.imagePreview} timestamp={msg.timestamp} isError={msg.isError} onRetry={msg.isError ? handleRetry : undefined} onSaveFavorite={msg.role === 'assistant' && !msg.isError ? async (content) => { await dbSaveFavorite(userId, { type: 'chat', content }); onFavoritesChanged?.(); } : undefined} />
@@ -415,6 +485,49 @@ export default function ChatWindow({ user, userId, pendingPrompt, chatId, initia
           </div>
         </form>
       </div>
+
+      {/* Modal de quota excedida */}
+      {quotaModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-surface-card rounded-2xl shadow-elevated max-w-sm w-full p-6 text-center space-y-4 animate-fade-in">
+            <div className="text-4xl">⚠️</div>
+            <h3 className="font-display text-lg font-bold text-text">
+              Limite diário atingido
+            </h3>
+            <p className="text-sm text-text-muted leading-relaxed">
+              Você usou todas as suas <strong className="text-text">{quotaModal.limit} mensagens</strong> de hoje.
+            </p>
+            <div className="bg-accent-bg rounded-xl px-4 py-3">
+              <p className="text-xs text-text-muted">Suas mensagens serão resetadas</p>
+              <p className="text-base font-bold text-accent mt-0.5">Amanhã à meia-noite (00:00)</p>
+            </div>
+            {!quotaModal.isGuest && (
+              <div className="space-y-2">
+                <p className="text-xs text-text-light">
+                  Quer mais mensagens? Faça upgrade do seu plano!
+                </p>
+                <button
+                  onClick={() => { setQuotaModal(null); onUpgrade?.(); }}
+                  className="w-full py-2.5 rounded-xl bg-accent text-white font-semibold text-sm hover:bg-accent-hover transition-colors shadow-soft"
+                >
+                  💎 Ver planos
+                </button>
+              </div>
+            )}
+            {quotaModal.isGuest && (
+              <p className="text-xs text-text-light">
+                Crie uma conta grátis pra ter 50 mensagens por dia!
+              </p>
+            )}
+            <button
+              onClick={() => setQuotaModal(null)}
+              className="w-full py-2.5 rounded-xl border border-border text-text-muted font-medium text-sm hover:bg-surface-alt transition-colors"
+            >
+              Entendi
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

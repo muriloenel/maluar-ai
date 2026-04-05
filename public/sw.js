@@ -1,5 +1,5 @@
-const CACHE_NAME = 'maluar-ai-v3';
-const STATIC_ASSETS = ['/'];
+const CACHE_NAME = 'maluar-ai-v5';
+const STATIC_ASSETS = [];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -19,27 +19,37 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const { request } = event;
+  const url = new URL(request.url);
 
-  // Skip non-GET, API, auth, and chrome-extension requests
+  // Skip non-GET, API, auth, supabase, and non-http requests
   if (
     request.method !== 'GET' ||
-    request.url.includes('/api/') ||
-    request.url.includes('/auth/') ||
+    url.pathname.startsWith('/api/') ||
+    url.pathname.startsWith('/auth/') ||
     request.url.includes('supabase') ||
     !request.url.startsWith('http')
   ) return;
 
+  // NEVER cache HTML pages — causes auth desync
+  const accept = request.headers.get('Accept') || '';
+  if (accept.includes('text/html') || url.pathname === '/') return;
+
+  // Only cache static assets (JS, CSS, images, fonts)
+  const isStaticAsset = /\.(js|css|png|jpg|jpeg|webp|gif|svg|ico|woff2?|ttf)(\?|$)/.test(url.pathname) ||
+    url.pathname.startsWith('/_next/static/');
+  if (!isStaticAsset) return;
+
   event.respondWith(
-    fetch(request)
-      .then((response) => {
-        // Don't cache opaque or error responses
+    caches.match(request).then((cached) => {
+      if (cached) return cached;
+      return fetch(request).then((response) => {
         if (!response || response.status !== 200 || response.type === 'opaque') {
           return response;
         }
         const clone = response.clone();
         caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
         return response;
-      })
-      .catch(() => caches.match(request))
+      });
+    })
   );
 });

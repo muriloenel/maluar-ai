@@ -2,33 +2,33 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,700;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,500&family=Playfair+Display:ital,wght@0,500;0,700;1,400;1,700&display=swap');
 
 /* CSS Variables for theming — Maluar Brand Kit */
 :root {
-  --color-surface: #FAF5FF;
-  --color-surface-alt: #EEEDFE;
+  --color-surface: #FAFAFE;
+  --color-surface-alt: #F0EFF8;
   --color-surface-card: #ffffff;
-  --color-border: #d8d4e8;
+  --color-border: #E2E0EE;
   --color-border-light: #EEEDFE;
-  --color-text: #1A1A2E;
-  --color-text-muted: #6B7280;
-  --color-text-light: #9CA3AF;
-  --color-accent-light: #FBEAF0;
-  --color-accent-bg: #f5f0ff;
+  --color-text: #16152B;
+  --color-text-muted: #64627A;
+  --color-text-light: #9896AB;
+  --color-accent-light: #F5EEFF;
+  --color-accent-bg: #F8F5FF;
 }
 
 .dark {
-  --color-surface: #0f0e14;
-  --color-surface-alt: #18171f;
-  --color-surface-card: #1f1e28;
-  --color-border: #2e2c3a;
-  --color-border-light: #252433;
-  --color-text: #f0edf6;
-  --color-text-muted: #9b96a8;
-  --color-text-light: #6e6980;
-  --color-accent-light: #2a1f30;
-  --color-accent-bg: #1e1828;
+  --color-surface: #0c0b12;
+  --color-surface-alt: #15141e;
+  --color-surface-card: #1c1b26;
+  --color-border: #2a2838;
+  --color-border-light: #222130;
+  --color-text: #F2EFF8;
+  --color-text-muted: #9490A8;
+  --color-text-light: #635F78;
+  --color-accent-light: #231D32;
+  --color-accent-bg: #1A1528;
 }
 
 * {
@@ -40,8 +40,10 @@
 body {
   background-color: var(--color-surface);
   color: var(--color-text);
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.01em;
 }
 
 /* Scrollbar clean */
@@ -86,27 +88,52 @@ body {
 
 /* Gradient button */
 .btn-gradient {
-  background: linear-gradient(135deg, #7F77DD 0%, #D4537E 100%);
+  background: linear-gradient(135deg, #7F77DD 0%, #9B6EC7 50%, #D4537E 100%);
   color: white;
-  transition: all 0.3s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  letter-spacing: 0.02em;
+  font-weight: 600;
 }
 .btn-gradient:hover {
-  background: linear-gradient(135deg, #534AB7 0%, #c04470 100%);
-  box-shadow: 0 4px 20px rgba(127, 119, 221, 0.35);
+  background: linear-gradient(135deg, #6B63C8 0%, #8A5DB8 50%, #C04470 100%);
+  box-shadow: 0 4px 24px rgba(127, 119, 221, 0.3), 0 2px 8px rgba(212, 83, 126, 0.15);
+  transform: translateY(-1px);
+}
+.btn-gradient:active {
+  transform: translateY(0);
 }
 .btn-gradient:disabled {
-  opacity: 0.3;
+  opacity: 0.35;
   cursor: not-allowed;
   box-shadow: none;
+  transform: none;
 }
 
 /* Dark mode card glow */
 .dark .card-glow {
-  box-shadow: 0 0 0 1px rgba(127, 119, 221, 0.06), 0 2px 12px rgba(127, 119, 221, 0.05);
-  transition: box-shadow 0.3s ease;
+  box-shadow: 0 0 0 1px rgba(127, 119, 221, 0.06), 0 1px 8px rgba(127, 119, 221, 0.04);
+  transition: box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .dark .card-glow:hover {
   box-shadow: 0 0 0 1px rgba(127, 119, 221, 0.15), 0 4px 24px rgba(127, 119, 221, 0.1);
+  transform: translateY(-1px);
+}
+
+/* Glass effect */
+.glass {
+  backdrop-filter: blur(12px) saturate(1.4);
+  -webkit-backdrop-filter: blur(12px) saturate(1.4);
+}
+
+/* Smooth input focus */
+input:focus, textarea:focus, select:focus {
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+/* Better selection highlight */
+::selection {
+  background: rgba(127, 119, 221, 0.2);
+  color: inherit;
 }
 
 /* Onboarding entrance animations */
@@ -142,13 +169,20 @@ body {
 
 /* AI Avatar ring */
 .ai-avatar {
-  background: linear-gradient(135deg, #7F77DD, #D4537E);
-  box-shadow: 0 2px 8px rgba(127, 119, 221, 0.3);
+  background: linear-gradient(135deg, #7F77DD, #9B6EC7, #D4537E);
+  box-shadow: 0 2px 12px rgba(127, 119, 221, 0.35), 0 0 0 2px rgba(127, 119, 221, 0.08);
+}
+
+/* Premium heading styles */
+h1, h2, h3 {
+  letter-spacing: -0.025em;
+  font-feature-settings: 'ss01' on, 'cv01' on;
 }
 
 /* Markdown body styles */
 .markdown-body {
-  line-height: 1.6;
+  line-height: 1.7;
+  letter-spacing: -0.005em;
 }
 
 .markdown-body p {
@@ -160,7 +194,7 @@ body {
 }
 
 .markdown-body strong {
-  font-weight: 600;
+  font-weight: 700;
   color: var(--color-text);
 }
 
@@ -170,12 +204,13 @@ body {
 
 .markdown-body ul,
 .markdown-body ol {
-  margin: 0.4em 0;
+  margin: 0.5em 0;
   padding-left: 1.4em;
 }
 
 .markdown-body li {
-  margin-bottom: 0.2em;
+  margin-bottom: 0.25em;
+  line-height: 1.6;
 }
 
 .markdown-body ul li {

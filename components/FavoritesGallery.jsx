@@ -114,7 +114,7 @@ export default function FavoritesGallery({ favorites, onDelete, onUsePrompt }) {
       {favorites.map((fav) => {
         const isExpanded = expandedId === fav.id;
         const preview = fav.content?.slice(0, 150) + (fav.content?.length > 150 ? '...' : '');
-        const date = new Date(fav.savedAt).toLocaleDateString('pt-BR', {
+        const date = new Date(fav.saved_at).toLocaleDateString('pt-BR', {
           day: '2-digit',
           month: 'short',
         });

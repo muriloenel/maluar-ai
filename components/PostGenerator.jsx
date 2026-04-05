@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import PostImageEditor from './PostImageEditor';
 import { useToast } from './Toast';
 import { dbLoadPostHistory, dbSavePost, dbDeletePost } from '../lib/db';
+import { useAuth } from './SupabaseAuthProvider';
 
 const PLATFORMS = [
   { id: 'instagram', label: 'Instagram', icon: '📸' },
@@ -31,13 +32,15 @@ export default function PostGenerator({ user, userId, initialPrompt }) {
   const [imageBase64, setImageBase64] = useState(null);
   const [imageMediaType, setImageMediaType] = useState('image/jpeg');
   const [result, setResult] = useState(null);
+  const [structuredData, setStructuredData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [postHistory, setPostHistory] = useState([]);
+  const { getAccessToken } = useAuth();
 
   // Load post history from Supabase on mount
   useEffect(() => {
-    if (userId) dbLoadPostHistory(userId).then(setPostHistory);
+    if (userId) dbLoadPostHistory(userId).then(setPostHistory).catch(() => {});
   }, [userId]);
   const fileInputRef = useRef(null);
   const toast = useToast();
@@ -91,7 +94,16 @@ FORMATO DE RESPOSTA (use exatamente estas seções):
 (hashtags separadas, prontas pra copiar)
 
 **DICA DE PUBLICAÇÃO:**
-(melhor horário, formato ideal, sugestão extra)`;
+(melhor horário, formato ideal, sugestão extra)
+
+**TEMPLATE:**
+TÍTULO: (frase curta e impactante pra ser o destaque visual do post, máx 50 chars, SEM emoji)
+DESCRIÇÃO: (1 frase descrevendo o serviço/resultado, máx 80 chars)
+TÓPICO 1: (primeiro benefício/destaque, curto, máx 40 chars)
+TÓPICO 2: (segundo benefício/destaque, curto, máx 40 chars)
+TÓPICO 3: (terceiro benefício/destaque, curto, máx 40 chars)
+LOCAL: (cidade se mencionada, senão deixe vazio)
+CTA: (chamada pra ação curta: "Agende pelo WhatsApp", "Chame no direct", etc.)`;
 
     let promptText = `Crie um post para ${platformLabel}, tipo: ${typeLabel}.`;
     if (extraInfo) promptText += ` Contexto extra: ${extraInfo}`;
@@ -110,9 +122,13 @@ FORMATO DE RESPOSTA (use exatamente estas seções):
     ];
 
     try {
+      const authToken = getAccessToken ? await getAccessToken() : null;
+      const fetchHeaders = { 'Content-Type': 'application/json' };
+      if (authToken) fetchHeaders['Authorization'] = `Bearer ${authToken}`;
+
       const res = await fetch('/api/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: fetchHeaders,
         body: JSON.stringify({ messages, system: systemPrompt }),
       });
 
@@ -124,6 +140,7 @@ FORMATO DE RESPOSTA (use exatamente estas seções):
       const data = await res.json();
       const text = data.content?.[0]?.text || 'Não consegui gerar o post. Tenta de novo!';
       setResult(text);
+      setStructuredData(extractTemplateData(text));
       // Save to history
       if (!text.startsWith('Erro')) {
         const platformLabel = PLATFORMS.find((p) => p.id === platform)?.label;
@@ -141,6 +158,24 @@ FORMATO DE RESPOSTA (use exatamente estas seções):
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
     toast?.('Copiado!');
+  };
+
+  // Extrair dados estruturados da seção TEMPLATE da resposta da IA
+  const extractTemplateData = (text) => {
+    const templateMatch = text.match(/\*\*TEMPLATE[^*]*\*\*\s*([\s\S]*?)$/i);
+    if (!templateMatch) return null;
+    const section = templateMatch[1];
+    const get = (key) => {
+      const m = section.match(new RegExp(`${key}:\\s*(.+)`, 'i'));
+      return m ? m[1].trim() : '';
+    };
+    return {
+      headline: get('TÍTULO') || get('TITULO'),
+      subtitle: get('DESCRIÇÃO') || get('DESCRICAO'),
+      bullets: [get('TÓPICO 1') || get('TOPICO 1'), get('TÓPICO 2') || get('TOPICO 2'), get('TÓPICO 3') || get('TOPICO 3')].filter(Boolean),
+      location: get('LOCAL'),
+      cta: get('CTA'),
+    };
   };
 
   const shareOnWhatsApp = () => {
@@ -341,6 +376,25 @@ FORMATO DE RESPOSTA (use exatamente estas seções):
             )}
           </button>
 
+          {/* Image Editor - aparece com ou sem resultado da IA */}
+          {imagePreview && !result && (
+            <div className="bg-accent-bg border border-accent/10 rounded-xl p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">🎨</span>
+                <div>
+                  <p className="text-sm font-medium text-text">Quer só montar a imagem?</p>
+                  <p className="text-xs text-text-muted">Use o editor abaixo pra criar seu post direto, sem precisar gerar texto.</p>
+                </div>
+              </div>
+              <PostImageEditor
+                imageSrc={imagePreview}
+                legenda=""
+                platform={platform}
+                structuredData={null}
+              />
+            </div>
+          )}
+
           {/* Result */}
           {result && (
             <div className="animate-fade-in space-y-3 pb-6">
@@ -429,8 +483,8 @@ FORMATO DE RESPOSTA (use exatamente estas seções):
                 <PostImageEditor
                   imageSrc={imagePreview}
                   legenda={extractSection('LEGENDA') || result}
-                  hashtags={extractSection('HASHTAGS')}
                   platform={platform}
+                  structuredData={structuredData}
                 />
               )}
             </div>

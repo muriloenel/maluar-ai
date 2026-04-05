@@ -56,6 +56,24 @@ const MODULES_BY_LEVEL = {
         'Quanto cobrar sendo iniciante?',
       ],
     },
+    {
+      icon: '💰',
+      label: 'Começar a Lucrar',
+      prompts: [
+        'Monta um plano pra eu conseguir minhas 10 primeiras clientes',
+        'Quanto preciso investir pra começar a lucrar?',
+        'Me ajuda a calcular o preço certo dos meus serviços',
+      ],
+    },
+    {
+      icon: '📱',
+      label: 'Instagram do Zero',
+      prompts: [
+        'Como montar meu Instagram profissional do zero?',
+        'O que postar quando não tenho clientes ainda?',
+        'Me dá um plano de conteúdo pra primeira semana',
+      ],
+    },
   ],
   intermediario: [
     {
@@ -101,6 +119,33 @@ const MODULES_BY_LEVEL = {
         'Dicas de Instagram pra nail designer',
         'Como fazer Reels que engajam?',
         'Melhores horários pra postar',
+      ],
+    },
+    {
+      icon: '🚀',
+      label: 'Captar Clientes',
+      prompts: [
+        'Monta um plano de captação de clientes pra 30 dias',
+        'Como fazer parcerias locais pra conseguir clientes?',
+        'Me dá templates de mensagem pro WhatsApp pra atrair clientes',
+      ],
+    },
+    {
+      icon: '📊',
+      label: 'Gestão Financeira',
+      prompts: [
+        'Me ajuda a calcular o custo real do meu serviço',
+        'Como separar meu dinheiro pessoal do negócio?',
+        'Quero faturar R$5.000/mês, monta um plano pra mim',
+      ],
+    },
+    {
+      icon: '⏰',
+      label: 'Organizar Rotina',
+      prompts: [
+        'Sou mãe e nail designer, me ajuda a montar uma rotina',
+        'Como organizar minha agenda de atendimentos?',
+        'Técnica de batch: como criar conteúdo da semana toda em 2 horas',
       ],
     },
   ],
@@ -150,10 +195,28 @@ const MODULES_BY_LEVEL = {
         'Como cobrar por consultoria',
       ],
     },
+    {
+      icon: '🏢',
+      label: 'Formalizar Empresa',
+      prompts: [
+        'Como abrir MEI pra nail designer?',
+        'Quando devo migrar de MEI pra ME?',
+        'Me explica sobre conta PJ e máquininha',
+      ],
+    },
+    {
+      icon: '📈',
+      label: 'Diversificar Renda',
+      prompts: [
+        'Quais outras formas de ganhar dinheiro além de atender?',
+        'Como criar e vender um curso online?',
+        'Como ser educadora de marca de produtos?',
+      ],
+    },
   ],
 };
 
-export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activeTab, onTabChange, onChangeLevel, isOpen, onClose, chatList, activeChatId, onSelectChat, onDeleteChat, onSignOut }) {
+export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activeTab, onTabChange, onChangeLevel, isOpen, onClose, chatList, activeChatId, onSelectChat, onDeleteChat, onSignOut, currentPlan }) {
   const [showLevelPicker, setShowLevelPicker] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [historySearch, setHistorySearch] = useState('');
@@ -182,10 +245,13 @@ export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activ
         {/* Brand Logo */}
         <div className="px-3 pt-3 pb-1">
           <div className="flex items-center gap-2.5 px-2">
-            <img src="/logo-icon.png" alt="Maluar" className="w-8 h-8 rounded-lg object-contain" />
+            <div className="relative">
+              <img src="/logo-icon.png" alt="Maluar" className="w-8 h-8 rounded-lg object-contain" />
+              <div className="absolute -inset-0.5 bg-gradient-to-r from-accent/20 to-rose/20 rounded-lg blur-sm -z-10" />
+            </div>
             <div>
-              <h1 className="text-[15px] font-bold bg-gradient-to-r from-[#534AB7] via-[#7F77DD] to-[#D4537E] dark:from-[#AFA9EC] dark:via-[#7F77DD] dark:to-[#D4537E] bg-clip-text text-transparent leading-tight">Maluar</h1>
-              <p className="text-[9px] text-text-light font-medium tracking-wider uppercase">Nail Design AI</p>
+              <h1 className="text-[15px] font-extrabold bg-gradient-to-r from-[#534AB7] via-[#7F77DD] to-[#D4537E] dark:from-[#AFA9EC] dark:via-[#7F77DD] dark:to-[#D4537E] bg-clip-text text-transparent leading-tight tracking-tight">Maluar</h1>
+              <p className="text-[9px] text-text-light font-semibold tracking-[0.15em] uppercase">Nail Design AI</p>
             </div>
           </div>
         </div>
@@ -197,21 +263,21 @@ export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activ
               onSendPrompt(null);
               onClose();
             }}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border border-border hover:bg-surface-alt transition-colors"
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border border-border hover:border-accent/30 hover:bg-accent-bg transition-all duration-200 group"
           >
-            <svg className="w-4 h-4 text-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-4 h-4 text-text-muted group-hover:text-accent transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            <span className="text-[13px] font-medium text-text flex-1 text-left">Novo chat</span>
+            <span className="text-[13px] font-semibold text-text flex-1 text-left">Novo chat</span>
           </button>
         </div>
 
         {/* Tab switcher */}
         <div className="px-3 pb-2">
-          <div className="flex bg-surface-alt rounded-lg p-0.5">
+          <div className="flex bg-surface-alt rounded-xl p-0.5">
             <button
               onClick={() => onTabChange('chat')}
-              className={`flex-1 text-xs font-medium py-1.5 rounded-md transition-all ${
+              className={`flex-1 text-xs font-semibold py-2 rounded-lg transition-all duration-200 ${
                 activeTab === 'chat'
                   ? 'bg-surface-card text-text shadow-soft'
                   : 'text-text-muted hover:text-text'
@@ -221,7 +287,7 @@ export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activ
             </button>
             <button
               onClick={() => onTabChange('post')}
-              className={`flex-1 text-xs font-medium py-1.5 rounded-md transition-all ${
+              className={`flex-1 text-xs font-semibold py-2 rounded-lg transition-all duration-200 ${
                 activeTab === 'post'
                   ? 'bg-surface-card text-text shadow-soft'
                   : 'text-text-muted hover:text-text'
@@ -231,7 +297,7 @@ export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activ
             </button>
             <button
               onClick={() => onTabChange('favorites')}
-              className={`flex-1 text-xs font-medium py-1.5 rounded-md transition-all ${
+              className={`flex-1 text-xs font-semibold py-2 rounded-lg transition-all duration-200 ${
                 activeTab === 'favorites'
                   ? 'bg-surface-card text-text shadow-soft'
                   : 'text-text-muted hover:text-text'
@@ -292,6 +358,26 @@ export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activ
         <div className="px-3 py-2 space-y-1.5">
           <button
             onClick={() => {
+              onTabChange('business');
+              onClose();
+            }}
+            className={`w-full flex items-center gap-2.5 px-2.5 py-2.5 rounded-xl border transition-colors ${
+              activeTab === 'business'
+                ? 'border-accent/30 bg-accent-light text-accent'
+                : 'border-border-light bg-surface-card hover:bg-surface-alt text-text-muted hover:text-text'
+            }`}
+          >
+            <span className="text-base">🚀</span>
+            <div className="flex-1 text-left">
+              <span className="text-[13px] font-semibold block leading-tight">Meu Negócio</span>
+              <span className="text-[10px] text-text-muted">Escale seu negócio de nail</span>
+            </div>
+            <svg className="w-4 h-4 text-text-light" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+          <button
+            onClick={() => {
               onTabChange('pricing');
               onClose();
             }}
@@ -305,6 +391,28 @@ export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activ
             <div className="flex-1 text-left">
               <span className="text-[13px] font-semibold block leading-tight">Calculadora de Preço</span>
               <span className="text-[10px] text-text-muted">Materiais + tempo = preço ideal</span>
+            </div>
+            <svg className="w-4 h-4 text-text-light" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+          <button
+            onClick={() => {
+              onTabChange('plans');
+              onClose();
+            }}
+            className={`w-full flex items-center gap-2.5 px-2.5 py-2.5 rounded-xl border transition-colors ${
+              activeTab === 'plans'
+                ? 'border-accent/30 bg-accent-light text-accent'
+                : 'border-border-light bg-surface-card hover:bg-surface-alt text-text-muted hover:text-text'
+            }`}
+          >
+            <span className="text-base">💎</span>
+            <div className="flex-1 text-left">
+              <span className="text-[13px] font-semibold block leading-tight">Planos</span>
+              <span className="text-[10px] text-text-muted">
+                {currentPlan === 'premium' ? 'Premium ativo ✨' : currentPlan === 'pro' ? 'Pro ativo 💅' : 'Grátis — Faça upgrade!'}
+              </span>
             </div>
             <svg className="w-4 h-4 text-text-light" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -393,24 +501,6 @@ export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activ
         <div className="flex-1 overflow-y-auto px-3 py-2 space-y-0.5">
           {activeTab === 'chat' && (
             <>
-              {/* Recria Design — atalho fixo */}
-              <button
-                onClick={() => {
-                  onSendPrompt('Quero recriar um design — vou te mandar a foto de referência. Me dê: passo a passo detalhado, materiais, tempo estimado e valor sugerido para cobrar.');
-                  onClose();
-                }}
-                className="w-full flex items-center gap-2.5 px-2.5 py-2.5 mb-2 rounded-xl border border-accent/20 bg-accent-bg hover:bg-accent-light transition-colors"
-              >
-                <span className="text-base">📸</span>
-                <div className="flex-1 text-left">
-                  <span className="text-[13px] font-semibold text-accent block leading-tight">Recria esse Design</span>
-                  <span className="text-[10px] text-text-muted">Manda a foto e receba o passo a passo</span>
-                </div>
-                <svg className="w-4 h-4 text-accent/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-
               <div className="text-[10px] font-medium text-text-light uppercase tracking-wider px-1 mb-1.5 mt-1">
                 Sugestões pra você
               </div>
@@ -489,16 +579,57 @@ export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activ
           )}
         </div>
 
-        {/* Footer - User info + theme toggle */}
-        <div className="p-3 border-t border-border-light">
-          <div className="flex items-center gap-2.5 px-2 py-1.5">
-            <div className="w-7 h-7 bg-accent-light rounded-full flex items-center justify-center">
-              <span className="text-xs font-bold text-accent">{user?.name?.[0]?.toUpperCase()}</span>
+        {/* Footer - User info + account + theme toggle */}
+        <div className="p-3 border-t border-border-light space-y-2">
+          {/* Minha Conta */}
+          <details className="group">
+            <summary className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg cursor-pointer hover:bg-surface-alt transition-colors list-none">
+              <div className="w-7 h-7 bg-accent-light rounded-full flex items-center justify-center">
+                <span className="text-xs font-bold text-accent">{user?.name?.[0]?.toUpperCase()}</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-text truncate">{user?.name}</p>
+                <p className="text-[10px] text-text-light">Maluar AI</p>
+              </div>
+              <svg className="w-3.5 h-3.5 text-text-light group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </summary>
+            <div className="mt-1 ml-2 mr-1 space-y-0.5 text-[11px]">
+              <a
+                href="/api/account/export"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 px-2.5 py-1.5 rounded-md text-text-muted hover:text-accent hover:bg-accent-bg transition-colors"
+              >
+                📦 Exportar meus dados
+              </a>
+              <button
+                onClick={async () => {
+                  if (!confirm('Tem certeza? TODOS os seus dados serão excluídos permanentemente. Essa ação não pode ser desfeita.')) return;
+                  if (!confirm('Última chance: realmente deseja excluir sua conta?')) return;
+                  try {
+                    const res = await fetch('/api/account/delete', { method: 'DELETE', headers: { 'Authorization': `Bearer ${window.__maluarToken || ''}` } });
+                    if (res.ok) {
+                      alert('Conta excluída com sucesso.');
+                      onSignOut?.();
+                    } else {
+                      alert('Erro ao excluir conta. Tente novamente.');
+                    }
+                  } catch { alert('Erro de conexão.'); }
+                }}
+                className="flex items-center gap-2 px-2.5 py-1.5 rounded-md text-text-muted hover:text-rose hover:bg-rose-light transition-colors w-full text-left"
+              >
+                🗑️ Excluir minha conta
+              </button>
+              <div className="flex gap-3 px-2.5 py-1 text-text-light">
+                <a href="/termos" className="hover:text-accent transition-colors">Termos</a>
+                <a href="/privacidade" className="hover:text-accent transition-colors">Privacidade</a>
+              </div>
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-text truncate">{user?.name}</p>
-              <p className="text-[10px] text-text-light">Maluar AI</p>
-            </div>
+          </details>
+
+          <div className="flex items-center justify-end gap-1.5 px-2">
             <button
               onClick={toggleTheme}
               className="w-7 h-7 rounded-lg flex items-center justify-center text-text-light hover:text-accent hover:bg-accent-bg transition-colors"

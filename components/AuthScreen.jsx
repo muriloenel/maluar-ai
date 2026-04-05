@@ -13,7 +13,7 @@ export default function AuthScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const toast = useToast();
-  const { supabase } = useAuth();
+  const { supabase, enterGuestMode } = useAuth();
 
   const levels = [
     { id: 'iniciante', label: 'Iniciante', desc: 'Tô começando do zero', icon: '🌱' },
@@ -100,18 +100,34 @@ export default function AuthScreen() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-surface p-4">
-      <div className="w-full max-w-sm">
+    <div className="min-h-screen flex items-center justify-center bg-surface p-4 relative overflow-hidden">
+      {/* Subtle background gradient */}
+      <div className="absolute inset-0 bg-gradient-to-br from-accent/[0.03] via-transparent to-rose/[0.03]" />
+      <div className="absolute top-0 right-0 w-96 h-96 bg-accent/[0.04] rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+      <div className="absolute bottom-0 left-0 w-80 h-80 bg-rose/[0.04] rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
+
+      <div className="w-full max-w-sm relative">
         {/* Logo */}
         <div className="text-center mb-8 animate-scale-in">
-          <img src="/logo-icon.png" alt="Maluar" className="w-20 h-20 mx-auto mb-4 rounded-2xl object-contain" />
-          <h1 className="font-display text-3xl font-bold bg-gradient-to-r from-[#534AB7] via-[#7F77DD] to-[#D4537E] bg-clip-text text-transparent tracking-tight">
+          <div className="relative inline-block">
+            <img src="/logo-icon.png" alt="Maluar" className="w-20 h-20 mx-auto mb-4 rounded-2xl object-contain shadow-elevated" />
+            <div className="absolute -inset-1 bg-gradient-to-r from-accent/20 to-rose/20 rounded-2xl blur-lg -z-10" />
+          </div>
+          <h1 className="text-3xl font-extrabold bg-gradient-to-r from-[#534AB7] via-[#7F77DD] to-[#D4537E] bg-clip-text text-transparent tracking-tight">
             Maluar AI
           </h1>
-          <p className="text-text-muted text-sm mt-1">
+          <p className="text-text-muted text-sm mt-1.5 font-medium tracking-wide">
             Sua mentora de Nail Design
           </p>
         </div>
+
+        {/* Botão convidado */}
+        <button
+          onClick={enterGuestMode}
+          className="w-full mb-6 py-3 rounded-xl font-semibold text-sm border-2 border-accent/30 text-accent hover:bg-accent hover:text-white hover:border-accent hover:shadow-glow transition-all duration-300"
+        >
+          Continuar sem login →
+        </button>
 
         {/* Login form */}
         {mode === 'login' && (
@@ -295,6 +311,13 @@ export default function AuthScreen() {
             </p>
           </form>
         )}
+      </div>
+
+      {/* Links LGPD */}
+      <div className="text-center mt-6 text-[11px] text-text-light space-x-3">
+        <a href="/termos" className="hover:text-accent transition-colors">Termos de Uso</a>
+        <span>·</span>
+        <a href="/privacidade" className="hover:text-accent transition-colors">Política de Privacidade</a>
       </div>
     </div>
   );

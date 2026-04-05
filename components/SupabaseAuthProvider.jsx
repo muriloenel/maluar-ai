@@ -1,9 +1,15 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { getSupabase } from '../lib/supabase';
 
-const AuthContext = createContext({ user: undefined, profile: null, signOut: async () => {} });
+const AuthContext = createContext({
+  user: undefined,
+  profile: null,
+  signOut: async () => {},
+  getAccessToken: async () => null,
+  enterGuestMode: () => {},
+});
 
 export function useAuth() {
   return useContext(AuthContext);
@@ -14,10 +20,22 @@ export default function SupabaseAuthProvider({ children }) {
   const [profile, setProfile] = useState(null);
   const supabase = getSupabase();
 
-  const fetchProfile = async (authUser) => {
+  // Função centralizada pra obter token — usa getSession() que retorna do cache local
+  const getAccessToken = useCallback(async () => {
     if (!supabase) return null;
     try {
-      const { data, error } = await supabase
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (error || !session?.access_token) return null;
+      return session.access_token;
+    } catch {
+      return null;
+    }
+  }, [supabase]);
+
+  const fetchProfile = useCallback(async (authUser) => {
+    if (!supabase) return null;
+    try {
+      const { data } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', authUser.id)
@@ -28,8 +46,7 @@ export default function SupabaseAuthProvider({ children }) {
         return data;
       }
 
-      // Profile doesn't exist — create it (trigger may have failed)
-      console.warn('Profile not found, creating...', error?.message);
+      // Profile não existe — criar (trigger pode ter falhado)
       const meta = authUser.user_metadata || {};
       const { data: created } = await supabase
         .from('profiles')
@@ -46,8 +63,7 @@ export default function SupabaseAuthProvider({ children }) {
         return created;
       }
 
-      // Fallback — use a local profile so app doesn't hang
-      console.warn('Could not create profile in DB, using fallback');
+      // Fallback local pra não travar o app
       const fallback = {
         id: authUser.id,
         name: meta.name || meta.full_name || 'Nail Designer',
@@ -59,19 +75,16 @@ export default function SupabaseAuthProvider({ children }) {
       return fallback;
     } catch (err) {
       console.error('fetchProfile error:', err);
-      // Fallback so app doesn't hang
       const meta = authUser.user_metadata || {};
-      const fallback = {
+      setProfile({
         id: authUser.id,
-        name: meta.name || meta.full_name || 'Nail Designer',
+        name: meta.name || 'Nail Designer',
         level: meta.level || 'iniciante',
         plan: 'free',
         messages_today: 0,
-      };
-      setProfile(fallback);
-      return fallback;
+      });
     }
-  };
+  }, [supabase]);
 
   useEffect(() => {
     if (!supabase) {
@@ -79,67 +92,68 @@ export default function SupabaseAuthProvider({ children }) {
       return;
     }
 
-    let mounted = true;
-
-    // Timeout fallback — if auth takes too long, treat as logged out
+    // Timeout de segurança: se o Supabase não responder em 5s, assume "deslogado"
+    // pra não travar no "Carregando..." infinito (proxy corporativo, rede lenta, etc.)
+    let resolved = false;
     const timeout = setTimeout(() => {
-      if (mounted && user === undefined) {
-        console.warn('Auth timeout — treating as logged out');
-        setUser(null);
+      if (!resolved) {
+        console.warn('[AUTH] Timeout — assumindo deslogado');
+        setUser((prev) => prev === undefined ? null : prev);
       }
-    }, 6000);
+    }, 5000);
 
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!mounted) return;
-      clearTimeout(timeout);
-      if (session?.user) {
-        setUser(session.user);
-        fetchProfile(session.user);
-      } else {
-        setUser(null);
-      }
-    }).catch(() => {
-      if (mounted) {
+    // onAuthStateChange é a FONTE PRIMÁRIA de verdade (boa prática Supabase)
+    // Ele dispara INITIAL_SESSION no mount, SIGNED_IN no login, SIGNED_OUT no logout,
+    // e TOKEN_REFRESHED quando o token é renovado automaticamente.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        resolved = true;
         clearTimeout(timeout);
-        setUser(null);
-      }
-    });
-
-    // Listen to auth changes
-    let subscription;
-    try {
-      const { data } = supabase.auth.onAuthStateChange(
-        async (event, session) => {
-          if (session?.user) {
-            setUser(session.user);
+        if (session?.user) {
+          setUser(session.user);
+          // Não re-fetch profile no TOKEN_REFRESHED (desnecessário)
+          if (event !== 'TOKEN_REFRESHED') {
             await fetchProfile(session.user);
-          } else {
-            setUser(null);
-            setProfile(null);
           }
+        } else {
+          setUser(null);
+          setProfile(null);
         }
-      );
-      subscription = data?.subscription;
-    } catch (err) {
-      console.error('onAuthStateChange error:', err);
-    }
+      }
+    );
 
     return () => {
-      mounted = false;
       clearTimeout(timeout);
       subscription?.unsubscribe();
     };
+  }, [supabase, fetchProfile]);
+
+  const enterGuestMode = useCallback(() => {
+    let guestId = null;
+    try { guestId = localStorage.getItem('maluar-guest-id'); } catch {}
+    if (!guestId) {
+      guestId = 'guest-' + crypto.randomUUID();
+      try { localStorage.setItem('maluar-guest-id', guestId); } catch {}
+    }
+    setUser({ id: guestId, email: 'convidado', user_metadata: { name: 'Nail Designer', level: 'iniciante' } });
+    setProfile({ id: guestId, name: 'Nail Designer', level: 'iniciante', plan: 'free', messages_today: 0 });
   }, []);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     if (supabase) await supabase.auth.signOut();
+    try { localStorage.removeItem('maluar-guest-id'); } catch {}
     setUser(null);
     setProfile(null);
-  };
+  }, [supabase]);
 
-  const updateProfile = async (updates) => {
-    if (!user || !supabase) return;
+  const updateProfile = useCallback(async (updates) => {
+    if (!user) return;
+    // Guest mode — update local state only
+    if (user.id?.startsWith('guest-')) {
+      setProfile(prev => prev ? { ...prev, ...updates } : prev);
+      return { ...updates };
+    }
+    if (!supabase) return;
     const { data } = await supabase
       .from('profiles')
       .update({ ...updates, updated_at: new Date().toISOString() })
@@ -148,10 +162,10 @@ export default function SupabaseAuthProvider({ children }) {
       .single();
     if (data) setProfile(data);
     return data;
-  };
+  }, [user, supabase]);
 
   return (
-    <AuthContext.Provider value={{ user, profile, signOut, updateProfile, supabase }}>
+    <AuthContext.Provider value={{ user, profile, signOut, updateProfile, supabase, getAccessToken, enterGuestMode }}>
       {children}
     </AuthContext.Provider>
   );
