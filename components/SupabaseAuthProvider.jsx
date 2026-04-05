@@ -78,6 +78,14 @@ export default function SupabaseAuthProvider({ children }) {
 
       if (created) {
         setProfile(created);
+        // Enviar email de boas-vindas (async, não bloqueia)
+        if (authUser.email) {
+          fetch('/api/account/welcome', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: authUser.email, name: created.name }),
+          }).catch(() => {});
+        }
         return created;
       }
 

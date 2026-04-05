@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { sendUpgradeEmail } from '../../../lib/email';
 
 const STRIPE_SECRET = (process.env.STRIPE_SECRET_KEY || '').trim();
 const STRIPE_WEBHOOK_SECRET = (process.env.STRIPE_WEBHOOK_SECRET || '').trim();
@@ -105,6 +106,12 @@ export async function POST(req) {
           console.error(`[WEBHOOK] Erro ao atualizar profile:`, updateError.message);
         } else if (!updated) {
           console.error(`[WEBHOOK] Update retornou null para userId=${userId}`);
+        } else {
+          // Enviar email de upgrade (async, não bloqueia)
+          const customerEmail = session.customer_email || session.customer_details?.email;
+          if (customerEmail) {
+            sendUpgradeEmail(customerEmail, null, plan).catch(() => {});
+          }
         }
         break;
       }

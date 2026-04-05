@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { useAuth } from '../components/SupabaseAuthProvider';
 import AuthScreen from '../components/AuthScreen';
@@ -45,86 +45,12 @@ export default function Home() {
   const [favorites, setFavorites] = useState([]);
   const [dataLoaded, setDataLoaded] = useState(false);
   const [loadedUserId, setLoadedUserId] = useState(null);
-  // Detectar checkout=success na URL
-  const isCheckoutSuccess = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('checkout') === 'success';
-  const [checkoutLoading, setCheckoutLoading] = useState(isCheckoutSuccess);
 
   // Callback para o ChatWindow avisar que consumiu o prompt
   const clearPendingPrompt = useCallback(() => {
     setPendingPrompt(null);
   }, []);
 
-  // Após checkout Stripe: polling via API server-side + fallback reload
-  useEffect(() => {
-    if (!isCheckoutSuccess) return;
-
-    window.history.replaceState({}, '', '/');
-    setCheckoutLoading(true);
-
-    let didUpdate = false;
-
-    const tryFetchPlan = async () => {
-      try {
-        // Esperar 4s pro webhook processar
-        await new Promise(r => setTimeout(r, 4000));
-
-        for (let i = 1; i <= 15; i++) {
-          try {
-            // Tentar sem auth primeiro
-            const res = await fetch('/api/account/plan');
-
-            if (res.status === 401) {
-              // Ler token direto do localStorage
-              let token = null;
-              try {
-                const raw = localStorage.getItem('maluar-auth');
-                if (raw) {
-                  const parsed = JSON.parse(raw);
-                  token = parsed?.access_token || null;
-                }
-              } catch {}
-
-              if (!token) {
-                await new Promise(r => setTimeout(r, 3000));
-                continue;
-              }
-
-              const authRes = await fetch('/api/account/plan', {
-                headers: { 'Authorization': `Bearer ${token}` },
-              });
-              const data = await authRes.json();
-
-              if (data.plan && data.plan !== 'free') {
-                didUpdate = true;
-                try { sessionStorage.setItem('maluar-confirmed-plan', data.plan); } catch {}
-                window.location.href = '/';
-                return;
-              }
-            } else {
-              const data = await res.json();
-              if (data.plan && data.plan !== 'free') {
-                didUpdate = true;
-                try { sessionStorage.setItem('maluar-confirmed-plan', data.plan); } catch {}
-                window.location.href = '/';
-                return;
-              }
-            }
-          } catch {}
-          await new Promise(r => setTimeout(r, 3000));
-        }
-      } catch {}
-
-      // Fallback: recarregar a página
-      if (!didUpdate) {
-        setCheckoutLoading(false);
-        window.location.href = '/';
-      }
-    };
-
-    tryFetchPlan();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // useMemo DEVE ficar antes de qualquer return condicional (regra dos hooks)
   // Safety net: se sessionStorage tiver plano confirmado pelo checkout, usar como override
   const confirmedPlan = typeof window !== 'undefined' ? (() => {
     try { return sessionStorage.getItem('maluar-confirmed-plan'); } catch { return null; }
@@ -330,26 +256,12 @@ export default function Home() {
   }, [getAccessToken]);
 
   // Loading state
-  if (user === undefined || checkoutLoading) {
+  if (user === undefined) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-surface">
         <div className="flex flex-col items-center gap-4 animate-scale-in">
-          <div className="relative">
-            <img src="/logo-icon.png" alt="Maluar" className="w-16 h-16 rounded-2xl object-contain" />
-            {checkoutLoading && (
-              <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center animate-pulse">
-                <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-              </div>
-            )}
-          </div>
-          <div className="flex flex-col items-center gap-1">
-            <p className="text-sm font-medium text-text">
-              {checkoutLoading ? 'Ativando seu plano...' : 'Carregando...'}
-            </p>
-            {checkoutLoading && (
-              <p className="text-xs text-text-muted">Isso pode levar alguns segundos</p>
-            )}
-          </div>
+          <img src="/logo-icon.png" alt="Maluar" className="w-16 h-16 rounded-2xl object-contain" />
+          <p className="text-sm text-text-muted">Carregando...</p>
           <div className="spinner" />
         </div>
       </div>

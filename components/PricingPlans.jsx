@@ -10,7 +10,7 @@ const PLANS = [
     period: '/mês',
     description: 'Pra experimentar a Maluar AI',
     features: [
-      '50 mensagens por dia',
+      '15 mensagens por dia',
       'Análise de fotos (básica)',
       'Templates WhatsApp',
       'Calculadora de preço',

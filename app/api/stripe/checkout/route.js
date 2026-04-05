@@ -72,7 +72,7 @@ export async function POST(req) {
     }
 
     const appUrl = getAppUrl(req);
-    const successUrl = `${appUrl}?checkout=success`;
+    const successUrl = `${appUrl}/checkout/success`;
     const cancelUrl = `${appUrl}?checkout=cancel`;
 
     // Criar Checkout Session no Stripe

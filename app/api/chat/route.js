@@ -16,7 +16,7 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 // Limites por plano
-const DAILY_LIMITS = { free: 50, pro: 150, premium: 9999 };
+const DAILY_LIMITS = { free: 15, pro: 150, premium: 9999 };
 const UNLIMITED_EMAILS = (process.env.ADMIN_EMAILS || process.env.NEXT_PUBLIC_ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
 
 // Verificação server-side de quota (bloqueante)
@@ -179,11 +179,21 @@ export async function POST(req) {
 
     const imageRequest = hasImage(messages);
 
+    // Modelo dinâmico: Haiku para msgs simples (70% mais barato), Sonnet para imagens/complexo
+    const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+    const lastText = typeof lastUserMsg?.content === 'string'
+      ? lastUserMsg.content
+      : Array.isArray(lastUserMsg?.content)
+        ? lastUserMsg.content.filter(b => b.type === 'text').map(b => b.text).join(' ')
+        : '';
+    const isComplex = imageRequest || lastText.length > 500 || /plano de ação|diagnóstico|análise|estratégia|financeiro|business/i.test(lastText);
+    const model = isComplex ? 'claude-sonnet-4-20250514' : 'claude-haiku-4-20250514';
+
     // Streaming mode
     if (stream) {
       const response = await client.messages.create({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: imageRequest ? 3000 : 1500,
+        model,
+        max_tokens: imageRequest ? 3000 : 1200,
         temperature: imageRequest ? 0.1 : 0.5,
         system: safeSystem,
         messages,
@@ -219,7 +229,7 @@ export async function POST(req) {
     // Non-streaming mode (used by PostGenerator)
     const response = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: hasImage(messages) ? 2048 : 1500,
+      max_tokens: imageRequest ? 2048 : 1200,
       system: safeSystem,
       messages,
     });
