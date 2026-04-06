@@ -252,9 +252,10 @@ export async function POST(req) {
     // Modelos: Sonnet para complexo/imagens, Haiku para msgs simples (12x mais barato)
     const SONNET = 'claude-sonnet-4-20250514';
     const HAIKU = 'claude-3-5-haiku-latest';
-    const MODEL_PRIORITY = [SONNET, 'claude-3-5-sonnet-latest', 'claude-3-5-sonnet-20241022', HAIKU];
+    // Fallbacks: se modelo primário falhar, tentar estes na ordem
+    const FALLBACKS = [SONNET, 'claude-3-5-sonnet-latest', 'claude-3-5-sonnet-20241022', HAIKU];
     // Routing: Haiku para msgs simples, Sonnet para complexo/imagens
-    const model = isComplex ? SONNET : HAIKU;
+    let model = isComplex ? SONNET : HAIKU;
     console.log(`[CHAT] Modelo: ${model}, Complexo: ${isComplex}, Stream: ${!!stream}, User: ${authUser?.email || 'anon'}, Plan: ${userPlan}`);
 
     // Streaming mode
@@ -274,9 +275,9 @@ export async function POST(req) {
         // Se modelo não existe (404), tentar fallbacks
         if (createErr?.status === 404 || createErr?.error?.type === 'not_found_error') {
           let fallbackWorked = false;
-          for (let i = 1; i < MODEL_PRIORITY.length; i++) {
-            const fallbackModel = MODEL_PRIORITY[i];
-            console.log(`[CHAT] Tentando fallback modelo ${i}: ${fallbackModel}`);
+          const fallbackList = FALLBACKS.filter(m => m !== model);
+          for (const fallbackModel of fallbackList) {
+            console.log(`[CHAT] Tentando fallback: ${fallbackModel}`);
             try {
               response = await client.messages.create({
                 model: fallbackModel,
@@ -287,6 +288,7 @@ export async function POST(req) {
                 stream: true,
               });
               fallbackWorked = true;
+              model = fallbackModel; // atualizar para logUsage
               console.log(`[CHAT] Fallback ${fallbackModel} funcionou!`);
               break;
             } catch (fallbackErr) {
@@ -357,8 +359,10 @@ export async function POST(req) {
 
     // Non-streaming mode (used by PostGenerator)
     let response = null;
-    let usedModel = MODEL_PRIORITY[0];
-    for (const tryModel of MODEL_PRIORITY) {
+    let usedModel = model;
+    // Tentar modelo primário primeiro, depois fallbacks
+    const tryModels = [model, ...FALLBACKS.filter(m => m !== model)];
+    for (const tryModel of tryModels) {
       try {
         response = await client.messages.create({
           model: tryModel,
