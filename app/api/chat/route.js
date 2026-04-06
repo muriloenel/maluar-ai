@@ -234,7 +234,7 @@ export async function POST(req) {
         ? lastUserMsg.content.filter(b => b.type === 'text').map(b => b.text).join(' ')
         : '';
     const isComplex = imageRequest || lastText.length > 500 || /plano de ação|diagnóstico|análise|estratégia|financeiro|business/i.test(lastText);
-    const model = isComplex ? 'claude-sonnet-4-20250514' : 'claude-haiku-4-20250514';
+    const model = isComplex ? 'claude-3-5-sonnet-20241022' : 'claude-3-5-haiku-20241022';
     console.log(`[CHAT] Modelo: ${model}, Complexo: ${isComplex}, Stream: ${!!stream}, User: ${authUser?.email || 'anon'}, Plan: ${userPlan}`);
 
     // Streaming mode
@@ -318,7 +318,7 @@ export async function POST(req) {
 
     // Non-streaming mode (used by PostGenerator)
     const response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-3-5-sonnet-20241022',
       max_tokens: imageRequest ? 2048 : 1200,
       system: safeSystem,
       messages,
@@ -327,7 +327,7 @@ export async function POST(req) {
     // Log usage async
     logUsage(
       authUser?.id,
-      'claude-sonnet-4-20250514',
+      'claude-3-5-sonnet-20241022',
       response.usage?.input_tokens || 0,
       response.usage?.output_tokens || 0,
       'post'
