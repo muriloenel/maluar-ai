@@ -19,25 +19,12 @@ export default function SupabaseAuthProvider({ children }) {
   const [profile, setProfile] = useState(null);
   const supabase = getSupabase();
 
-  // Função centralizada pra obter token — usa getSession() que retorna do cache local
+  // Função centralizada pra obter token — usa getSession() com timeout
   const getAccessToken = useCallback(async () => {
     if (!supabase) return null;
-    try {
-      const { data: { session }, error } = await supabase.auth.getSession();
-      if (error || !session?.access_token) {
-        // Fallback: ler direto do localStorage (storageKey = 'maluar-auth')
-        try {
-          const raw = localStorage.getItem('maluar-auth');
-          if (raw) {
-            const parsed = JSON.parse(raw);
-            return parsed?.access_token || null;
-          }
-        } catch {}
-        return null;
-      }
-      return session.access_token;
-    } catch {
-      // Fallback em caso de exceção (lock travado, etc.)
+
+    // Helper: ler token direto do localStorage (fallback se getSession travar)
+    const getTokenFromStorage = () => {
       try {
         const raw = localStorage.getItem('maluar-auth');
         if (raw) {
@@ -46,6 +33,24 @@ export default function SupabaseAuthProvider({ children }) {
         }
       } catch {}
       return null;
+    };
+
+    try {
+      // Timeout de 3s — getSession() pode travar com lock do storage
+      const sessionPromise = supabase.auth.getSession();
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('getSession timeout')), 3000)
+      );
+      const { data: { session }, error } = await Promise.race([sessionPromise, timeoutPromise]);
+
+      if (error || !session?.access_token) {
+        console.warn('[AUTH] getSession sem token, usando fallback localStorage');
+        return getTokenFromStorage();
+      }
+      return session.access_token;
+    } catch (err) {
+      console.warn('[AUTH] getAccessToken falhou:', err?.message, '— usando fallback localStorage');
+      return getTokenFromStorage();
     }
   }, [supabase]);
 
