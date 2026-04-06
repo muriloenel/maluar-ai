@@ -256,17 +256,12 @@ export async function POST(req) {
     const FALLBACKS = [SONNET, HAIKU, 'claude-3-5-sonnet-latest'];
     // Routing: Haiku para msgs simples, Sonnet para complexo/imagens
     let model = isComplex ? SONNET : HAIKU;
-    console.log(`[CHAT] ====== NOVA REQUISIÇÃO ======`);
-    console.log(`[CHAT] Modelo: ${model}, Complexo: ${isComplex}, Stream: ${!!stream}`);
-    console.log(`[CHAT] User: ${authUser?.email || 'anon'}, Plan: ${userPlan}, MsgCount: ${messages.length}`);
-    console.log(`[CHAT] LastText: "${lastText.slice(0, 100)}"`);
+    console.log(`[CHAT] Modelo: ${model}, Stream: ${!!stream}, User: ${authUser?.email || 'anon'}`);
 
     // Streaming mode
     if (stream) {
       let response;
-      const t0 = Date.now();
       try {
-        console.log(`[CHAT] Chamando Anthropic API com modelo ${model}...`);
         response = await client.messages.create({
           model,
           max_tokens: imageRequest ? 2500 : 800,
@@ -275,9 +270,8 @@ export async function POST(req) {
           messages,
           stream: true,
         });
-        console.log(`[CHAT] Stream criado com sucesso em ${Date.now() - t0}ms`);
       } catch (createErr) {
-        console.error(`[CHAT] ERRO ao criar stream (${Date.now() - t0}ms):`, createErr?.status, createErr?.error?.type, createErr?.error?.message || createErr?.message || JSON.stringify(createErr));
+        console.error('[CHAT] Erro ao criar stream:', createErr?.status, createErr?.error?.type, createErr?.error?.message || createErr?.message);
 
         // 401 = API key inválida — não adianta tentar fallback
         if (createErr?.status === 401) {
@@ -324,14 +318,8 @@ export async function POST(req) {
           try {
             let totalInputTokens = 0;
             let totalOutputTokens = 0;
-            let eventCount = 0;
-            let textLength = 0;
-            console.log(`[STREAM] Iniciando leitura de eventos...`);
             for await (const event of response) {
-              eventCount++;
-              if (eventCount <= 5) console.log(`[STREAM] Evento ${eventCount}: type=${event.type}`);
               if (event.type === 'content_block_delta' && event.delta?.text) {
-                textLength += event.delta.text.length;
                 controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text: event.delta.text })}\n\n`));
               }
               if (event.type === 'message_delta' && event.usage) {
@@ -341,7 +329,6 @@ export async function POST(req) {
                 totalInputTokens = event.message.usage.input_tokens || 0;
               }
             }
-            console.log(`[STREAM] Finalizado. Eventos: ${eventCount}, TextLen: ${textLength}, Input: ${totalInputTokens}, Output: ${totalOutputTokens}`);
             controller.enqueue(encoder.encode('data: [DONE]\n\n'));
             controller.close();
             // Log usage async

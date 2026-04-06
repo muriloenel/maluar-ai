@@ -1,0 +1,59 @@
+[     428ms] [WARNING] <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes"> @ https://maluar-ai.vercel.app/:0
+[     548ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o @ https://maluar-ai.vercel.app/:0
+[   19576ms] [LOG] [CHAT-FE] sendMessage chamado: {text: oi, hasImage: false} @ https://maluar-ai.vercel.app/_next/static/chunks/app/page-cfe7f637af731d14.js:0
+[   19577ms] [LOG] [CHAT-FE] Verificando quota... @ https://maluar-ai.vercel.app/_next/static/chunks/app/page-cfe7f637af731d14.js:0
+[   19754ms] [LOG] [CHAT-FE] Quota OK: {allowed: true, remaining: 15, limit: 15} @ https://maluar-ai.vercel.app/_next/static/chunks/app/page-cfe7f637af731d14.js:0
+[   19754ms] [LOG] [CHAT-FE] Obtendo token de auth... @ https://maluar-ai.vercel.app/_next/static/chunks/app/page-cfe7f637af731d14.js:0
+[   19758ms] [LOG] [CHAT-FE] Token obtido: true @ https://maluar-ai.vercel.app/_next/static/chunks/app/page-cfe7f637af731d14.js:0
+[   19758ms] [LOG] [CHAT-FE] Enviando request... {msgCount: 8, hasAuth: true} @ https://maluar-ai.vercel.app/_next/static/chunks/app/page-cfe7f637af731d14.js:0
+[   21304ms] [LOG] [CHAT-FE] Response recebido: {status: 200, ok: true, contentType: text/event-stream, elapsed: 1546ms} @ https://maluar-ai.vercel.app/_next/static/chunks/app/page-cfe7f637af731d14.js:0
+[   21304ms] [LOG] [CHAT-FE] Iniciando leitura do stream... @ https://maluar-ai.vercel.app/_next/static/chunks/app/page-cfe7f637af731d14.js:0
+[   21313ms] [LOG] [CHAT-FE] Chunk 1 : data: {"text":"Oi!"}
+
+ @ https://maluar-ai.vercel.app/_next/static/chunks/app/page-cfe7f637af731d14.js:0
+[   21517ms] [LOG] [CHAT-FE] Chunk 2 : data: {"text":" Tudo bem? 😊\n\nPode falar, estou aqui! O que você prec"}
+
+ @ https://maluar-ai.vercel.app/_next/static/chunks/app/page-cfe7f637af731d14.js:0
+[   21562ms] [LOG] [CHAT-FE] Chunk 3 : data: {"text":"isa?"}
+
+ @ https://maluar-ai.vercel.app/_next/static/chunks/app/page-cfe7f637af731d14.js:0
+[   21577ms] [LOG] [CHAT-FE] Recebeu [DONE] @ https://maluar-ai.vercel.app/_next/static/chunks/app/page-cfe7f637af731d14.js:0
+[   21577ms] [LOG] [CHAT-FE] Stream finalizado. Chunks: 4 TextLen: 61 @ https://maluar-ai.vercel.app/_next/static/chunks/app/page-cfe7f637af731d14.js:0
+[   95781ms] [LOG] [CHAT-FE] sendMessage chamado: {text: teste,, hasImage: false} @ https://maluar-ai.vercel.app/_next/static/chunks/app/page-cfe7f637af731d14.js:0
+[   95781ms] [LOG] [CHAT-FE] Verificando quota... @ https://maluar-ai.vercel.app/_next/static/chunks/app/page-cfe7f637af731d14.js:0
+[   96182ms] [LOG] [CHAT-FE] Quota OK: {allowed: true, remaining: 15, limit: 15} @ https://maluar-ai.vercel.app/_next/static/chunks/app/page-cfe7f637af731d14.js:0
+[   96182ms] [LOG] [CHAT-FE] Obtendo token de auth... @ https://maluar-ai.vercel.app/_next/static/chunks/app/page-cfe7f637af731d14.js:0
+[   96186ms] [LOG] [CHAT-FE] Token obtido: true @ https://maluar-ai.vercel.app/_next/static/chunks/app/page-cfe7f637af731d14.js:0
+[   96186ms] [LOG] [CHAT-FE] Enviando request... {msgCount: 10, hasAuth: true} @ https://maluar-ai.vercel.app/_next/static/chunks/app/page-cfe7f637af731d14.js:0
+[   97324ms] [LOG] [CHAT-FE] Response recebido: {status: 200, ok: true, contentType: text/event-stream, elapsed: 1137ms} @ https://maluar-ai.vercel.app/_next/static/chunks/app/page-cfe7f637af731d14.js:0
+[   97324ms] [LOG] [CHAT-FE] Iniciando leitura do stream... @ https://maluar-ai.vercel.app/_next/static/chunks/app/page-cfe7f637af731d14.js:0
+[   97332ms] [LOG] [CHAT-FE] Chunk 1 : data: {"text":"Oi! Pronto para ajudar. O que você quer saber sobre nail design ou"}
+
+ @ https://maluar-ai.vercel.app/_next/static/chunks/app/page-cfe7f637af731d14.js:0
+[   97411ms] [LOG] [CHAT-FE] Chunk 2 : data: {"text":" seu negócio?"}
+
+ @ https://maluar-ai.vercel.app/_next/static/chunks/app/page-cfe7f637af731d14.js:0
+[   97437ms] [LOG] [CHAT-FE] Chunk 3 : data: [DONE]
+
+ @ https://maluar-ai.vercel.app/_next/static/chunks/app/page-cfe7f637af731d14.js:0
+[   97437ms] [LOG] [CHAT-FE] Recebeu [DONE] @ https://maluar-ai.vercel.app/_next/static/chunks/app/page-cfe7f637af731d14.js:0
+[   97437ms] [LOG] [CHAT-FE] Stream finalizado. Chunks: 3 TextLen: 79 @ https://maluar-ai.vercel.app/_next/static/chunks/app/page-cfe7f637af731d14.js:0
+[  379438ms] [LOG] [CHAT-FE] sendMessage chamado: {text: oi, hasImage: false} @ https://maluar-ai.vercel.app/_next/static/chunks/app/page-cfe7f637af731d14.js:0
+[  379438ms] [LOG] [CHAT-FE] Verificando quota... @ https://maluar-ai.vercel.app/_next/static/chunks/app/page-cfe7f637af731d14.js:0
+[  380282ms] [LOG] [CHAT-FE] Quota OK: {allowed: true, remaining: 15, limit: 15} @ https://maluar-ai.vercel.app/_next/static/chunks/app/page-cfe7f637af731d14.js:0
+[  380283ms] [LOG] [CHAT-FE] Obtendo token de auth... @ https://maluar-ai.vercel.app/_next/static/chunks/app/page-cfe7f637af731d14.js:0
+[  380286ms] [LOG] [CHAT-FE] Token obtido: true @ https://maluar-ai.vercel.app/_next/static/chunks/app/page-cfe7f637af731d14.js:0
+[  380286ms] [LOG] [CHAT-FE] Enviando request... {msgCount: 1, hasAuth: true} @ https://maluar-ai.vercel.app/_next/static/chunks/app/page-cfe7f637af731d14.js:0
+[  381253ms] [LOG] [CHAT-FE] Response recebido: {status: 200, ok: true, contentType: text/event-stream, elapsed: 967ms} @ https://maluar-ai.vercel.app/_next/static/chunks/app/page-cfe7f637af731d14.js:0
+[  381253ms] [LOG] [CHAT-FE] Iniciando leitura do stream... @ https://maluar-ai.vercel.app/_next/static/chunks/app/page-cfe7f637af731d14.js:0
+[  381263ms] [LOG] [CHAT-FE] Chunk 1 : data: {"text":"Oi, Murilo! 🌸\n\nBem-vinda! Sou a Mal"}
+
+ @ https://maluar-ai.vercel.app/_next/static/chunks/app/page-cfe7f637af731d14.js:0
+[  381456ms] [LOG] [CHAT-FE] Chunk 2 : data: {"text":"uar, sua mentora de nail design e neg"}
+
+ @ https://maluar-ai.vercel.app/_next/static/chunks/app/page-cfe7f637af731d14.js:0
+[  381675ms] [LOG] [CHAT-FE] Chunk 3 : data: {"text":"ócio. Estou aqui pra te ajudar com tudo — desde téc"}
+
+ @ https://maluar-ai.vercel.app/_next/static/chunks/app/page-cfe7f637af731d14.js:0
+[  383301ms] [LOG] [CHAT-FE] Recebeu [DONE] @ https://maluar-ai.vercel.app/_next/static/chunks/app/page-cfe7f637af731d14.js:0
+[  383301ms] [LOG] [CHAT-FE] Stream finalizado. Chunks: 12 TextLen: 536 @ https://maluar-ai.vercel.app/_next/static/chunks/app/page-cfe7f637af731d14.js:0
