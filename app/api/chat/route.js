@@ -17,7 +17,7 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 // Limites por plano
 const DAILY_LIMITS = { free: 15, pro: 150, premium: 9999 };
-const UNLIMITED_EMAILS = (process.env.ADMIN_EMAILS || process.env.NEXT_PUBLIC_ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+const UNLIMITED_EMAILS = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
 
 // Verificação server-side de quota (bloqueante)
 async function checkQuotaServer(userId, userEmail) {
@@ -185,9 +185,9 @@ export async function POST(req) {
       }
     }
 
-    // Rate limiting — diferenciado por plano
-    const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || authUser?.id || 'anonymous';
-    if (!checkRateLimit(ip, userPlan)) {
+    // Rate limiting — prioriza userId (não spoofável) sobre IP
+    const rateLimitKey = authUser?.id || req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'anonymous';
+    if (!checkRateLimit(rateLimitKey, userPlan)) {
       return Response.json(
         { error: 'Muitas requisições. Aguarde um momento antes de tentar novamente.' },
         { status: 429 }
@@ -216,13 +216,20 @@ export async function POST(req) {
       if (!msg.content) {
         return Response.json({ error: 'Mensagem sem conteúdo' }, { status: 400 });
       }
-      // Limitar tamanho do texto individual (ignorar blocos de imagem)
+      // Limitar tamanho do texto individual e de imagens base64
       let textLength = 0;
       if (typeof msg.content === 'string') {
         textLength = msg.content.length;
       } else if (Array.isArray(msg.content)) {
         for (const block of msg.content) {
           if (block.type === 'text') textLength += (block.text || '').length;
+          // Validar tamanho de imagens base64 (máx ~5MB decodificado = ~6.7MB em base64)
+          if (block.type === 'image' && block.source?.data) {
+            const b64Len = block.source.data.length || 0;
+            if (b64Len > 7 * 1024 * 1024) {
+              return Response.json({ error: 'Imagem muito grande (máx 5MB)' }, { status: 400 });
+            }
+          }
         }
       }
       if (textLength > 50000) {
@@ -388,8 +395,6 @@ export async function POST(req) {
       status: error?.status,
       type: error?.error?.type,
       message: error?.error?.message || error?.message,
-      name: error?.name,
-      stack: error?.stack?.slice(0, 300),
     });
 
     const errorMessage = error?.error?.error?.message || error?.error?.message || error?.message || '';

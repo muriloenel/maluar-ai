@@ -66,6 +66,21 @@ export async function POST(req) {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // Idempotência: verificar se evento já foi processado
+    const eventId = event.id;
+    if (eventId) {
+      const { data: existing } = await supabase
+        .from('webhook_events')
+        .select('id')
+        .eq('event_id', eventId)
+        .single();
+      if (existing) {
+        return Response.json({ received: true, duplicate: true });
+      }
+      // Registrar evento como processado (ignora erro se tabela não existir)
+      await supabase.from('webhook_events').insert({ event_id: eventId }).catch(() => {});
+    }
+
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object;

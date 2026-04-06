@@ -44,3 +44,18 @@ ALTER TABLE public.usage_logs ENABLE ROW LEVEL SECURITY;
 
 -- Policy: Ninguém lê via client (apenas server/service role)
 -- O admin dashboard usa service role key nos API routes
+
+-- 5. Tabela de idempotência para webhooks do Stripe
+CREATE TABLE IF NOT EXISTS public.webhook_events (
+  id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+  event_id text UNIQUE NOT NULL,
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_webhook_events_event_id
+  ON public.webhook_events (event_id);
+
+ALTER TABLE public.webhook_events ENABLE ROW LEVEL SECURITY;
+
+-- Limpar eventos antigos (>30 dias) — executar periodicamente
+-- DELETE FROM public.webhook_events WHERE created_at < now() - interval '30 days';

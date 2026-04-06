@@ -7,10 +7,10 @@ export async function GET(req) {
   const results = {
     timestamp: new Date().toISOString(),
     env: {
-      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ? `${process.env.ANTHROPIC_API_KEY.slice(0, 12)}...` : 'NÃO CONFIGURADA',
-      NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL ? 'OK' : 'NÃO CONFIGURADA',
-      SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ? 'OK' : 'NÃO CONFIGURADA',
-      STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY ? 'OK' : 'NÃO CONFIGURADA',
+      ANTHROPIC_API_KEY: !!process.env.ANTHROPIC_API_KEY,
+      NEXT_PUBLIC_SUPABASE_URL: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+      SUPABASE_SERVICE_ROLE_KEY: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+      STRIPE_SECRET_KEY: !!process.env.STRIPE_SECRET_KEY,
     },
     anthropic: null,
     sdkVersion: null,
@@ -56,9 +56,8 @@ export async function GET(req) {
       results.anthropic = {
         status: 'ERRO',
         model,
-        errorType: err?.error?.type || err?.constructor?.name || 'unknown',
+        errorType: err?.error?.type || 'unknown',
         errorStatus: err?.status,
-        errorMessage: err?.error?.message || err?.message || String(err),
       };
       // Se for 401 (auth), não adianta tentar outros modelos
       if (err?.status === 401) break;

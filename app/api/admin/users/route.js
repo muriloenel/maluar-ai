@@ -23,7 +23,10 @@ export async function GET(req) {
 
     if (planFilter) query = query.eq('plan', planFilter);
     if (statusFilter) query = query.eq('status', statusFilter);
-    if (search) query = query.or(`name.ilike.%${search}%`);
+    if (search) {
+      const safeSearch = search.replace(/%/g, '\\%').replace(/_/g, '\\_');
+      query = query.or(`name.ilike.%${safeSearch}%`);
+    }
 
     query = query.order('created_at', { ascending: false }).range(offset, offset + limit - 1);
 
