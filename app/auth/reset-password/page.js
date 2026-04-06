@@ -74,7 +74,7 @@ export default function ResetPassword() {
       <div className="w-full max-w-sm relative space-y-6">
         {/* Logo */}
         <div className="text-center">
-          <img src="/logo-icon.png" alt="Maluar" className="w-16 h-16 mx-auto rounded-2xl object-contain shadow-elevated mb-4" />
+          <img src="/logo-icon.webp" alt="Maluar" className="w-16 h-16 mx-auto rounded-2xl object-contain shadow-elevated mb-4" />
           <h1 className="text-2xl font-extrabold bg-gradient-to-r from-[#534AB7] via-[#7F77DD] to-[#D4537E] bg-clip-text text-transparent">
             Redefinir Senha
           </h1>

@@ -86,7 +86,7 @@ export default function AuthCallback() {
 
       <div className="relative text-center max-w-sm w-full space-y-6">
         <div className="relative inline-block">
-          <img src="/logo-icon.png" alt="Maluar" className="w-16 h-16 mx-auto rounded-2xl object-contain shadow-elevated" />
+          <img src="/logo-icon.webp" alt="Maluar" className="w-16 h-16 mx-auto rounded-2xl object-contain shadow-elevated" />
         </div>
 
         {status === 'processing' && (

@@ -256,7 +256,7 @@ export default function Home() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-surface">
         <div className="flex flex-col items-center gap-4 animate-scale-in">
-          <img src="/logo-icon.png" alt="Maluar" className="w-16 h-16 rounded-2xl object-contain" />
+          <img src="/logo-icon.webp" alt="Maluar" className="w-16 h-16 rounded-2xl object-contain" />
           <p className="text-sm text-text-muted">Carregando...</p>
           <div className="spinner" />
         </div>
