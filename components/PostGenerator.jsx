@@ -151,12 +151,18 @@ CTA: (chamada pra ação curta: "Agende pelo WhatsApp", "Chame no direct", etc.)
       const text = data.content?.[0]?.text || 'Não consegui gerar o post. Tenta de novo!';
       setResult(text);
       setStructuredData(extractTemplateData(text));
-      // Save to history
-      if (!text.startsWith('Erro')) {
-        const platformLabel = PLATFORMS.find((p) => p.id === platform)?.label;
-        const typeLabel = POST_TYPES.find((t) => t.id === postType)?.label;
-        const saved = await dbSavePost(userId, { platform: platformLabel, postType: typeLabel, content: text });
-        if (saved) setPostHistory(prev => [saved, ...prev]);
+      setIsLoading(false); // Desbloqueia o botão IMEDIATAMENTE após gerar
+
+      // Save to history (não bloqueia a UI)
+      if (!text.startsWith('Erro') && userId) {
+        try {
+          const platformLabel2 = PLATFORMS.find((p) => p.id === platform)?.label;
+          const typeLabel2 = POST_TYPES.find((t) => t.id === postType)?.label;
+          const saved = await dbSavePost(userId, { platform: platformLabel2, postType: typeLabel2, content: text });
+          if (saved) setPostHistory(prev => [saved, ...prev]);
+        } catch (saveErr) {
+          // Silently fail — post já foi gerado, salvar é secundário
+        }
       }
     } catch (err) {
       setResult(`Erro: ${err.message}`);
