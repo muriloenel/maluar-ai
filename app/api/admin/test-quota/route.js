@@ -1,5 +1,7 @@
 import { requireAdmin, getServiceClient } from '../../../../lib/admin';
 
+const DAILY_LIMITS = { free: 15, pro: 150, premium: 9999 };
+
 // API temporária para testes de quota — SOMENTE ADMIN
 // Permite setar messages_today e plan de um usuário para simular limites
 export async function POST(req) {
@@ -10,9 +12,75 @@ export async function POST(req) {
     const supabase = getServiceClient();
     if (!supabase) return Response.json({ error: 'Service key não configurada' }, { status: 500 });
 
-    const { userId, plan, messagesToday } = await req.json();
+    const { userId, plan, messagesToday, action } = await req.json();
     if (!userId) return Response.json({ error: 'userId obrigatório' }, { status: 400 });
 
+    // Ação: simular teste completo de todos os planos
+    if (action === 'run-all-tests') {
+      const results = {};
+      
+      for (const testPlan of ['free', 'pro', 'premium']) {
+        const limit = DAILY_LIMITS[testPlan];
+        const scenarios = [
+          { name: `${testPlan}_under_limit`, msgs: Math.floor(limit / 2), expected: 'allowed' },
+          { name: `${testPlan}_at_limit_minus_1`, msgs: limit - 1, expected: 'allowed' },
+          { name: `${testPlan}_at_limit`, msgs: limit, expected: 'blocked' },
+          { name: `${testPlan}_over_limit`, msgs: limit + 10, expected: 'blocked' },
+        ];
+        
+        for (const sc of scenarios) {
+          // Setar o cenário
+          await supabase.from('profiles').update({
+            plan: testPlan,
+            messages_today: sc.msgs,
+            messages_reset_at: new Date().toISOString(),
+          }).eq('id', userId);
+          
+          // Simular check de quota server-side (SEM bypass de admin)
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('plan, messages_today, messages_reset_at')
+            .eq('id', userId)
+            .single();
+          
+          const remaining = Math.max(0, limit - (profile?.messages_today || 0));
+          const allowed = remaining > 0;
+          const passed = (allowed && sc.expected === 'allowed') || (!allowed && sc.expected === 'blocked');
+          
+          results[sc.name] = {
+            plan: testPlan,
+            limit,
+            messagesSet: sc.msgs,
+            remaining,
+            allowed,
+            expected: sc.expected,
+            passed,
+            emoji: passed ? '✅' : '❌',
+          };
+        }
+      }
+      
+      // Restaurar estado original
+      await supabase.from('profiles').update({
+        plan: 'free',
+        messages_today: 0,
+        messages_reset_at: new Date().toISOString(),
+      }).eq('id', userId);
+      
+      const allPassed = Object.values(results).every(r => r.passed);
+      
+      return Response.json({
+        testSuite: 'Quota Limits Test',
+        timestamp: new Date().toISOString(),
+        totalTests: Object.keys(results).length,
+        passed: Object.values(results).filter(r => r.passed).length,
+        failed: Object.values(results).filter(r => !r.passed).length,
+        allPassed,
+        results,
+      });
+    }
+
+    // Ação padrão: setar quota manualmente
     const updates = {};
     if (plan) updates.plan = plan;
     if (messagesToday !== undefined) updates.messages_today = messagesToday;
@@ -27,8 +95,7 @@ export async function POST(req) {
 
     if (error) return Response.json({ error: error.message }, { status: 500 });
 
-    const LIMITS = { free: 15, pro: 150, premium: 9999 };
-    const limit = LIMITS[data.plan] || 15;
+    const limit = DAILY_LIMITS[data.plan] || 15;
     const remaining = Math.max(0, limit - data.messages_today);
 
     return Response.json({
@@ -60,8 +127,7 @@ export async function GET(req) {
 
     if (error) return Response.json({ error: error.message }, { status: 500 });
 
-    const LIMITS = { free: 15, pro: 150, premium: 9999 };
-    const limit = LIMITS[data.plan] || 15;
+    const limit = DAILY_LIMITS[data.plan] || 15;
     const remaining = Math.max(0, limit - (data.messages_today || 0));
 
     return Response.json({

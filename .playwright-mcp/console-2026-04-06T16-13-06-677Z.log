@@ -1,0 +1,3 @@
+[      73ms] [WARNING] <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes"> @ https://maluar-ai.vercel.app/:0
+[   49388ms] [WARNING] [AUTH] getAccessToken falhou: getSession timeout — usando fallback localStorage @ https://maluar-ai.vercel.app/_next/static/chunks/app/layout-f9532aed4ffb72e3.js:0
+[   96718ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://yuwfbmnxkpnlkqjpmqgt.supabase.co/rest/v1/profiles?id=eq.3849f9f6-65d2-4284-ada1-762acef6a51c&select=*:0
