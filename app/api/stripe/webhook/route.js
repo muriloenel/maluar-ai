@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { sendUpgradeEmail } from '../../../../lib/email';
+import { sendUpgradeEmail, sendCancellationEmail, sendPaymentFailedEmail } from '../../../../lib/email';
 
 const STRIPE_SECRET = (process.env.STRIPE_SECRET_KEY || '').trim();
 const STRIPE_WEBHOOK_SECRET = (process.env.STRIPE_WEBHOOK_SECRET || '').trim();
@@ -164,6 +164,24 @@ export async function POST(req) {
             .from('profiles')
             .update({ plan: 'free', stripe_subscription_id: null, updated_at: new Date().toISOString() })
             .eq('id', profile.id);
+
+          // Enviar email de cancelamento
+          const customer = await stripeGet(`/customers/${sub.customer}`).catch(() => null);
+          if (customer?.email) {
+            sendCancellationEmail(customer.email, customer.name).catch(() => {});
+          }
+        }
+        break;
+      }
+
+      case 'invoice.payment_failed': {
+        const invoice = event.data.object;
+        const customerId = invoice.customer;
+        if (customerId) {
+          const customer = await stripeGet(`/customers/${customerId}`).catch(() => null);
+          if (customer?.email) {
+            sendPaymentFailedEmail(customer.email, customer.name).catch(() => {});
+          }
         }
         break;
       }

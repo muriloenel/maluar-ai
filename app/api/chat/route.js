@@ -123,7 +123,9 @@ async function logUsage(userId, model, inputTokens, outputTokens, feature = 'cha
       cost_usd: Math.round(cost * 1_000_000) / 1_000_000,
       feature,
     });
-  } catch {}
+  } catch (err) {
+    console.error('[USAGE] Erro ao gravar usage_log:', err?.message || err);
+  }
 }
 
 // Rate limiter em memória — diferenciado por plano
