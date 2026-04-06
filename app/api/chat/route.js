@@ -247,8 +247,8 @@ export async function POST(req) {
       'claude-3-5-sonnet-20241022',
       'claude-3-5-haiku-latest',
     ];
-    // Haiku para perguntas simples (mais rápido + 70% mais barato), Sonnet para complexo/imagens
-    const model = isComplex ? MODEL_PRIORITY[0] : 'claude-3-5-haiku-latest';
+    // Usar Sonnet para tudo (único modelo disponível na conta)
+    const model = MODEL_PRIORITY[0];
     console.log(`[CHAT] Modelo: ${model}, Stream: ${!!stream}, User: ${authUser?.email || 'anon'}, Plan: ${userPlan}`);
 
     // Streaming mode
