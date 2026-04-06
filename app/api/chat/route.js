@@ -239,7 +239,7 @@ export async function POST(req) {
       : Array.isArray(lastUserMsg?.content)
         ? lastUserMsg.content.filter(b => b.type === 'text').map(b => b.text).join(' ')
         : '';
-    const isComplex = imageRequest || lastText.length > 500 || /plano de ação|diagnóstico|análise|estratégia|financeiro|business/i.test(lastText);
+    const isComplex = imageRequest || lastText.length > 500 || /plano de ação|diagnóstico|análise|estratégia|financeiro|business|marketing|calendário|passo a passo/i.test(lastText);
     // Lista de modelos em ordem de prioridade (fallback automático)
     const MODEL_PRIORITY = [
       'claude-sonnet-4-20250514',
@@ -247,7 +247,8 @@ export async function POST(req) {
       'claude-3-5-sonnet-20241022',
       'claude-3-5-haiku-latest',
     ];
-    const model = MODEL_PRIORITY[0];
+    // Haiku para perguntas simples (mais rápido + 70% mais barato), Sonnet para complexo/imagens
+    const model = isComplex ? MODEL_PRIORITY[0] : 'claude-3-5-haiku-latest';
     console.log(`[CHAT] Modelo: ${model}, Stream: ${!!stream}, User: ${authUser?.email || 'anon'}, Plan: ${userPlan}`);
 
     // Streaming mode
@@ -256,8 +257,8 @@ export async function POST(req) {
       try {
         response = await client.messages.create({
           model,
-        max_tokens: imageRequest ? 3000 : 1200,
-        temperature: imageRequest ? 0.1 : 0.5,
+          max_tokens: imageRequest ? 2500 : 800,
+          temperature: imageRequest ? 0.1 : 0.5,
           system: safeSystem,
           messages,
           stream: true,
