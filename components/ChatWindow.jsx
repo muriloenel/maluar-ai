@@ -101,13 +101,16 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
   );
 
   const sendMessage = async (text, imageBase64 = null, mediaType = 'image/jpeg', imageDataUrl = null) => {
+    console.log('[CHAT-FE] sendMessage chamado:', { text: text?.slice(0, 50), hasImage: !!imageBase64 });
     if ((!text.trim() && !imageBase64)) return;
     // Usar REF pra checar estado real (evita stale closure do useEffect)
     // Safety: se ficou travado por mais de 60s, desbloqueia
     if (busyRef.current) {
       if (Date.now() - (busyRef.since || 0) > 60000) {
+        console.warn('[CHAT-FE] busyRef travado >60s, desbloqueando');
         busyRef.current = false;
       } else {
+        console.warn('[CHAT-FE] BLOQUEADO por busyRef (busy há', Date.now() - (busyRef.since || 0), 'ms)');
         return;
       }
     }
@@ -119,13 +122,15 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
       // Verificar quota de mensagens diárias
       if (userId) {
           try {
+            console.log('[CHAT-FE] Verificando quota...');
             const quota = await dbCheckMessageQuota(userId, userEmail);
+            console.log('[CHAT-FE] Quota OK:', quota);
             if (!quota.allowed) {
               setQuotaModal({ limit: quota.limit });
               return; // finally vai resetar isLoading
             }
           } catch (err) {
-            // Erro na quota, permite envio
+            console.warn('[CHAT-FE] Erro na quota (ignorando):', err?.message);
           }
       }
 
@@ -172,7 +177,9 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
       abortRef.current = controller;
 
       // Obter token de auth para a API (opcional — modo convidado funciona sem)
+      console.log('[CHAT-FE] Obtendo token de auth...');
       const authToken = getAccessToken ? await getAccessToken() : null;
+      console.log('[CHAT-FE] Token obtido:', !!authToken);
 
       const fetchHeaders = { 'Content-Type': 'application/json' };
       if (authToken) fetchHeaders['Authorization'] = `Bearer ${authToken}`;
