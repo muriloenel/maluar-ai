@@ -151,6 +151,12 @@ function checkRateLimit(ip, plan = 'free') {
 
 export async function POST(req) {
   try {
+    // Verificar se a API key está configurada
+    if (!process.env.ANTHROPIC_API_KEY) {
+      console.error('[CHAT] ANTHROPIC_API_KEY não configurada!');
+      return Response.json({ error: 'Erro de configuração do servidor. Contate o suporte.' }, { status: 500 });
+    }
+
     // Autenticação — opcional (modo convidado permitido)
     const authUser = await validateAuth(req).catch(() => null);
     if (!authUser) {
@@ -234,7 +240,14 @@ export async function POST(req) {
         ? lastUserMsg.content.filter(b => b.type === 'text').map(b => b.text).join(' ')
         : '';
     const isComplex = imageRequest || lastText.length > 500 || /plano de ação|diagnóstico|análise|estratégia|financeiro|business/i.test(lastText);
-    const model = 'claude-sonnet-4-20250514';
+    // Lista de modelos em ordem de prioridade (fallback automático)
+    const MODEL_PRIORITY = [
+      'claude-sonnet-4-20250514',
+      'claude-3-5-sonnet-latest',
+      'claude-3-5-sonnet-20241022',
+      'claude-3-5-haiku-latest',
+    ];
+    const model = MODEL_PRIORITY[0];
     console.log(`[CHAT] Modelo: ${model}, Stream: ${!!stream}, User: ${authUser?.email || 'anon'}, Plan: ${userPlan}`);
 
     // Streaming mode
@@ -250,25 +263,44 @@ export async function POST(req) {
           stream: true,
         });
       } catch (createErr) {
-        console.error('[CHAT] Erro ao criar stream:', createErr?.status, createErr?.error?.type, createErr?.message || JSON.stringify(createErr));
-        // Se modelo não existe, tentar fallback
+        console.error('[CHAT] Erro ao criar stream:', createErr?.status, createErr?.error?.type, createErr?.error?.message || createErr?.message || JSON.stringify(createErr));
+        // Se modelo não existe (404), tentar fallbacks
         if (createErr?.status === 404 || createErr?.error?.type === 'not_found_error') {
-          console.log('[CHAT] Modelo não encontrado, tentando fallback claude-sonnet-4-20250514');
-          try {
-            response = await client.messages.create({
-              model: 'claude-sonnet-4-20250514',
-              max_tokens: imageRequest ? 3000 : 1200,
-              temperature: imageRequest ? 0.1 : 0.5,
-              system: safeSystem,
-              messages,
-              stream: true,
-            });
-          } catch (fallbackErr) {
-            console.error('[CHAT] Fallback também falhou:', fallbackErr?.status, fallbackErr?.message);
-            return Response.json({ error: 'Erro ao conectar com a IA. Tente novamente.' }, { status: 502 });
+          let fallbackWorked = false;
+          for (let i = 1; i < MODEL_PRIORITY.length; i++) {
+            const fallbackModel = MODEL_PRIORITY[i];
+            console.log(`[CHAT] Tentando fallback modelo ${i}: ${fallbackModel}`);
+            try {
+              response = await client.messages.create({
+                model: fallbackModel,
+                max_tokens: imageRequest ? 3000 : 1200,
+                temperature: imageRequest ? 0.1 : 0.5,
+                system: safeSystem,
+                messages,
+                stream: true,
+              });
+              fallbackWorked = true;
+              console.log(`[CHAT] Fallback ${fallbackModel} funcionou!`);
+              break;
+            } catch (fallbackErr) {
+              console.error(`[CHAT] Fallback ${fallbackModel} falhou:`, fallbackErr?.status, fallbackErr?.error?.message || fallbackErr?.message);
+              if (fallbackErr?.status !== 404) break; // Se não for 404, parar de tentar
+            }
           }
+          if (!fallbackWorked) {
+            const errMsg = createErr?.error?.message || createErr?.message || 'modelo indisponível';
+            return Response.json({ error: `Erro ao conectar com a IA: ${errMsg}` }, { status: 502 });
+          }
+        } else if (createErr?.status === 401) {
+          console.error('[CHAT] API Key inválida ou expirada!');
+          return Response.json({ error: 'Erro de configuração do servidor (API Key). Contate o suporte.' }, { status: 502 });
+        } else if (createErr?.message?.includes('credit') || createErr?.error?.message?.includes('credit')) {
+          console.error('[CHAT] Sem créditos na API Anthropic!');
+          return Response.json({ error: 'Serviço temporariamente indisponível. Tente novamente mais tarde.' }, { status: 502 });
         } else {
-          return Response.json({ error: 'Erro ao conectar com a IA. Tente novamente.' }, { status: 502 });
+          const errMsg = createErr?.error?.message || createErr?.message || 'erro desconhecido';
+          console.error(`[CHAT] Erro não tratado: status=${createErr?.status}, msg=${errMsg}`);
+          return Response.json({ error: `Erro ao conectar com a IA: ${errMsg}` }, { status: 502 });
         }
       }
 
@@ -317,17 +349,31 @@ export async function POST(req) {
     }
 
     // Non-streaming mode (used by PostGenerator)
-    const response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: imageRequest ? 2048 : 1200,
-      system: safeSystem,
-      messages,
-    });
+    let response = null;
+    let usedModel = MODEL_PRIORITY[0];
+    for (const tryModel of MODEL_PRIORITY) {
+      try {
+        response = await client.messages.create({
+          model: tryModel,
+          max_tokens: imageRequest ? 2048 : 1200,
+          system: safeSystem,
+          messages,
+        });
+        usedModel = tryModel;
+        break;
+      } catch (err) {
+        console.error(`[CHAT-SYNC] Modelo ${tryModel} falhou:`, err?.status, err?.error?.message || err?.message);
+        if (err?.status !== 404) throw err; // Se não for modelo inexistente, propagar erro
+      }
+    }
+    if (!response) {
+      return Response.json({ error: 'Nenhum modelo disponível. Contate o suporte.' }, { status: 502 });
+    }
 
     // Log usage async
     logUsage(
       authUser?.id,
-      'claude-sonnet-4-20250514',
+      usedModel,
       response.usage?.input_tokens || 0,
       response.usage?.output_tokens || 0,
       'post'
@@ -337,10 +383,16 @@ export async function POST(req) {
       content: response.content,
     });
   } catch (error) {
-    console.error('Erro na API:', error);
+    console.error('[CHAT] Erro geral:', {
+      status: error?.status,
+      type: error?.error?.type,
+      message: error?.error?.message || error?.message,
+      name: error?.name,
+      stack: error?.stack?.slice(0, 300),
+    });
 
-    const errorMessage = error?.error?.error?.message || error?.message || '';
-    const isCredits = errorMessage.includes('credit balance');
+    const errorMessage = error?.error?.error?.message || error?.error?.message || error?.message || '';
+    const isCredits = errorMessage.includes('credit');
     const isAuth = error?.status === 401;
 
     return Response.json(
@@ -348,8 +400,8 @@ export async function POST(req) {
         error: isCredits
           ? 'Serviço temporariamente indisponível. Tente novamente mais tarde.'
           : isAuth
-          ? 'Erro de configuração do servidor. Contate o suporte.'
-          : 'Erro ao processar mensagem',
+          ? 'Erro de configuração do servidor (API Key). Contate o suporte.'
+          : `Erro ao processar mensagem: ${errorMessage.slice(0, 100) || 'erro interno'}`,
       },
       { status: error?.status || 500 }
     );
