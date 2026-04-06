@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useToast } from './Toast';
@@ -11,7 +11,7 @@ function formatTime(ts) {
   return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
 
-export default function Message({ role, content, isTyping, imagePreview, timestamp, isError, onRetry, onSaveFavorite }) {
+function MessageInner({ role, content, isTyping, imagePreview, timestamp, isError, onRetry, onSaveFavorite }) {
   const [copied, setCopied] = useState(false);
   const [saved, setSaved] = useState(false);
   const [feedback, setFeedback] = useState(null); // 'up' | 'down' | null
@@ -204,3 +204,6 @@ export default function Message({ role, content, isTyping, imagePreview, timesta
     </div>
   );
 }
+
+const Message = memo(MessageInner);
+export default Message;

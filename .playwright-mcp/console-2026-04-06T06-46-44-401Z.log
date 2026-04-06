@@ -57,3 +57,12 @@
  @ https://maluar-ai.vercel.app/_next/static/chunks/app/page-cfe7f637af731d14.js:0
 [  383301ms] [LOG] [CHAT-FE] Recebeu [DONE] @ https://maluar-ai.vercel.app/_next/static/chunks/app/page-cfe7f637af731d14.js:0
 [  383301ms] [LOG] [CHAT-FE] Stream finalizado. Chunks: 12 TextLen: 536 @ https://maluar-ai.vercel.app/_next/static/chunks/app/page-cfe7f637af731d14.js:0
+[  663560ms] [WARNING] <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes"> @ https://maluar-ai.vercel.app/admin:0
+[24941021ms] [WARNING] <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes"> @ https://maluar-ai.vercel.app/admin:0
+[24943966ms] [WARNING] [AUTH] getAccessToken falhou: getSession timeout — usando fallback localStorage @ https://maluar-ai.vercel.app/_next/static/chunks/app/layout-bacfb0240002fc3f.js:0
+[24943967ms] [WARNING] [AUTH] getAccessToken falhou: getSession timeout — usando fallback localStorage @ https://maluar-ai.vercel.app/_next/static/chunks/app/layout-bacfb0240002fc3f.js:0
+[24943968ms] [WARNING] [AUTH] getAccessToken falhou: getSession timeout — usando fallback localStorage @ https://maluar-ai.vercel.app/_next/static/chunks/app/layout-bacfb0240002fc3f.js:0
+[25374217ms] [WARNING] <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes"> @ https://maluar-ai.vercel.app/admin:0
+[25377213ms] [WARNING] [AUTH] getAccessToken falhou: getSession timeout — usando fallback localStorage @ https://maluar-ai.vercel.app/_next/static/chunks/app/layout-bacfb0240002fc3f.js:0
+[25377214ms] [WARNING] [AUTH] getAccessToken falhou: getSession timeout — usando fallback localStorage @ https://maluar-ai.vercel.app/_next/static/chunks/app/layout-bacfb0240002fc3f.js:0
+[25377214ms] [WARNING] [AUTH] getAccessToken falhou: getSession timeout — usando fallback localStorage @ https://maluar-ai.vercel.app/_next/static/chunks/app/layout-bacfb0240002fc3f.js:0

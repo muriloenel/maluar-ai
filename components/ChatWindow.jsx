@@ -51,6 +51,14 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
     if (chatIdRef.current === chatId && messages.length > 1) return;
     chatIdRef.current = chatId;
 
+    // CRITICAL: abortar request em andamento e resetar estado de loading
+    abortRef.current?.abort();
+    busyRef.current = false;
+    setIsLoading(false);
+    setIsStreaming(false);
+    setInput('');
+    setLastFailedMsg(null);
+
     if (initialMessages && initialMessages.length > 0) {
       setMessages(initialMessages);
       titleSetRef.current = true;
@@ -103,9 +111,9 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
   const sendMessage = async (text, imageBase64 = null, mediaType = 'image/jpeg', imageDataUrl = null) => {
     if ((!text.trim() && !imageBase64)) return;
     // Usar REF pra checar estado real (evita stale closure do useEffect)
-    // Safety: se ficou travado por mais de 60s, desbloqueia
+    // Safety: se ficou travado por mais de 30s, desbloqueia
     if (busyRef.current) {
-      if (Date.now() - (busyRef.since || 0) > 60000) {
+      if (Date.now() - (busyRef.since || 0) > 30000) {
         busyRef.current = false;
       } else {
         return;
@@ -165,6 +173,10 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
       }));
 
       const apiMessages = allMessages.slice(-12);
+      // Garantir que primeira mensagem seja 'user' (exigência da API Claude)
+      while (apiMessages.length > 0 && apiMessages[0].role !== 'user') {
+        apiMessages.shift();
+      }
 
       // Cancelar streaming anterior se existir
       abortRef.current?.abort();
@@ -230,7 +242,8 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
               assistantText += parsed.text;
               setMessages((prev) => {
                 const updated = [...prev];
-                updated[updated.length - 1] = { role: 'assistant', content: assistantText };
+                const last = updated[updated.length - 1];
+                updated[updated.length - 1] = { ...last, content: assistantText };
                 return updated;
               });
             }
@@ -263,8 +276,15 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
       busyRef.current = false;
       setIsLoading(false);
       setIsStreaming(false);
+      // Auto-focus no input para manter o fluxo de conversa
+      setTimeout(() => inputRef.current?.focus(), 50);
     }
   };
+
+  const handleSaveFavorite = useCallback(async (content) => {
+    await dbSaveFavorite(userId, { type: 'chat', content });
+    onFavoritesChanged?.();
+  }, [userId, onFavoritesChanged]);
 
   const handleRetry = () => {
     if (!lastFailedMsg) return;
@@ -385,7 +405,7 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
         )}
         <div className="max-w-2xl mx-auto space-y-1">
           {messages.map((msg, i) => (
-            <Message key={msg._id || `m-${i}`} role={msg.role} content={msg.content} imagePreview={msg.imagePreview} timestamp={msg.timestamp} isError={msg.isError} onRetry={msg.isError ? handleRetry : undefined} onSaveFavorite={msg.role === 'assistant' && !msg.isError ? async (content) => { await dbSaveFavorite(userId, { type: 'chat', content }); onFavoritesChanged?.(); } : undefined} />
+            <Message key={msg._id || `m-${i}`} role={msg.role} content={msg.content} imagePreview={msg.imagePreview} timestamp={msg.timestamp} isError={msg.isError} onRetry={msg.isError ? handleRetry : undefined} onSaveFavorite={msg.role === 'assistant' && !msg.isError ? handleSaveFavorite : undefined} />
           ))}
           {isLoading && <Message isTyping />}
           <div ref={messagesEndRef} />
@@ -472,12 +492,12 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
               onChange={(e) => setInput(e.target.value)}
               placeholder={pendingFile ? 'Escreva algo sobre a foto (opcional)...' : 'Pergunta qualquer coisa...'}
               className="flex-1 bg-transparent py-2.5 text-text placeholder-text-light focus:outline-none text-sm"
-              disabled={isLoading || isStreaming}
+              disabled={isLoading}
               maxLength={2000}
             />
             <button
               type="submit"
-              disabled={(!input.trim() && !pendingFile) || isLoading || isStreaming}
+              disabled={(!input.trim() && !pendingFile) || isLoading}
               className="shrink-0 w-8 h-8 rounded-lg bg-accent flex items-center justify-center text-white hover:bg-accent-hover transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
               aria-label="Enviar mensagem"
             >

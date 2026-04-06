@@ -202,6 +202,14 @@ export async function POST(req) {
       return Response.json({ error: 'Mensagens inválidas' }, { status: 400 });
     }
 
+    // Garantir que primeira mensagem seja 'user' (exigência da API Claude)
+    while (messages.length > 0 && messages[0].role !== 'user') {
+      messages.shift();
+    }
+    if (messages.length === 0) {
+      return Response.json({ error: 'Mensagens inválidas' }, { status: 400 });
+    }
+
     // Limitar tamanho do payload para evitar abuso
     if (messages.length > 20) {
       return Response.json({ error: 'Limite de mensagens por requisição excedido' }, { status: 400 });
