@@ -103,8 +103,16 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
   const sendMessage = async (text, imageBase64 = null, mediaType = 'image/jpeg', imageDataUrl = null) => {
     if ((!text.trim() && !imageBase64)) return;
     // Usar REF pra checar estado real (evita stale closure do useEffect)
-    if (busyRef.current) return;
+    // Safety: se ficou travado por mais de 60s, desbloqueia
+    if (busyRef.current) {
+      if (Date.now() - (busyRef.since || 0) > 60000) {
+        busyRef.current = false;
+      } else {
+        return;
+      }
+    }
     busyRef.current = true;
+    busyRef.since = Date.now();
     setIsLoading(true);
 
     try {
