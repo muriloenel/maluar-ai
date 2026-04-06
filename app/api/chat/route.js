@@ -234,8 +234,8 @@ export async function POST(req) {
         ? lastUserMsg.content.filter(b => b.type === 'text').map(b => b.text).join(' ')
         : '';
     const isComplex = imageRequest || lastText.length > 500 || /plano de ação|diagnóstico|análise|estratégia|financeiro|business/i.test(lastText);
-    const model = isComplex ? 'claude-3-5-sonnet-20241022' : 'claude-3-5-haiku-20241022';
-    console.log(`[CHAT] Modelo: ${model}, Complexo: ${isComplex}, Stream: ${!!stream}, User: ${authUser?.email || 'anon'}, Plan: ${userPlan}`);
+    const model = 'claude-sonnet-4-20250514';
+    console.log(`[CHAT] Modelo: ${model}, Stream: ${!!stream}, User: ${authUser?.email || 'anon'}, Plan: ${userPlan}`);
 
     // Streaming mode
     if (stream) {
@@ -253,10 +253,10 @@ export async function POST(req) {
         console.error('[CHAT] Erro ao criar stream:', createErr?.status, createErr?.error?.type, createErr?.message || JSON.stringify(createErr));
         // Se modelo não existe, tentar fallback
         if (createErr?.status === 404 || createErr?.error?.type === 'not_found_error') {
-          console.log('[CHAT] Modelo não encontrado, tentando fallback claude-3-5-haiku-20241022');
+          console.log('[CHAT] Modelo não encontrado, tentando fallback claude-sonnet-4-20250514');
           try {
             response = await client.messages.create({
-              model: 'claude-3-5-haiku-20241022',
+              model: 'claude-sonnet-4-20250514',
               max_tokens: imageRequest ? 3000 : 1200,
               temperature: imageRequest ? 0.1 : 0.5,
               system: safeSystem,
@@ -318,7 +318,7 @@ export async function POST(req) {
 
     // Non-streaming mode (used by PostGenerator)
     const response = await client.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-sonnet-4-20250514',
       max_tokens: imageRequest ? 2048 : 1200,
       system: safeSystem,
       messages,
@@ -327,7 +327,7 @@ export async function POST(req) {
     // Log usage async
     logUsage(
       authUser?.id,
-      'claude-3-5-sonnet-20241022',
+      'claude-sonnet-4-20250514',
       response.usage?.input_tokens || 0,
       response.usage?.output_tokens || 0,
       'post'
