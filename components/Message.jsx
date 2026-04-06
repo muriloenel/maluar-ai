@@ -21,7 +21,7 @@ function MessageInner({ role, content, isTyping, imagePreview, timestamp, isErro
     return (
       <div className="flex justify-start mb-3 animate-fade-in">
         <div className="shrink-0 mr-2 mt-1">
-          <img src="/logo-icon.png" alt="Maluar" className="w-7 h-7 rounded-lg object-contain" />
+          <img src="/logo-icon.webp" alt="Maluar" className="w-7 h-7 rounded-lg object-contain" />
         </div>
         <div className="bg-surface-card border border-border-light rounded-2xl rounded-bl-sm px-4 py-3 shadow-soft card-glow" aria-label="Digitando...">
           <div className="flex gap-1.5">
@@ -63,7 +63,7 @@ function MessageInner({ role, content, isTyping, imagePreview, timestamp, isErro
       {/* AI Avatar */}
       {!isUser && (
         <div className="shrink-0 mr-2 mt-1">
-          <img src="/logo-icon.png" alt="Maluar" className="w-7 h-7 rounded-lg object-contain" />
+          <img src="/logo-icon.webp" alt="Maluar" className="w-7 h-7 rounded-lg object-contain" />
         </div>
       )}
       <div

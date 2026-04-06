@@ -248,7 +248,7 @@ export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activ
         <div className="px-3 pt-3 pb-1">
           <div className="flex items-center gap-2.5 px-2">
             <div className="relative">
-              <img src="/logo-icon.png" alt="Maluar" className="w-8 h-8 rounded-lg object-contain" />
+              <img src="/logo-icon.webp" alt="Maluar" className="w-8 h-8 rounded-lg object-contain" />
               <div className="absolute -inset-0.5 bg-gradient-to-r from-accent/20 to-rose/20 rounded-lg blur-sm -z-10" />
             </div>
             <div>
