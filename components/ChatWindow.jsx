@@ -134,8 +134,8 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
               return; // finally vai resetar isLoading
             }
           } catch (err) {
-            console.error('[QUOTA] Erro:', err.message);
-            // Erro na quota, permite envio
+            // Timeout ou erro na quota — deixar server-side barrar se necessário
+            console.warn('[QUOTA] Fallback server-side:', err.message);
           }
       }
 
@@ -214,6 +214,11 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
           };
           setMessages(prev => [...prev, errorMsg]);
           setTimeout(() => onAuthExpired?.(), 2000);
+          return;
+        }
+        // Se 429, quota excedida no server — mostrar modal
+        if (res.status === 429 && errorData.quota) {
+          setQuotaModal({ limit: errorData.quota.limit || 15 });
           return;
         }
         throw new Error(errorData.error || 'Erro na API');
