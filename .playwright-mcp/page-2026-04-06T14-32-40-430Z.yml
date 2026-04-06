@@ -1,0 +1,141 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - generic [ref=e5]:
+        - img "Maluar" [ref=e7]
+        - generic [ref=e9]:
+          - heading "Maluar" [level=1] [ref=e10]
+          - paragraph [ref=e11]: Nail Design AI
+      - button "Novo chat" [ref=e13] [cursor=pointer]:
+        - img [ref=e14]
+        - generic [ref=e16]: Novo chat
+      - generic [ref=e18]:
+        - button "Chat" [ref=e19] [cursor=pointer]
+        - button "Post" [ref=e20] [cursor=pointer]
+        - button "⭐ Salvos" [ref=e21] [cursor=pointer]
+      - generic [ref=e22]:
+        - generic [ref=e23]: Seu nível
+        - button "🌱 Iniciante Trocar" [ref=e24] [cursor=pointer]:
+          - generic [ref=e25]: 🌱
+          - generic [ref=e26]: Iniciante
+          - generic [ref=e27]: Trocar
+      - generic [ref=e30]:
+        - button "🚀 Meu Negócio Escale seu negócio de nail" [ref=e31] [cursor=pointer]:
+          - generic [ref=e32]: 🚀
+          - generic [ref=e33]:
+            - generic [ref=e34]: Meu Negócio
+            - text: Escale seu negócio de nail
+          - img [ref=e35]
+        - button "💰 Calculadora de Preço Materiais + tempo = preço ideal" [ref=e37] [cursor=pointer]:
+          - generic [ref=e38]: 💰
+          - generic [ref=e39]:
+            - generic [ref=e40]: Calculadora de Preço
+            - text: Materiais + tempo = preço ideal
+          - img [ref=e41]
+        - button "💎 Planos Grátis — Faça upgrade!" [ref=e43] [cursor=pointer]:
+          - generic [ref=e44]: 💎
+          - generic [ref=e45]:
+            - generic [ref=e46]: Planos
+            - text: Grátis — Faça upgrade!
+          - img [ref=e47]
+      - generic [ref=e49]:
+        - generic [ref=e50]: Sugestões pra você
+        - group [ref=e51]:
+          - generic "🌱 Primeiros Passos" [ref=e52] [cursor=pointer]:
+            - generic [ref=e53]: 🌱
+            - generic [ref=e54]: Primeiros Passos
+            - img [ref=e55]
+        - group [ref=e57]:
+          - generic "🛒 Kit Iniciante" [ref=e58] [cursor=pointer]:
+            - generic [ref=e59]: 🛒
+            - generic [ref=e60]: Kit Iniciante
+            - img [ref=e61]
+        - group [ref=e63]:
+          - generic "📖 Técnicas Básicas" [ref=e64] [cursor=pointer]:
+            - generic [ref=e65]: 📖
+            - generic [ref=e66]: Técnicas Básicas
+            - img [ref=e67]
+        - group [ref=e69]:
+          - generic "📅 Rotina de Treino" [ref=e70] [cursor=pointer]:
+            - generic [ref=e71]: 📅
+            - generic [ref=e72]: Rotina de Treino
+            - img [ref=e73]
+        - group [ref=e75]:
+          - generic "👥 Primeiras Clientes" [ref=e76] [cursor=pointer]:
+            - generic [ref=e77]: 👥
+            - generic [ref=e78]: Primeiras Clientes
+            - img [ref=e79]
+        - group [ref=e81]:
+          - generic "💰 Começar a Lucrar" [ref=e82] [cursor=pointer]:
+            - generic [ref=e83]: 💰
+            - generic [ref=e84]: Começar a Lucrar
+            - img [ref=e85]
+        - group [ref=e87]:
+          - generic "📱 Instagram do Zero" [ref=e88] [cursor=pointer]:
+            - generic [ref=e89]: 📱
+            - generic [ref=e90]: Instagram do Zero
+            - img [ref=e91]
+      - generic [ref=e93]:
+        - group [ref=e94]:
+          - generic "M Murilo Maluar AI" [ref=e95] [cursor=pointer]:
+            - generic [ref=e97]: M
+            - generic [ref=e98]:
+              - paragraph [ref=e99]: Murilo
+              - paragraph [ref=e100]: Maluar AI
+            - img [ref=e101]
+        - generic [ref=e103]:
+          - button "Alternar tema" [ref=e104] [cursor=pointer]:
+            - img [ref=e105]
+          - button "Sair da conta" [ref=e107] [cursor=pointer]:
+            - img [ref=e108]
+    - main [ref=e110]:
+      - generic [ref=e111]:
+        - generic [ref=e113]:
+          - generic [ref=e114]:
+            - img "Maluar" [ref=e116]
+            - generic [ref=e117]:
+              - generic [ref=e118]:
+                - generic [ref=e119]: Maluar AI
+                - button "Copiar resposta" [ref=e120] [cursor=pointer]:
+                  - img [ref=e121]
+                - button "Salvar nos favoritos" [ref=e123] [cursor=pointer]:
+                  - img [ref=e124]
+                - button "Exportar como PDF" [ref=e126] [cursor=pointer]:
+                  - img [ref=e127]
+              - generic [ref=e129]:
+                - paragraph [ref=e130]: Falaaaaa Amiga Naiuus, Nails... Se ta boa? 💅
+                - paragraph [ref=e131]: Murilo, sou a Maluar AI, criada pela Karina Oliveira pra te ajudar nessa jornada.
+                - paragraph [ref=e132]: Vi que tá começando — bora do zero juntas!
+                - paragraph [ref=e133]: Me pergunta sobre técnicas, produtos, preços ou manda foto pra eu analisar.
+              - generic [ref=e134]:
+                - button "Boa resposta" [ref=e135] [cursor=pointer]: 👍
+                - button "Pode melhorar" [ref=e136] [cursor=pointer]: 👎
+          - generic [ref=e159]:
+            - text: oi
+            - generic [ref=e160]: 11:32
+          - generic [ref=e169]:
+            - img "Maluar" [ref=e171]
+            - generic [ref=e172]:
+              - generic [ref=e173]:
+                - generic [ref=e174]: Maluar AI
+                - button "Copiar resposta" [ref=e175] [cursor=pointer]:
+                  - img [ref=e176]
+                - button "Salvar nos favoritos" [ref=e178] [cursor=pointer]:
+                  - img [ref=e179]
+                - button "Exportar como PDF" [ref=e181] [cursor=pointer]:
+                  - img [ref=e182]
+              - generic [ref=e184]:
+                - paragraph [ref=e185]: Oi, Murilo! 💅
+                - paragraph [ref=e186]: "Bem-vindo! Sou a Maluar, sua mentora de nail design e negócio. Estou aqui pra te ajudar com tudo: desde técnicas de unhas até como transformar isso em um negócio que funciona de verdade."
+                - paragraph [ref=e187]: Você está começando agora ou já tem alguma experiência? Me conta um pouco do seu momento!
+              - generic [ref=e188]:
+                - button "Boa resposta" [ref=e189] [cursor=pointer]: 👍
+                - button "Pode melhorar" [ref=e190] [cursor=pointer]: 👎
+              - generic [ref=e191]: 11:32
+        - generic [ref=e149]:
+          - button "Enviar foto" [ref=e150] [cursor=pointer]:
+            - img [ref=e151]
+          - textbox "Pergunta qualquer coisa..." [active] [ref=e153]: oi
+          - button "Enviar mensagem" [ref=e154] [cursor=pointer]:
+            - img [ref=e155]
+  - alert [ref=e157]
