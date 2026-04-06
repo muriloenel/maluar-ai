@@ -5,7 +5,6 @@ import dynamic from 'next/dynamic';
 import { useAuth } from '../components/SupabaseAuthProvider';
 import AuthScreen from '../components/AuthScreen';
 import Sidebar from '../components/Sidebar';
-import ChatWindow from '../components/ChatWindow';
 import {
   dbLoadChatList,
   dbCreateChat,
@@ -17,6 +16,7 @@ import {
 } from '../lib/db';
 
 // Lazy load componentes que não são necessários no primeiro render
+const ChatWindow = dynamic(() => import('../components/ChatWindow'), { ssr: false, loading: () => <TabSpinner /> });
 const PostGenerator = dynamic(() => import('../components/PostGenerator'), { ssr: false, loading: () => <TabSpinner /> });
 const FavoritesGallery = dynamic(() => import('../components/FavoritesGallery'), { ssr: false, loading: () => <TabSpinner /> });
 const PricingCalculator = dynamic(() => import('../components/PricingCalculator'), { ssr: false, loading: () => <TabSpinner /> });

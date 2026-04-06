@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { useAuth } from './SupabaseAuthProvider';
 import { useToast } from './Toast';
 
@@ -126,7 +127,7 @@ export default function AuthScreen() {
         {/* Logo */}
         <div className="text-center mb-8 animate-scale-in">
           <div className="relative inline-block">
-            <img src="/logo-icon.png" alt="Maluar" className="w-20 h-20 mx-auto mb-4 rounded-2xl object-contain shadow-elevated" />
+            <Image src="/logo-icon.png" alt="Maluar" width={80} height={80} priority className="mx-auto mb-4 rounded-2xl object-contain shadow-elevated" />
             <div className="absolute -inset-1 bg-gradient-to-r from-accent/20 to-rose/20 rounded-2xl blur-lg -z-10" />
           </div>
           <h1 className="text-3xl font-extrabold bg-gradient-to-r from-[#534AB7] via-[#7F77DD] to-[#D4537E] bg-clip-text text-transparent tracking-tight">

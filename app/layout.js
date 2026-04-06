@@ -20,7 +20,6 @@ export const metadata = {
 export const viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
   themeColor: '#7F77DD',
 };
 
@@ -34,6 +33,7 @@ export default function RootLayout({ children }) {
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png" />
         <link rel="apple-touch-icon" sizes="512x512" href="/icon-512.png" />
+        <link rel="preload" href="/logo-icon.png" as="image" />
       </head>
       <body className="min-h-screen bg-surface text-text antialiased">
         <ClientProviders>{children}</ClientProviders>
