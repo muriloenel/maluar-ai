@@ -14,7 +14,7 @@ function getAppUrl(req) {
     const proto = host.includes('localhost') ? 'http' : 'https';
     return `${proto}://${host}`;
   }
-  return 'https://maluar-ai.vercel.app';
+  return 'https://maluarai.com.br';
 }
 
 // Preços dos planos (criar no Stripe Dashboard)
