@@ -128,14 +128,12 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
       if (userId) {
           try {
             const quota = await dbCheckMessageQuota(userId, userEmail);
-            console.log('[QUOTA]', JSON.stringify(quota));
             if (!quota.allowed) {
               setQuotaModal({ limit: quota.limit });
               return; // finally vai resetar isLoading
             }
           } catch (err) {
             // Timeout ou erro na quota — deixar server-side barrar se necessário
-            console.warn('[QUOTA] Fallback server-side:', err.message);
           }
       }
 
