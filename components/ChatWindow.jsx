@@ -177,6 +177,9 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
       const fetchHeaders = { 'Content-Type': 'application/json' };
       if (authToken) fetchHeaders['Authorization'] = `Bearer ${authToken}`;
 
+      console.log('[CHAT-FE] Enviando request...', { msgCount: apiMessages.length, hasAuth: !!authToken });
+      const fetchStart = Date.now();
+
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: fetchHeaders,
@@ -188,8 +191,11 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
         signal: controller.signal,
       });
 
+      console.log('[CHAT-FE] Response recebido:', { status: res.status, ok: res.ok, contentType: res.headers.get('content-type'), elapsed: Date.now() - fetchStart + 'ms' });
+
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
+        console.error('[CHAT-FE] Erro no response:', errorData);
         // Se 401, a sessão expirou — informar e forçar re-login
         if (res.status === 401) {
           const errorMsg = {
@@ -209,21 +215,31 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
       const decoder = new TextDecoder();
       let assistantText = '';
       const assistantId = nextId();
+      let chunkCount = 0;
 
+      console.log('[CHAT-FE] Iniciando leitura do stream...');
       setMessages((prev) => [...prev, { _id: assistantId, role: 'assistant', content: '', timestamp: Date.now() }]);
       setIsLoading(false);
       setIsStreaming(true);
 
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
+        if (done) {
+          console.log('[CHAT-FE] Stream finalizado. Chunks:', chunkCount, 'TextLen:', assistantText.length);
+          break;
+        }
 
+        chunkCount++;
         const chunk = decoder.decode(value, { stream: true });
+        if (chunkCount <= 3) console.log('[CHAT-FE] Chunk', chunkCount, ':', chunk.slice(0, 200));
         const lines = chunk.split('\n').filter((l) => l.startsWith('data: '));
 
         for (const line of lines) {
           const data = line.slice(6);
-          if (data === '[DONE]') break;
+          if (data === '[DONE]') {
+            console.log('[CHAT-FE] Recebeu [DONE]');
+            break;
+          }
           try {
             const parsed = JSON.parse(data);
             if (parsed.text) {
@@ -234,7 +250,9 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
                 return updated;
               });
             }
-          } catch {}
+          } catch (parseErr) {
+            console.warn('[CHAT-FE] Parse error:', data.slice(0, 100), parseErr.message);
+          }
         }
       }
 
