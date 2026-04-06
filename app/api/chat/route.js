@@ -103,14 +103,13 @@ const hasImage = (messages) =>
 async function logUsage(userId, model, inputTokens, outputTokens, feature = 'chat') {
   if (!supabaseServiceKey || !supabaseUrl) return;
   try {
-    // Custos por 1M tokens (abril 2026 - estimativas)
+    // Custos por 1M tokens (Haiku 4.5: $1/$5, Sonnet 4: $3/$15)
     const COSTS = {
-      'claude-haiku-4-20250514': { input: 0.25, output: 1.25 },
+      'claude-haiku-4-5-20251001': { input: 1.0, output: 5.0 },
       'claude-sonnet-4-20250514': { input: 3.0, output: 15.0 },
-      'claude-3-5-haiku-latest': { input: 0.25, output: 1.25 },
       'claude-3-5-sonnet-latest': { input: 3.0, output: 15.0 },
     };
-    const rates = COSTS[model] || COSTS['claude-haiku-4-20250514'];
+    const rates = COSTS[model] || COSTS['claude-haiku-4-5-20251001'];
     const cost = (inputTokens * rates.input + outputTokens * rates.output) / 1_000_000;
 
     const modelShort = model.includes('haiku') ? 'haiku' : 'sonnet';
@@ -249,11 +248,11 @@ export async function POST(req) {
         ? lastUserMsg.content.filter(b => b.type === 'text').map(b => b.text).join(' ')
         : '';
     const isComplex = imageRequest || lastText.length > 500 || /plano de ação|diagnóstico|análise|estratégia|financeiro|business|marketing|calendário|passo a passo|propaganda|post|legenda|story|stories|reels|campanha/i.test(lastText);
-    // Modelos: Sonnet para complexo/imagens, Haiku para msgs simples (12x mais barato)
+    // Modelos: Sonnet para complexo/imagens, Haiku para msgs simples (3x mais barato)
     const SONNET = 'claude-sonnet-4-20250514';
-    const HAIKU = 'claude-3-5-haiku-latest';
+    const HAIKU = 'claude-haiku-4-5-20251001';
     // Fallbacks: se modelo primário falhar, tentar estes na ordem
-    const FALLBACKS = [SONNET, 'claude-3-5-sonnet-latest', 'claude-3-5-sonnet-20241022', HAIKU];
+    const FALLBACKS = [SONNET, HAIKU, 'claude-3-5-sonnet-latest'];
     // Routing: Haiku para msgs simples, Sonnet para complexo/imagens
     let model = isComplex ? SONNET : HAIKU;
     console.log(`[CHAT] Modelo: ${model}, Complexo: ${isComplex}, Stream: ${!!stream}, User: ${authUser?.email || 'anon'}, Plan: ${userPlan}`);
