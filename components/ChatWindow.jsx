@@ -128,11 +128,13 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
       if (userId) {
           try {
             const quota = await dbCheckMessageQuota(userId, userEmail);
+            console.log('[QUOTA]', JSON.stringify(quota));
             if (!quota.allowed) {
               setQuotaModal({ limit: quota.limit });
               return; // finally vai resetar isLoading
             }
           } catch (err) {
+            console.error('[QUOTA] Erro:', err.message);
             // Erro na quota, permite envio
           }
       }
