@@ -248,17 +248,14 @@ export async function POST(req) {
       : Array.isArray(lastUserMsg?.content)
         ? lastUserMsg.content.filter(b => b.type === 'text').map(b => b.text).join(' ')
         : '';
-    const isComplex = imageRequest || lastText.length > 500 || /plano de ação|diagnóstico|análise|estratégia|financeiro|business|marketing|calendário|passo a passo/i.test(lastText);
-    // Lista de modelos em ordem de prioridade (fallback automático)
-    const MODEL_PRIORITY = [
-      'claude-sonnet-4-20250514',
-      'claude-3-5-sonnet-latest',
-      'claude-3-5-sonnet-20241022',
-      'claude-3-5-haiku-latest',
-    ];
-    // Usar Sonnet para tudo (único modelo disponível na conta)
-    const model = MODEL_PRIORITY[0];
-    console.log(`[CHAT] Modelo: ${model}, Stream: ${!!stream}, User: ${authUser?.email || 'anon'}, Plan: ${userPlan}`);
+    const isComplex = imageRequest || lastText.length > 500 || /plano de ação|diagnóstico|análise|estratégia|financeiro|business|marketing|calendário|passo a passo|propaganda|post|legenda|story|stories|reels|campanha/i.test(lastText);
+    // Modelos: Sonnet para complexo/imagens, Haiku para msgs simples (12x mais barato)
+    const SONNET = 'claude-sonnet-4-20250514';
+    const HAIKU = 'claude-3-5-haiku-latest';
+    const MODEL_PRIORITY = [SONNET, 'claude-3-5-sonnet-latest', 'claude-3-5-sonnet-20241022', HAIKU];
+    // Routing: Haiku para msgs simples, Sonnet para complexo/imagens
+    const model = isComplex ? SONNET : HAIKU;
+    console.log(`[CHAT] Modelo: ${model}, Complexo: ${isComplex}, Stream: ${!!stream}, User: ${authUser?.email || 'anon'}, Plan: ${userPlan}`);
 
     // Streaming mode
     if (stream) {
