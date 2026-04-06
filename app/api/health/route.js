@@ -30,12 +30,13 @@ export async function GET(req) {
   // Testar modelos em ordem de prioridade
   const modelsToTry = [
     'claude-sonnet-4-20250514',
-    'claude-3-5-sonnet-latest',
-    'claude-3-5-sonnet-20241022',
+    'claude-haiku-4-5',
+    'claude-haiku-4-5-20251001',
     'claude-3-5-haiku-latest',
   ];
 
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const modelResults = [];
 
   for (const model of modelsToTry) {
     try {
@@ -44,31 +45,26 @@ export async function GET(req) {
         max_tokens: 20,
         messages: [{ role: 'user', content: 'Diga apenas "ok"' }],
       });
-      results.anthropic = {
+      modelResults.push({
+        model,
         status: 'OK',
-        model,
         response: response.content?.[0]?.text || 'sem texto',
-        usage: response.usage,
-        allModelsTried: modelsToTry.slice(0, modelsToTry.indexOf(model) + 1),
-      };
-      return Response.json(results);
+      });
     } catch (err) {
-      results.anthropic = {
-        status: 'ERRO',
+      modelResults.push({
         model,
-        errorType: err?.error?.type || 'unknown',
+        status: 'ERRO',
         errorStatus: err?.status,
-      };
-      // Se for 401 (auth), não adianta tentar outros modelos
-      if (err?.status === 401) break;
-      // Se for crédito, não adianta tentar outros modelos
-      if (err?.message?.includes('credit') || err?.error?.message?.includes('credit')) break;
-      // Se for 404 (modelo não existe), tenta o próximo
-      if (err?.status === 404) continue;
-      // Qualquer outro erro, para
-      break;
+        errorType: err?.error?.type,
+        errorMessage: err?.error?.message?.slice(0, 100) || err?.message?.slice(0, 100),
+      });
     }
   }
 
-  return Response.json(results, { status: 500 });
+  results.anthropic = {
+    status: modelResults.some(m => m.status === 'OK') ? 'OK' : 'ERRO',
+    models: modelResults,
+  };
+
+  return Response.json(results);
 }

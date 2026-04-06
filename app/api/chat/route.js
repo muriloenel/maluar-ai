@@ -105,11 +105,12 @@ async function logUsage(userId, model, inputTokens, outputTokens, feature = 'cha
   try {
     // Custos por 1M tokens (Haiku 4.5: $1/$5, Sonnet 4: $3/$15)
     const COSTS = {
+      'claude-haiku-4-5': { input: 1.0, output: 5.0 },
       'claude-haiku-4-5-20251001': { input: 1.0, output: 5.0 },
       'claude-sonnet-4-20250514': { input: 3.0, output: 15.0 },
       'claude-3-5-sonnet-latest': { input: 3.0, output: 15.0 },
     };
-    const rates = COSTS[model] || COSTS['claude-haiku-4-5-20251001'];
+    const rates = COSTS[model] || COSTS['claude-haiku-4-5'];
     const cost = (inputTokens * rates.input + outputTokens * rates.output) / 1_000_000;
 
     const modelShort = model.includes('haiku') ? 'haiku' : 'sonnet';
@@ -250,7 +251,7 @@ export async function POST(req) {
     const isComplex = imageRequest || lastText.length > 500 || /plano de ação|diagnóstico|análise|estratégia|financeiro|business|marketing|calendário|passo a passo|propaganda|post|legenda|story|stories|reels|campanha/i.test(lastText);
     // Modelos: Sonnet para complexo/imagens, Haiku para msgs simples (3x mais barato)
     const SONNET = 'claude-sonnet-4-20250514';
-    const HAIKU = 'claude-haiku-4-5-20251001';
+    const HAIKU = 'claude-haiku-4-5';
     // Fallbacks: se modelo primário falhar, tentar estes na ordem
     const FALLBACKS = [SONNET, HAIKU, 'claude-3-5-sonnet-latest'];
     // Routing: Haiku para msgs simples, Sonnet para complexo/imagens
@@ -271,43 +272,42 @@ export async function POST(req) {
         });
       } catch (createErr) {
         console.error('[CHAT] Erro ao criar stream:', createErr?.status, createErr?.error?.type, createErr?.error?.message || createErr?.message || JSON.stringify(createErr));
-        // Se modelo não existe (404), tentar fallbacks
-        if (createErr?.status === 404 || createErr?.error?.type === 'not_found_error') {
-          let fallbackWorked = false;
-          const fallbackList = FALLBACKS.filter(m => m !== model);
-          for (const fallbackModel of fallbackList) {
-            console.log(`[CHAT] Tentando fallback: ${fallbackModel}`);
-            try {
-              response = await client.messages.create({
-                model: fallbackModel,
-                max_tokens: imageRequest ? 3000 : 1200,
-                temperature: imageRequest ? 0.1 : 0.5,
-                system: safeSystem,
-                messages,
-                stream: true,
-              });
-              fallbackWorked = true;
-              model = fallbackModel; // atualizar para logUsage
-              console.log(`[CHAT] Fallback ${fallbackModel} funcionou!`);
-              break;
-            } catch (fallbackErr) {
-              console.error(`[CHAT] Fallback ${fallbackModel} falhou:`, fallbackErr?.status, fallbackErr?.error?.message || fallbackErr?.message);
-              if (fallbackErr?.status !== 404) break; // Se não for 404, parar de tentar
-            }
-          }
-          if (!fallbackWorked) {
-            const errMsg = createErr?.error?.message || createErr?.message || 'modelo indisponível';
-            return Response.json({ error: `Erro ao conectar com a IA: ${errMsg}` }, { status: 502 });
-          }
-        } else if (createErr?.status === 401) {
+
+        // 401 = API key inválida — não adianta tentar fallback
+        if (createErr?.status === 401) {
           console.error('[CHAT] API Key inválida ou expirada!');
           return Response.json({ error: 'Erro de configuração do servidor (API Key). Contate o suporte.' }, { status: 502 });
-        } else if (createErr?.message?.includes('credit') || createErr?.error?.message?.includes('credit')) {
+        }
+        // Créditos esgotados — não adianta tentar fallback
+        if (createErr?.message?.includes('credit') || createErr?.error?.message?.includes('credit')) {
           console.error('[CHAT] Sem créditos na API Anthropic!');
           return Response.json({ error: 'Serviço temporariamente indisponível. Tente novamente mais tarde.' }, { status: 502 });
-        } else {
-          const errMsg = createErr?.error?.message || createErr?.message || 'erro desconhecido';
-          console.error(`[CHAT] Erro não tratado: status=${createErr?.status}, msg=${errMsg}`);
+        }
+
+        // Para QUALQUER outro erro (404, 400, 500, overloaded, etc), tentar fallbacks
+        let fallbackWorked = false;
+        const fallbackList = FALLBACKS.filter(m => m !== model);
+        for (const fallbackModel of fallbackList) {
+          console.log(`[CHAT] Tentando fallback: ${fallbackModel}`);
+          try {
+            response = await client.messages.create({
+              model: fallbackModel,
+              max_tokens: imageRequest ? 2500 : 800,
+              temperature: imageRequest ? 0.1 : 0.5,
+              system: safeSystem,
+              messages,
+              stream: true,
+            });
+            fallbackWorked = true;
+            model = fallbackModel;
+            console.log(`[CHAT] Fallback ${fallbackModel} funcionou!`);
+            break;
+          } catch (fallbackErr) {
+            console.error(`[CHAT] Fallback ${fallbackModel} falhou:`, fallbackErr?.status, fallbackErr?.error?.message || fallbackErr?.message);
+          }
+        }
+        if (!fallbackWorked) {
+          const errMsg = createErr?.error?.message || createErr?.message || 'modelo indisponível';
           return Response.json({ error: `Erro ao conectar com a IA: ${errMsg}` }, { status: 502 });
         }
       }
