@@ -101,13 +101,16 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
   );
 
   const sendMessage = async (text, imageBase64 = null, mediaType = 'image/jpeg', imageDataUrl = null) => {
-    if ((!text.trim() && !imageBase64)) return;
+    console.log('[SEND] Iniciando sendMessage:', { text: text?.slice(0, 50), hasImage: !!imageBase64, busyRef: busyRef.current, busySince: busyRef.since });
+    if ((!text.trim() && !imageBase64)) { console.log('[SEND] Texto vazio, retornando'); return; }
     // Usar REF pra checar estado real (evita stale closure do useEffect)
     // Safety: se ficou travado por mais de 60s, desbloqueia
     if (busyRef.current) {
       if (Date.now() - (busyRef.since || 0) > 60000) {
+        console.warn('[SEND] busyRef travado há >60s, desbloqueando');
         busyRef.current = false;
       } else {
+        console.warn('[SEND] Ocupado, ignorando mensagem. busySince:', busyRef.since, 'ago:', Date.now() - (busyRef.since || 0), 'ms');
         return;
       }
     }
@@ -119,14 +122,18 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
       // Verificar quota de mensagens diárias
       if (userId) {
           try {
+            console.log('[SEND] Verificando quota para userId:', userId);
             const quota = await dbCheckMessageQuota(userId, userEmail);
+            console.log('[SEND] Quota:', quota);
             if (!quota.allowed) {
               setQuotaModal({ limit: quota.limit });
               return; // finally vai resetar isLoading
             }
           } catch (err) {
-            console.warn('Erro ao verificar quota, permitindo envio:', err);
+            console.warn('[SEND] Erro ao verificar quota, permitindo envio:', err);
           }
+      } else {
+        console.log('[SEND] Sem userId, pulando quota check');
       }
 
       const userContent = imageBase64
@@ -172,11 +179,14 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
       abortRef.current = controller;
 
       // Obter token de auth para a API (opcional — modo convidado funciona sem)
+      console.log('[SEND] Obtendo authToken...');
       const authToken = getAccessToken ? await getAccessToken() : null;
+      console.log('[SEND] authToken:', authToken ? `${authToken.slice(0, 20)}...` : 'null');
 
       const fetchHeaders = { 'Content-Type': 'application/json' };
       if (authToken) fetchHeaders['Authorization'] = `Bearer ${authToken}`;
 
+      console.log('[SEND] Fazendo fetch /api/chat com', apiMessages.length, 'mensagens');
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: fetchHeaders,
@@ -187,6 +197,7 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
         }),
         signal: controller.signal,
       });
+      console.log('[SEND] Resposta recebida, status:', res.status, res.ok ? 'OK' : 'ERRO');
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
@@ -209,6 +220,7 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
       const decoder = new TextDecoder();
       let assistantText = '';
       const assistantId = nextId();
+      console.log('[SEND] Iniciando leitura do stream...');
 
       setMessages((prev) => [...prev, { _id: assistantId, role: 'assistant', content: '', timestamp: Date.now() }]);
       setIsLoading(false);
@@ -239,6 +251,7 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
       }
 
       // Persist final assistant message to DB
+      console.log('[SEND] Stream finalizado. Texto total:', assistantText?.length, 'chars');
       const finalContent = assistantText || 'Ops, não consegui processar. Tenta de novo!';
       if (!assistantText) {
         setMessages((prev) => {
@@ -250,7 +263,8 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
       persistMessage({ role: 'assistant', content: finalContent });
       if (userId) dbIncrementMessageCount(userId).catch(() => {});
     } catch (err) {
-      if (err.name === 'AbortError') return; // finally vai limpar
+      if (err.name === 'AbortError') { console.log('[SEND] Abortado pelo usuário'); return; }
+      console.error('[SEND] ERRO no sendMessage:', err?.message, err);
       setLastFailedMsg({ text, imageBase64, mediaType, imageDataUrl });
       const errContent = err.message || 'Eita, deu um erro aqui. Tenta mandar de novo! 💅';
       setMessages((prev) => [
