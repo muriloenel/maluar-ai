@@ -512,6 +512,9 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
             </button>
           </div>
         </form>
+        <p className="text-[10px] text-text-light text-center pb-2 -mt-1">
+          A Maluar pode cometer erros. Revise informações importantes.
+        </p>
       </div>
 
       {/* Modal de quota excedida */}
