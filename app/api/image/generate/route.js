@@ -1,7 +1,11 @@
 import OpenAI from 'openai';
 import { createClient } from '@supabase/supabase-js';
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+let _openai;
+function getOpenAI() {
+  if (!_openai) _openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  return _openai;
+}
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -68,7 +72,7 @@ Style: ultra-realistic photograph, studio lighting, close-up of beautifully mani
 Quality: 4K, sharp focus, soft bokeh background, beauty photography style. 
 Important: Only show hands and nails, no faces. Clean, professional aesthetic.`;
 
-    const result = await openai.images.generate({
+    const result = await getOpenAI().images.generate({
       model: 'dall-e-3',
       prompt: enhancedPrompt,
       n: 1,
