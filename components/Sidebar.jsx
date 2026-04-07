@@ -217,7 +217,7 @@ const MODULES_BY_LEVEL = {
   ],
 };
 
-export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activeTab, onTabChange, onChangeLevel, isOpen, onClose, chatList, activeChatId, onSelectChat, onDeleteChat, onSignOut, currentPlan, onUpgrade }) {
+export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activeTab, onTabChange, onChangeLevel, isOpen, onClose, chatList, activeChatId, onSelectChat, onDeleteChat, onSignOut, currentPlan, onUpgrade, onManageSubscription }) {
   const [showLevelPicker, setShowLevelPicker] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [historySearch, setHistorySearch] = useState('');
@@ -407,6 +407,24 @@ export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activ
             <svg className="w-4 h-4 text-text-light" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
+          </button>
+          <button
+            onClick={() => {
+              onTabChange('image');
+              onClose();
+            }}
+            className={`w-full flex items-center gap-2.5 px-2.5 py-2.5 rounded-xl border transition-colors ${
+              activeTab === 'image'
+                ? 'border-accent/30 bg-accent-light text-accent'
+                : 'border-border-light bg-surface-card hover:bg-surface-alt text-text-muted hover:text-text'
+            }`}
+          >
+            <span className="text-base">✨</span>
+            <div className="flex-1 text-left">
+              <span className="text-[13px] font-semibold block leading-tight">Criar Imagem IA</span>
+              <span className="text-[10px] text-text-muted">Gere nail designs com inteligência artificial</span>
+            </div>
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-gradient-to-r from-accent to-rose text-white">PRO</span>
           </button>
           <button
             onClick={() => {
@@ -634,6 +652,14 @@ export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activ
               >
                 🗑️ Excluir minha conta
               </button>
+              {currentPlan !== 'free' && currentPlan && onManageSubscription && (
+                <button
+                  onClick={onManageSubscription}
+                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-md text-text-muted hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors w-full text-left"
+                >
+                  💳 Cancelar assinatura
+                </button>
+              )}
               <div className="flex gap-3 px-2.5 py-1 text-text-light">
                 <a href="/termos" className="hover:text-accent transition-colors">Termos</a>
                 <a href="/privacidade" className="hover:text-accent transition-colors">Privacidade</a>
