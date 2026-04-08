@@ -55,7 +55,7 @@ export default function PostGenerator({ user, userId, initialPrompt, plan = 'fre
   const fileInputRef = useRef(null);
   const toast = useToast();
 
-  const handleImageUpload = (e) => {
+  const handleImageUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -64,13 +64,36 @@ export default function PostGenerator({ user, userId, initialPrompt, plan = 'fre
       return;
     }
 
-    setImageMediaType(file.type || 'image/jpeg');
+    // Detectar HEIF/HEIC por tipo ou extensão
+    const isHeic = file.type === 'image/heic' || file.type === 'image/heif'
+      || /\.(heic|heif)$/i.test(file.name);
+
+    let fileToProcess = file;
+
+    if (isHeic) {
+      try {
+        const heic2any = (await import('heic2any')).default;
+        const blob = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.92 });
+        fileToProcess = new File([blob], file.name.replace(/\.(heic|heif)$/i, '.jpg'), { type: 'image/jpeg' });
+      } catch (err) {
+        console.error('[Maluar] HEIC conversion failed:', err);
+        alert('Não foi possível converter a foto HEIF. Desative "Fotos de alta eficiência" nas configurações da câmera e tente novamente.');
+        return;
+      }
+    }
+
+    if (!fileToProcess.type.startsWith('image/') && !isHeic) {
+      alert('Envie apenas imagens.');
+      return;
+    }
+
+    setImageMediaType(fileToProcess.type || 'image/jpeg');
     const reader = new FileReader();
     reader.onload = () => {
       setImagePreview(reader.result);
       setImageBase64(reader.result.split(',')[1]);
     };
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(fileToProcess);
     e.target.value = '';
   };
 
@@ -335,22 +358,23 @@ CTA: (chamada pra ação curta: "Agende pelo WhatsApp", "Chame no direct", etc.)
                 </button>
               </div>
             ) : (
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="flex items-center gap-3 px-4 py-4 border-2 border-dashed border-border rounded-xl text-text-muted hover:border-accent hover:text-accent hover:bg-accent-bg transition-all w-full"
+              <label
+                htmlFor="post-file-input"
+                className="flex items-center gap-3 px-4 py-4 border-2 border-dashed border-border rounded-xl text-text-muted hover:border-accent hover:text-accent hover:bg-accent-bg transition-all w-full cursor-pointer"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
-                <span className="text-sm">Arraste ou clique pra enviar uma foto do resultado</span>
-              </button>
+                <span className="text-sm">Toque pra enviar uma foto da galeria</span>
+              </label>
             )}
             <input
+              id="post-file-input"
               ref={fileInputRef}
               type="file"
-              accept="image/jpeg,image/png,image/webp"
+              accept="image/*"
               onChange={handleImageUpload}
-              className="hidden"
+              className="sr-only"
             />
           </div>
 

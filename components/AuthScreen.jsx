@@ -71,26 +71,41 @@ export default function AuthScreen() {
     setError('');
 
     if (!supabase) { setError('Serviço indisponível. Tente novamente.'); setLoading(false); return; }
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { name: name.trim(), level, phone: phoneDigits },
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { name: name.trim(), level, phone: phoneDigits },
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
 
-    if (error) {
-      setError(
-        error.message.includes('already registered')
-          ? 'Este email já está cadastrado'
-          : 'Erro ao criar conta. Tente novamente.'
-      );
-    } else if (data?.user?.identities?.length === 0) {
-      setError('Este email já está cadastrado');
-    } else {
-      toast?.('Conta criada! Verifique seu email para confirmar.');
-      setMode('login');
+      if (error) {
+        console.error('[Maluar] Signup error:', error.message, error.status);
+        const msg = error.message.toLowerCase();
+        if (msg.includes('already registered') || msg.includes('already been registered')) {
+          setError('Este email já está cadastrado. Tente fazer login.');
+        } else if (msg.includes('rate limit') || msg.includes('request this after')) {
+          setError('Muitas tentativas. Aguarde alguns minutos e tente novamente.');
+        } else if (msg.includes('not authorized') || msg.includes('signup is disabled')) {
+          setError('Cadastro temporariamente indisponível. Tente mais tarde.');
+        } else if (msg.includes('invalid') && msg.includes('email')) {
+          setError('Email inválido. Verifique o endereço digitado.');
+        } else if (msg.includes('password')) {
+          setError('Senha deve ter no mínimo 6 caracteres.');
+        } else {
+          setError(`Erro ao criar conta: ${error.message}`);
+        }
+      } else if (data?.user?.identities?.length === 0) {
+        setError('Este email já está cadastrado. Tente fazer login.');
+      } else {
+        toast?.('Conta criada! Verifique seu email para confirmar.');
+        setMode('login');
+      }
+    } catch (err) {
+      console.error('[Maluar] Signup unexpected error:', err);
+      setError('Erro inesperado. Verifique sua conexão e tente novamente.');
     }
     setLoading(false);
   };

@@ -307,27 +307,44 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
     e.target.value = '';
   };
 
-  const processFile = (file) => {
+  const processFile = async (file) => {
     if (file.size > 5 * 1024 * 1024) {
       alert('Arquivo muito grande! Máximo 5MB.');
       return;
     }
 
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-    if (!allowedTypes.includes(file.type)) {
-      alert('Formato não suportado. Use JPG, PNG, WebP ou GIF.');
+    // Detectar HEIF/HEIC por tipo ou extensão
+    const isHeic = file.type === 'image/heic' || file.type === 'image/heif'
+      || /\.(heic|heif)$/i.test(file.name);
+
+    let fileToProcess = file;
+
+    if (isHeic) {
+      try {
+        const heic2any = (await import('heic2any')).default;
+        const blob = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.92 });
+        fileToProcess = new File([blob], file.name.replace(/\.(heic|heif)$/i, '.jpg'), { type: 'image/jpeg' });
+      } catch (err) {
+        console.error('[Maluar] HEIC conversion failed:', err);
+        alert('Não foi possível converter a foto HEIF. Desative "Fotos de alta eficiência" nas configurações da câmera e tente novamente.');
+        return;
+      }
+    }
+
+    if (!fileToProcess.type.startsWith('image/') && !isHeic) {
+      alert('Envie apenas imagens (JPG, PNG, WebP, GIF, HEIC...).');
       return;
     }
 
-    const mimeType = file.type || 'image/jpeg';
     const reader = new FileReader();
     reader.onload = () => {
       const dataUrl = reader.result;
       const base64 = dataUrl.split(',')[1];
-      setPendingFile({ base64, mediaType: mimeType, dataUrl, name: file.name });
+      const mediaType = fileToProcess.type || 'image/jpeg';
+      setPendingFile({ base64, mediaType, dataUrl, name: file.name });
       inputRef.current?.focus();
     };
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(fileToProcess);
   };
 
   const handleRemovePendingFile = () => {
@@ -389,7 +406,7 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
             <p className="text-accent font-semibold text-sm">Solte a imagem aqui</p>
-            <p className="text-text-light text-xs mt-1">JPG, PNG, WebP ou GIF (máx 5MB)</p>
+            <p className="text-text-light text-xs mt-1">Qualquer formato de imagem (máx 5MB)</p>
           </div>
         </div>
       )}
@@ -472,23 +489,23 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
             </div>
           )}
           <div className="flex gap-2 items-center bg-surface border border-border rounded-2xl px-3 py-1.5 shadow-soft focus-within:ring-2 focus-within:ring-accent/20 focus-within:border-accent transition-all">
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-text-light hover:text-accent hover:bg-accent-bg transition-colors"
+            <label
+              htmlFor="chat-file-input"
+              className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-text-light hover:text-accent hover:bg-accent-bg transition-colors cursor-pointer"
               title="Enviar foto"
-              aria-label="Enviar foto"
+              aria-label="Enviar foto da galeria"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
-            </button>
+            </label>
             <input
+              id="chat-file-input"
               ref={fileInputRef}
               type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
+              accept="image/*"
               onChange={handleImageUpload}
-              className="hidden"
+              className="sr-only"
             />
             <input
               ref={inputRef}
