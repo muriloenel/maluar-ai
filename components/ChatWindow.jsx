@@ -307,9 +307,58 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
     e.target.value = '';
   };
 
+  // Comprime imagem via Canvas para caber no limite de 5MB
+  const compressImage = (file, maxSizeMB = 4.5, maxDim = 2048) => {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        let { width, height } = img;
+        // Redimensionar se exceder dimensão máxima
+        if (width > maxDim || height > maxDim) {
+          const ratio = Math.min(maxDim / width, maxDim / height);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        // Tentar diferentes qualidades até caber no limite
+        let quality = 0.85;
+        const tryCompress = () => {
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) return reject(new Error('Falha ao comprimir imagem'));
+              if (blob.size > maxSizeMB * 1024 * 1024 && quality > 0.3) {
+                quality -= 0.15;
+                tryCompress();
+              } else if (blob.size > maxSizeMB * 1024 * 1024) {
+                reject(new Error('Não foi possível comprimir a imagem o suficiente'));
+              } else {
+                resolve(new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' }));
+              }
+            },
+            'image/jpeg',
+            quality
+          );
+        };
+        tryCompress();
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('Erro ao carregar imagem'));
+      };
+      img.src = url;
+    });
+  };
+
   const processFile = async (file) => {
-    if (file.size > 5 * 1024 * 1024) {
-      alert('Arquivo muito grande! Máximo 5MB.');
+    // Rejeitar arquivos absurdamente grandes (>20MB) logo de cara
+    if (file.size > 20 * 1024 * 1024) {
+      alert('Arquivo muito grande! Máximo 20MB.');
       return;
     }
 
@@ -334,6 +383,17 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
     if (!fileToProcess.type.startsWith('image/') && !isHeic) {
       alert('Envie apenas imagens (JPG, PNG, WebP, GIF, HEIC...).');
       return;
+    }
+
+    // Comprimir automaticamente se a imagem for maior que 4.5MB
+    if (fileToProcess.size > 4.5 * 1024 * 1024) {
+      try {
+        fileToProcess = await compressImage(fileToProcess);
+      } catch (err) {
+        console.error('[Maluar] Image compression failed:', err);
+        alert('Não foi possível comprimir a imagem. Tente uma foto menor.');
+        return;
+      }
     }
 
     const reader = new FileReader();
@@ -406,7 +466,7 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
             <p className="text-accent font-semibold text-sm">Solte a imagem aqui</p>
-            <p className="text-text-light text-xs mt-1">Qualquer formato de imagem (máx 5MB)</p>
+            <p className="text-text-light text-xs mt-1">Qualquer formato de imagem (compressão automática)</p>
           </div>
         </div>
       )}
