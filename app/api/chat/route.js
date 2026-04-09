@@ -19,18 +19,20 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const DAILY_LIMITS = { free: 15, pro: 150, premium: 9999 };
 const UNLIMITED_EMAILS = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
 
+// Supabase admin client reutilizável (connection pool)
+const _adminSb = (supabaseUrl && supabaseServiceKey) ? createClient(supabaseUrl, supabaseServiceKey) : null;
+
 // Verificação server-side de quota (bloqueante)
 async function checkQuotaServer(userId, userEmail) {
-  if (!userId || !supabaseUrl || !supabaseServiceKey) return { allowed: true };
+  if (!userId || !_adminSb) return { allowed: true };
   if (userEmail && UNLIMITED_EMAILS.includes(userEmail.toLowerCase())) return { allowed: true };
 
   try {
-    const sb = createClient(supabaseUrl, supabaseServiceKey);
     // Tenta com status; se coluna não existir, tenta sem
     let profile = null;
-    const { data, error } = await sb.from('profiles').select('plan, status, messages_today, messages_reset_at').eq('id', userId).single();
+    const { data, error } = await _adminSb.from('profiles').select('plan, status, messages_today, messages_reset_at').eq('id', userId).single();
     if (error && error.message?.includes('status')) {
-      const { data: data2 } = await sb.from('profiles').select('plan, messages_today, messages_reset_at').eq('id', userId).single();
+      const { data: data2 } = await _adminSb.from('profiles').select('plan, messages_today, messages_reset_at').eq('id', userId).single();
       profile = data2 ? { ...data2, status: 'active' } : null;
     } else {
       profile = data;
@@ -46,7 +48,7 @@ async function checkQuotaServer(userId, userEmail) {
     const isNewDay = now.toDateString() !== resetAt.toDateString();
 
     if (isNewDay) {
-      await sb.from('profiles').update({ messages_today: 0, messages_reset_at: now.toISOString() }).eq('id', userId);
+      await _adminSb.from('profiles').update({ messages_today: 0, messages_reset_at: now.toISOString() }).eq('id', userId);
       return { allowed: true, remaining: limit, limit, plan: profile.plan };
     }
 
@@ -114,8 +116,8 @@ async function logUsage(userId, model, inputTokens, outputTokens, feature = 'cha
     const cost = (inputTokens * rates.input + outputTokens * rates.output) / 1_000_000;
 
     const modelShort = model.includes('haiku') ? 'haiku' : 'sonnet';
-    const sb = createClient(supabaseUrl, supabaseServiceKey);
-    await sb.from('usage_logs').insert({
+    if (!_adminSb) return;
+    await _adminSb.from('usage_logs').insert({
       user_id: userId || null,
       model: modelShort,
       input_tokens: inputTokens,
@@ -159,32 +161,36 @@ export async function POST(req) {
       return Response.json({ error: 'Erro de configuração do servidor. Contate o suporte.' }, { status: 500 });
     }
 
+    // Parse body em paralelo com auth para ganhar tempo
+    const bodyPromise = req.json().catch(() => null);
+
     // Autenticação — OBRIGATÓRIA
     const authUser = await validateAuth(req).catch(() => null);
     if (!authUser) {
       return Response.json({ error: 'Faça login para usar o chat.' }, { status: 401 });
     }
 
-    // Verificar quota server-side (BLOQUEANTE)
-    let userPlan = 'free';
-    if (authUser) {
-      const quota = await checkQuotaServer(authUser.id, authUser.email);
-      userPlan = quota.plan || 'free';
+    // Verificar quota server-side — em paralelo com parse do body
+    const [quota, body] = await Promise.all([
+      checkQuotaServer(authUser.id, authUser.email),
+      bodyPromise,
+    ]);
 
-      // Checar se usuário está desativado
-      if (quota.status === 'inactive') {
-        return Response.json(
-          { error: 'Sua conta está desativada. Entre em contato com o suporte.' },
-          { status: 403 }
-        );
-      }
+    let userPlan = quota.plan || 'free';
 
-      if (!quota.allowed) {
-        return Response.json(
-          { error: 'Limite diário atingido', quota: { remaining: 0, limit: quota.limit } },
-          { status: 429 }
-        );
-      }
+    // Checar se usuário está desativado
+    if (quota.status === 'inactive') {
+      return Response.json(
+        { error: 'Sua conta está desativada. Entre em contato com o suporte.' },
+        { status: 403 }
+      );
+    }
+
+    if (!quota.allowed) {
+      return Response.json(
+        { error: 'Limite diário atingido', quota: { remaining: 0, limit: quota.limit } },
+        { status: 429 }
+      );
     }
 
     // Rate limiting — prioriza userId (não spoofável) sobre IP
@@ -196,7 +202,9 @@ export async function POST(req) {
       );
     }
 
-    const { messages, system, stream } = await req.json();
+    const messages = body?.messages;
+    const system = body?.system;
+    const stream = body?.stream;
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return Response.json({ error: 'Mensagens inválidas' }, { status: 400 });

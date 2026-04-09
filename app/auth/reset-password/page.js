@@ -17,17 +17,29 @@ export default function ResetPassword() {
     if (!supabase) return;
 
     const checkSession = async () => {
-      // Dar tempo pro detectSessionInUrl processar os hash fragments
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        setSessionReady(true);
-      } else {
-        setError('Sessão expirada. Solicite um novo link de recuperação de senha.');
+      // Tentar várias vezes com intervalo — o token pode demorar a ser processado
+      for (let attempt = 0; attempt < 8; attempt++) {
+        await new Promise(resolve => setTimeout(resolve, attempt === 0 ? 500 : 1000));
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          setSessionReady(true);
+          return;
+        }
       }
+      // Após 8 tentativas (~8.5s), considerar expirado
+      setError('Sessão expirada ou link inválido. Solicite um novo link de recuperação de senha na tela de login.');
     };
 
+    // Também escutar eventos de auth (mais confiável)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && session)) {
+        setSessionReady(true);
+      }
+    });
+
     checkSession();
+
+    return () => subscription?.unsubscribe();
   }, []);
 
   const handleSubmit = async (e) => {

@@ -24,13 +24,13 @@ async function getAuthUser(req) {
 
 export async function POST(req) {
   try {
-    if (!STRIPE_SECRET || !supabaseServiceKey) {
-      return Response.json({ error: 'Stripe não configurado' }, { status: 500 });
-    }
-
     const user = await getAuthUser(req);
     if (!user) {
       return Response.json({ error: 'Não autorizado' }, { status: 401 });
+    }
+
+    if (!STRIPE_SECRET || !supabaseServiceKey) {
+      return Response.json({ error: 'Stripe não configurado' }, { status: 500 });
     }
 
     // Buscar stripe_customer_id do perfil

@@ -47,9 +47,16 @@ export default function AuthCallback() {
           setMessage('Erro ao processar autenticação. Tente fazer login normalmente.');
           return;
         }
+
+        // Recovery via PKCE — redirecionar APÓS troca do code
+        if (type === 'recovery') {
+          setMessage('Redirecionando para redefinição de senha...');
+          window.location.href = '/auth/reset-password';
+          return;
+        }
       }
 
-      // Verificar se type=recovery → redirecionar para redefinição de senha
+      // Verificar se type=recovery sem code (fallback)
       if (type === 'recovery') {
         setMessage('Redirecionando para redefinição de senha...');
         window.location.href = '/auth/reset-password';

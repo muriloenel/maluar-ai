@@ -51,14 +51,14 @@ async function stripeRequest(endpoint, body) {
 
 export async function POST(req) {
   try {
-    if (!STRIPE_SECRET) {
-      console.error('[STRIPE] STRIPE_SECRET_KEY não configurada');
-      return Response.json({ error: 'Stripe não configurado' }, { status: 500 });
-    }
-
     const user = await getAuthUser(req);
     if (!user) {
       return Response.json({ error: 'Não autorizado' }, { status: 401 });
+    }
+
+    if (!STRIPE_SECRET) {
+      console.error('[STRIPE] STRIPE_SECRET_KEY não configurada');
+      return Response.json({ error: 'Stripe não configurado' }, { status: 500 });
     }
 
     const { plan } = await req.json();
