@@ -56,6 +56,51 @@ export default function PostGenerator({ user, userId, initialPrompt, plan = 'fre
   const toast = useToast();
   const [aiImagePrompt, setAiImagePrompt] = useState('');
   const [generatingAiImage, setGeneratingAiImage] = useState(false);
+  const [enhancingPhoto, setEnhancingPhoto] = useState(false);
+
+  const enhancePhoto = async () => {
+    if (!imageBase64 || enhancingPhoto) return;
+    setEnhancingPhoto(true);
+    try {
+      const token = getAccessToken ? await getAccessToken() : null;
+      const res = await fetch('/api/image/enhance', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+        body: JSON.stringify({ action: 'enhance', imageBase64 }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast?.(data.error || 'Erro ao melhorar foto');
+        if (data.upgrade) onUpgrade?.();
+        return;
+      }
+      if (data.url) {
+        const imgRes = await fetch(data.url);
+        const blob = await imgRes.blob();
+        const reader = new FileReader();
+        reader.onload = () => {
+          setImagePreview(reader.result);
+          setImageBase64(reader.result.split(',')[1]);
+          setImageMediaType(blob.type || 'image/png');
+          toast?.('Foto melhorada com IA! ✨');
+        };
+        reader.readAsDataURL(blob);
+      } else if (data.b64) {
+        const dataUrl = `data:image/png;base64,${data.b64}`;
+        setImagePreview(dataUrl);
+        setImageBase64(data.b64);
+        setImageMediaType('image/png');
+        toast?.('Foto melhorada com IA! ✨');
+      }
+    } catch {
+      toast?.('Erro ao melhorar foto. Tente novamente.');
+    } finally {
+      setEnhancingPhoto(false);
+    }
+  };
 
   const generateAiImage = async () => {
     if (!aiImagePrompt.trim()) return;
@@ -382,18 +427,50 @@ CTA: (chamada pra ação curta: "Agende pelo WhatsApp", "Chame no direct", etc.)
               Foto (opcional)
             </label>
             {imagePreview ? (
-              <div className="relative inline-block">
-                <img
-                  src={imagePreview}
-                  alt="Preview"
-                  className="w-32 h-32 object-cover rounded-xl border border-border shadow-soft"
-                />
-                <button
-                  onClick={removeImage}
-                  className="absolute -top-2 -right-2 w-6 h-6 bg-rose text-white rounded-full flex items-center justify-center text-xs shadow-soft hover:scale-110 transition-transform"
-                >
-                  ✕
-                </button>
+              <div className="space-y-2">
+                <div className="relative inline-block">
+                  <img
+                    src={imagePreview}
+                    alt="Preview"
+                    className="w-32 h-32 object-cover rounded-xl border border-border shadow-soft"
+                  />
+                  <button
+                    onClick={removeImage}
+                    className="absolute -top-2 -right-2 w-6 h-6 bg-rose text-white rounded-full flex items-center justify-center text-xs shadow-soft hover:scale-110 transition-transform"
+                  >
+                    ✕
+                  </button>
+                </div>
+                {/* Botão melhorar foto com IA */}
+                {!isFree && (
+                  <button
+                    onClick={enhancePhoto}
+                    disabled={enhancingPhoto}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 transition-all shadow-soft"
+                  >
+                    {enhancingPhoto ? (
+                      <>
+                        <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Melhorando...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                        </svg>
+                        ✨ Melhorar foto com IA
+                      </>
+                    )}
+                  </button>
+                )}
+                {isFree && (
+                  <button
+                    onClick={onUpgrade}
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-[11px] font-medium text-text-muted border border-border hover:border-accent/40 transition-all"
+                  >
+                    ✨ Melhorar foto com IA <span className="text-[9px] bg-accent/15 text-accent px-1.5 py-0.5 rounded-full font-bold">PRO</span>
+                  </button>
+                )}
               </div>
             ) : (
               <div className="space-y-2">
@@ -525,6 +602,10 @@ CTA: (chamada pra ação curta: "Agende pelo WhatsApp", "Chame no direct", etc.)
                 legenda=""
                 platform={platform}
                 structuredData={null}
+                plan={plan}
+                onUpgrade={onUpgrade}
+                getAccessToken={getAccessToken}
+                imageBase64Source={imageBase64}
               />
             </div>
           )}
@@ -619,6 +700,10 @@ CTA: (chamada pra ação curta: "Agende pelo WhatsApp", "Chame no direct", etc.)
                   legenda={extractSection('LEGENDA') || result}
                   platform={platform}
                   structuredData={structuredData}
+                  plan={plan}
+                  onUpgrade={onUpgrade}
+                  getAccessToken={getAccessToken}
+                  imageBase64Source={imageBase64}
                 />
               )}
             </div>

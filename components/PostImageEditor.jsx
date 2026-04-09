@@ -101,13 +101,15 @@ const F = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════
-export default function PostImageEditor({ imageSrc, legenda, platform, structuredData }) {
+export default function PostImageEditor({ imageSrc, legenda, platform, structuredData, plan, onUpgrade, getAccessToken, imageBase64Source }) {
   const canvasRef = useRef(null);
   const [template, setTemplate] = useState('stories');
   const [colorTheme, setColorTheme] = useState('dark');
   const [imageLoaded, setImageLoaded] = useState(false);
   const [fontsReady, setFontsReady] = useState(false);
   const imgRef = useRef(null);
+  const [generatingArt, setGeneratingArt] = useState(false);
+  const [aiArtResult, setAiArtResult] = useState(null);
 
   const [headline, setHeadline] = useState('');
   const [subtitle, setSubtitle] = useState('');
@@ -793,19 +795,92 @@ export default function PostImageEditor({ imageSrc, legenda, platform, structure
     l.click();
   };
 
+  const handleDownloadAiArt = () => {
+    if (!aiArtResult) return;
+    const l = document.createElement('a');
+    l.download = `post-pro-${Date.now()}.png`;
+    l.href = aiArtResult;
+    l.click();
+  };
+
+  const generateAiArt = async () => {
+    if (generatingArt) return;
+    // Precisa do base64 da imagem original
+    let base64 = imageBase64Source;
+    if (!base64 && imageSrc?.startsWith('data:')) {
+      base64 = imageSrc.split(',')[1];
+    }
+    if (!base64) return;
+    setGeneratingArt(true);
+    setAiArtResult(null);
+    try {
+      const token = getAccessToken ? await getAccessToken() : null;
+      const res = await fetch('/api/image/enhance', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+        body: JSON.stringify({
+          action: 'post-art',
+          imageBase64: base64,
+          postData: {
+            title: headline || 'Nail Design',
+            subtitle: subtitle || description || '',
+            location: location || '',
+            cta: ctaText || '',
+            style: platform === 'stories' ? 'stories' : 'square',
+          },
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Erro ao gerar arte');
+        return;
+      }
+      if (data.b64) {
+        setAiArtResult(`data:image/png;base64,${data.b64}`);
+      } else if (data.url) {
+        setAiArtResult(data.url);
+      }
+    } catch {
+      alert('Erro ao gerar arte. Tente novamente.');
+    } finally {
+      setGeneratingArt(false);
+    }
+  };
+
   if (!imageSrc) return null;
 
   return (
     <div className="space-y-4 animate-fade-in">
       <div className="flex items-center justify-between">
         <h3 className="font-display text-lg font-bold text-text">Montar Imagem pro Post</h3>
-        <button onClick={handleDownload} className="text-xs text-white bg-accent hover:bg-accent-hover font-medium flex items-center gap-1.5 px-3 py-2 rounded-lg transition-colors shadow-soft">
+        <button onClick={aiArtResult ? handleDownloadAiArt : handleDownload} className="text-xs text-white bg-accent hover:bg-accent-hover font-medium flex items-center gap-1.5 px-3 py-2 rounded-lg transition-colors shadow-soft">
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
           Baixar
         </button>
       </div>
 
-      {/* Preview primeiro — mais intuitivo */}
+      {/* Resultado da arte IA */}
+      {aiArtResult && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold text-accent uppercase tracking-wider">✨ Arte gerada com IA</span>
+            <button onClick={() => setAiArtResult(null)} className="text-[10px] text-text-light hover:text-text transition-colors">(voltar pro editor)</button>
+          </div>
+          <div className="bg-surface-card border border-accent/20 rounded-xl p-2 shadow-soft">
+            <img src={aiArtResult} alt="Arte gerada com IA" className="w-full h-auto rounded-lg" />
+          </div>
+          <button onClick={handleDownloadAiArt} className="w-full py-3 rounded-xl font-semibold text-sm transition-all bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600 shadow-soft flex items-center justify-center gap-2">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+            Baixar Arte Pro
+          </button>
+        </div>
+      )}
+
+      {/* Preview Canvas (editor manual) */}
+      {!aiArtResult && (<>
       <div className="bg-surface-card border border-border rounded-xl p-2 shadow-soft">
         <canvas ref={canvasRef} className="w-full h-auto rounded-lg" style={{ maxHeight: platform === 'stories' ? '500px' : '400px' }} />
       </div>
@@ -890,6 +965,46 @@ export default function PostImageEditor({ imageSrc, legenda, platform, structure
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
         Baixar Imagem Pronta
       </button>
+      </>)}
+
+      {/* Botão Gerar Arte Pro com IA */}
+      {!aiArtResult && (
+        <div className="border-t border-border pt-4">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-[10px] font-bold text-text-light uppercase tracking-wider">ou</span>
+            <div className="flex-1 h-px bg-border" />
+          </div>
+          {plan && plan !== 'free' ? (
+            <button
+              onClick={generateAiArt}
+              disabled={generatingArt || (!headline && !subtitle)}
+              className="w-full py-3.5 rounded-xl font-semibold text-sm transition-all bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600 shadow-soft disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {generatingArt ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Gerando arte profissional...
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                  </svg>
+                  ✨ Gerar Arte Pro com IA
+                </>
+              )}
+            </button>
+          ) : (
+            <button
+              onClick={onUpgrade}
+              className="w-full py-3 rounded-xl font-semibold text-sm transition-all border border-accent/20 bg-accent-bg text-text hover:border-accent/40 flex items-center justify-center gap-2"
+            >
+              ✨ Gerar Arte Pro com IA <span className="text-[10px] bg-accent/15 text-accent px-2 py-0.5 rounded-full font-bold">PRO</span>
+            </button>
+          )}
+          <p className="text-[10px] text-text-light text-center mt-1.5">Preencha o título acima antes de gerar</p>
+        </div>
+      )}
     </div>
   );
 }

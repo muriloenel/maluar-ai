@@ -1,5 +1,0 @@
-- generic [active] [ref=e1]:
-  - generic [ref=e3]:
-    - img "Maluar" [ref=e4]
-    - paragraph [ref=e5]: Carregando...
-  - alert [ref=e7]
