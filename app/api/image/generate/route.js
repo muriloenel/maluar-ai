@@ -106,7 +106,9 @@ Important: Only show hands and nails, no faces. Clean, professional aesthetic.`;
         error: 'A descrição foi bloqueada pela política de conteúdo. Tente reformular.'
       }, { status: 400 });
     }
-    console.error('[IMAGE-GEN] Erro:', err.message);
-    return Response.json({ error: 'Erro ao gerar imagem' }, { status: 500 });
+    const errMsg = err?.error?.message || err?.message || 'Erro desconhecido';
+    const errCode = err?.error?.code || err?.code || err?.status || '';
+    console.error('[IMAGE-GEN] Erro:', errMsg, '| Code:', errCode, '| Full:', JSON.stringify(err?.error || err?.response?.data || {}));
+    return Response.json({ error: `Erro ao gerar imagem: ${errMsg}` }, { status: 500 });
   }
 }
