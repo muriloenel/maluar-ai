@@ -53,9 +53,13 @@ export default function Home() {
   }, []);
 
   // Safety net: se sessionStorage tiver plano confirmado pelo checkout, usar como override
-  const confirmedPlan = typeof window !== 'undefined' ? (() => {
-    try { return sessionStorage.getItem('maluar-confirmed-plan'); } catch { return null; }
-  })() : null;
+  const [confirmedPlan, setConfirmedPlan] = useState(null);
+  useEffect(() => {
+    try {
+      const plan = sessionStorage.getItem('maluar-confirmed-plan');
+      if (plan) setConfirmedPlan(plan);
+    } catch {}
+  }, []);
 
   const effectiveProfile = profile
     ? { ...profile, plan: confirmedPlan || profile.plan || 'free' }
@@ -310,8 +314,8 @@ export default function Home() {
           <div className="w-5" />
         </header>
 
-        {/* Mobile tab bar */}
-        <div className="flex border-b border-border-light md:hidden overflow-x-auto">
+        {/* Mobile tab bar — simplificada */}
+        <nav className="flex border-b border-border-light md:hidden">
           <button
             onClick={() => setActiveTab('chat')}
             className={`flex-1 py-2.5 text-xs font-medium transition-colors whitespace-nowrap ${
@@ -320,7 +324,7 @@ export default function Home() {
                 : 'text-text-muted'
             }`}
           >
-            Chat
+            💬 Chat
           </button>
           <button
             onClick={() => setActiveTab('business')}
@@ -330,7 +334,7 @@ export default function Home() {
                 : 'text-text-muted'
             }`}
           >
-            Negócio
+            🚀 Negócio
           </button>
           <button
             onClick={() => setActiveTab('post')}
@@ -340,49 +344,15 @@ export default function Home() {
                 : 'text-text-muted'
             }`}
           >
-            Post
+            ✍️ Post
           </button>
           <button
-            onClick={() => setActiveTab('image')}
-            className={`flex-1 py-2.5 text-xs font-medium transition-colors whitespace-nowrap ${
-              activeTab === 'image'
-                ? 'text-accent border-b-2 border-accent'
-                : 'text-text-muted'
-            }`}
+            onClick={() => setSidebarOpen(true)}
+            className="flex-1 py-2.5 text-xs font-medium text-text-muted transition-colors whitespace-nowrap"
           >
-            Imagem IA
+            ☰ Mais
           </button>
-          <button
-            onClick={() => { refreshFavorites(); setActiveTab('favorites'); }}
-            className={`flex-1 py-2.5 text-xs font-medium transition-colors whitespace-nowrap ${
-              activeTab === 'favorites'
-                ? 'text-accent border-b-2 border-accent'
-                : 'text-text-muted'
-            }`}
-          >
-            Salvos
-          </button>
-          <button
-            onClick={() => setActiveTab('pricing')}
-            className={`flex-1 py-2.5 text-xs font-medium transition-colors whitespace-nowrap ${
-              activeTab === 'pricing'
-                ? 'text-accent border-b-2 border-accent'
-                : 'text-text-muted'
-            }`}
-          >
-            Preço
-          </button>
-          <button
-            onClick={() => setActiveTab('plans')}
-            className={`flex-1 py-2.5 text-xs font-medium transition-colors whitespace-nowrap ${
-              activeTab === 'plans'
-                ? 'text-accent border-b-2 border-accent'
-                : 'text-text-muted'
-            }`}
-          >
-            Planos
-          </button>
-        </div>
+        </nav>
 
         {activeTab === 'chat' ? (
           <ChatWindow

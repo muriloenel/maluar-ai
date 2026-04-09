@@ -58,6 +58,7 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
     setIsStreaming(false);
     setInput('');
     setLastFailedMsg(null);
+    msgIdRef.current = 0; // Resetar IDs ao trocar de conversa
 
     if (initialMessages && initialMessages.length > 0) {
       setMessages(initialMessages);
@@ -65,15 +66,12 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
       return;
     }
     titleSetRef.current = false;
+    const hour = new Date().getHours();
+    const greeting = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
+    const firstName = (user.name || '').split(' ')[0] || 'amiga';
     const welcome = {
       role: 'assistant',
-      content: `Falaaaaa Amiga Naiuus, Nails... Se ta boa? 💅\n\n${user.name}, sou a Maluar AI, criada pela Karina Oliveira pra te ajudar nessa jornada.\n\n${
-        user.level === 'iniciante'
-          ? 'Vi que tá começando — bora do zero juntas!'
-          : user.level === 'intermediario'
-          ? 'Já faz umas unhas né? Bora subir de nível!'
-          : 'Já atende clientes — vamos refinar sua técnica!'
-      }\n\nMe pergunta sobre técnicas, produtos, preços ou manda foto pra eu analisar.`,
+      content: `${greeting}, ${firstName}! 💅 Como posso te ajudar hoje?`,
     };
     setMessages([welcome]);
   }, [chatId, initialMessages]);
@@ -172,7 +170,8 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
         content: m.content,
       }));
 
-      const apiMessages = allMessages.slice(-12);
+      // Enviar apenas últimas 8 mensagens para manter respostas focadas e concisas
+      const apiMessages = allMessages.slice(-8);
       // Garantir que primeira mensagem seja 'user' (exigência da API Claude)
       while (apiMessages.length > 0 && apiMessages[0].role !== 'user') {
         apiMessages.shift();
@@ -473,18 +472,7 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-6 relative">
-        {/* Floating sidebar button — mobile only */}
-        {onOpenSidebar && (
-          <button
-            onClick={onOpenSidebar}
-            className="fixed bottom-24 left-3 z-30 w-10 h-10 rounded-full bg-surface-card border border-border shadow-elevated flex items-center justify-center text-text-muted hover:text-accent transition-colors md:hidden"
-            aria-label="Abrir menu"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
-        )}
+        {/* Floating sidebar button removed — mobile uses tab bar + header menu */}
         <div className="max-w-2xl mx-auto space-y-1">
           {messages.map((msg, i) => (
             <Message key={msg._id || `m-${i}`} role={msg.role} content={msg.content} imagePreview={msg.imagePreview} timestamp={msg.timestamp} isError={msg.isError} onRetry={msg.isError ? handleRetry : undefined} onSaveFavorite={msg.role === 'assistant' && !msg.isError ? handleSaveFavorite : undefined} />
@@ -506,7 +494,6 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
                 { label: '💼 Trabalho', prompt: 'Design de unha elegante para o dia a dia no trabalho' },
                 { label: '🌴 Dia-a-dia', prompt: 'Design simples e bonito para o dia a dia' },
                 { label: '🎄 Natal/Ano Novo', prompt: 'Nail art temática para Natal e Ano Novo' },
-                { label: '📸 Recria um Design', prompt: 'Quero recriar um nail design, vou te mandar a foto' },
               ].map((item, idx) => (
                 <button
                   key={item.label}

@@ -274,8 +274,8 @@ export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activ
           </button>
         </div>
 
-        {/* Tab switcher */}
-        <div className="px-3 pb-2">
+        {/* Tab switcher — desktop only (mobile usa tab bar) */}
+        <div className="px-3 pb-2 hidden md:block">
           <div className="flex bg-surface-alt rounded-xl p-0.5">
             <button
               onClick={() => onTabChange('chat')}

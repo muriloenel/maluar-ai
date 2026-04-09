@@ -159,10 +159,10 @@ export async function POST(req) {
       return Response.json({ error: 'Erro de configuração do servidor. Contate o suporte.' }, { status: 500 });
     }
 
-    // Autenticação — opcional (modo convidado permitido)
+    // Autenticação — OBRIGATÓRIA
     const authUser = await validateAuth(req).catch(() => null);
     if (!authUser) {
-      console.warn('[AUTH] Sem autenticação — modo convidado');
+      return Response.json({ error: 'Faça login para usar o chat.' }, { status: 401 });
     }
 
     // Verificar quota server-side (BLOQUEANTE)
@@ -272,7 +272,7 @@ export async function POST(req) {
       try {
         response = await client.messages.create({
           model,
-          max_tokens: imageRequest ? 2500 : 800,
+          max_tokens: imageRequest ? 2000 : 600,
           temperature: imageRequest ? 0.1 : 0.5,
           system: safeSystem,
           messages,
@@ -300,7 +300,7 @@ export async function POST(req) {
           try {
             response = await client.messages.create({
               model: fallbackModel,
-              max_tokens: imageRequest ? 2500 : 800,
+              max_tokens: imageRequest ? 2000 : 600,
               temperature: imageRequest ? 0.1 : 0.5,
               system: safeSystem,
               messages,
@@ -373,7 +373,7 @@ export async function POST(req) {
       try {
         response = await client.messages.create({
           model: tryModel,
-          max_tokens: imageRequest ? 2048 : 1200,
+          max_tokens: imageRequest ? 2048 : 800,
           system: safeSystem,
           messages,
         });
