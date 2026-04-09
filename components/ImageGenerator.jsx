@@ -23,8 +23,6 @@ export default function ImageGenerator({ plan = 'free', onUpgrade }) {
   const { getAccessToken } = useAuth();
   const toast = useToast();
 
-  const isFree = plan === 'free' || !plan;
-
   const handleGenerate = async () => {
     if (!prompt.trim() && !selectedStyle) return;
 
@@ -102,31 +100,9 @@ export default function ImageGenerator({ plan = 'free', onUpgrade }) {
             </p>
           </div>
 
-          {/* Upgrade prompt for free users */}
-          {isFree && (
-            <div className="rounded-xl border border-accent/20 bg-accent-bg p-5 text-center space-y-3">
-              <div className="text-3xl">✨</div>
-              <h3 className="text-sm font-bold text-text">Recurso exclusivo Pro & Premium</h3>
-              <p className="text-xs text-text-muted">
-                Gere imagens de nail design com inteligência artificial. Descreva o que imagina e veja ganhar vida!
-              </p>
-              <ul className="text-xs text-text-muted space-y-1">
-                <li>Pro: 5 imagens/dia</li>
-                <li>Premium: 20 imagens/dia</li>
-              </ul>
-              <button
-                onClick={onUpgrade}
-                className="px-5 py-2.5 rounded-xl bg-accent text-white text-sm font-semibold hover:bg-accent-hover transition-colors shadow-soft"
-              >
-                Fazer upgrade
-              </button>
-            </div>
-          )}
-
-          {/* Main form - shown for paid users */}
-          {!isFree && (
-            <>
-              {/* Style presets */}
+          {/* Main form */}
+          <>
+            {/* Style presets */}
               <div>
                 <label className="block text-text text-xs font-medium mb-2 uppercase tracking-wide">
                   Estilo (opcional)
@@ -250,7 +226,6 @@ export default function ImageGenerator({ plan = 'free', onUpgrade }) {
                 </div>
               )}
             </>
-          )}
         </div>
       </div>
     </div>
