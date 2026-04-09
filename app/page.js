@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { useAuth } from '../components/SupabaseAuthProvider';
 import AuthScreen from '../components/AuthScreen';
@@ -46,6 +46,7 @@ export default function Home() {
   const [favorites, setFavorites] = useState([]);
   const [dataLoaded, setDataLoaded] = useState(false);
   const [loadedUserId, setLoadedUserId] = useState(null);
+  const selectingChatRef = useRef(null); // proteção contra race condition
 
   // Callback para o ChatWindow avisar que consumiu o prompt
   const clearPendingPrompt = useCallback(() => {
@@ -146,14 +147,21 @@ export default function Home() {
   };
 
   const handleSelectChat = async (chatId) => {
-    try {
-      const msgs = await dbLoadMessages(chatId);
-      setChatMessages(msgs.length > 0 ? msgs : null);
-    } catch {
-      setChatMessages(null);
-    }
+    // Trocar imediatamente para o chat selecionado (sem esperar DB)
+    selectingChatRef.current = chatId;
     setActiveChatId(chatId);
     setActiveTab('chat');
+    setChatMessages(null);
+    try {
+      const msgs = await dbLoadMessages(chatId);
+      // Ignorar se o usuário já clicou em outro chat
+      if (selectingChatRef.current !== chatId) return;
+      if (msgs && msgs.length > 0) {
+        setChatMessages(msgs);
+      }
+    } catch (err) {
+      console.error('[SELECT-CHAT] Erro ao carregar mensagens:', err);
+    }
   };
 
   const handleDeleteChat = async (chatId) => {
