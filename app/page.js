@@ -92,20 +92,16 @@ export default function Home() {
         setChatList(list);
         const favs = await dbLoadFavorites(user.id);
         setFavorites(favs);
-        if (list.length > 0) {
+        // Sempre iniciar com chat novo (não carregar histórico antigo)
+        const chat = await dbCreateChat(user.id);
+        if (chat) {
+          setActiveChatId(chat.id);
+          setChatList(prev => [chat, ...prev.filter(c => c.id !== chat.id)]);
+        } else if (list.length > 0) {
           setActiveChatId(list[0].id);
-          const msgs = await dbLoadMessages(list[0].id);
-          setChatMessages(msgs.length > 0 ? msgs : null);
-        } else {
-          const chat = await dbCreateChat(user.id);
-          if (chat) {
-            setActiveChatId(chat.id);
-            setChatList([chat]);
-          }
         }
       } catch (err) {
         console.error('Error loading data:', err);
-        // Modo convidado: criar chatId local pra app funcionar sem DB
         if (!activeChatId) {
           setActiveChatId('local-' + Date.now());
         }
