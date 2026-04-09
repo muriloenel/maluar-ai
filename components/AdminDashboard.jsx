@@ -395,6 +395,7 @@ export default function AdminDashboard() {
   const [filterStatus, setFilterStatus] = useState('');
   const [userPage, setUserPage] = useState(1);
   const [actionLoading, setActionLoading] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
 
   const fetchApi = useCallback(async (path) => {
     const token = await getAccessToken();
@@ -689,7 +690,7 @@ export default function AdminDashboard() {
                 <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">{Icons.search}</div>
                 <input
                   type="text"
-                  placeholder="Buscar por nome..."
+                  placeholder="Buscar por nome ou email..."
                   value={searchTerm}
                   onChange={(e) => { setSearchTerm(e.target.value); setUserPage(1); }}
                   className="w-full pl-10 pr-4 py-2.5 text-sm bg-white dark:bg-[#1a1625] border border-gray-200 dark:border-gray-800 rounded-xl focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500 outline-none text-gray-700 dark:text-gray-200 transition-all"
@@ -787,6 +788,22 @@ export default function AdminDashboard() {
                             >
                               Reset
                             </button>
+                            <button
+                              onClick={() => handleUserAction(u.id, 'resetPassword')}
+                              disabled={actionLoading === u.id}
+                              className="px-2.5 py-1.5 text-[10px] font-semibold bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 disabled:opacity-50 transition-colors dark:bg-amber-950/30 dark:text-amber-400 dark:hover:bg-amber-950/50"
+                              title="Enviar email de redefinição de senha"
+                            >
+                              Senha
+                            </button>
+                            <button
+                              onClick={() => setConfirmDelete(u)}
+                              disabled={actionLoading === u.id}
+                              className="px-2.5 py-1.5 text-[10px] font-semibold bg-red-100 text-red-700 rounded-lg hover:bg-red-200 disabled:opacity-50 transition-colors dark:bg-red-950/50 dark:text-red-400 dark:hover:bg-red-950/70"
+                              title="Excluir usuário permanentemente"
+                            >
+                              Excluir
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -818,6 +835,40 @@ export default function AdminDashboard() {
                   >
                     {Icons.chevronRight}
                   </button>
+                </div>
+              </div>
+            )}
+
+            {/* Modal de confirmação de exclusão */}
+            {confirmDelete && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                <div className="bg-white dark:bg-[#1a1625] rounded-2xl p-6 max-w-sm w-full mx-4 shadow-2xl border border-gray-200 dark:border-gray-800">
+                  <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-950/30 flex items-center justify-center mx-auto mb-4">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-red-500"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+                  </div>
+                  <h3 className="text-center font-bold text-gray-800 dark:text-white mb-1">Excluir Usuário</h3>
+                  <p className="text-center text-sm text-gray-500 mb-1">Tem certeza que deseja excluir permanentemente:</p>
+                  <p className="text-center text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">{confirmDelete.name}</p>
+                  <p className="text-center text-xs text-gray-400 mb-4">{confirmDelete.email}</p>
+                  <p className="text-center text-xs text-red-500 mb-4">Esta ação não pode ser desfeita.</p>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setConfirmDelete(null)}
+                      className="flex-1 px-4 py-2.5 text-sm font-semibold bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={async () => {
+                        await handleUserAction(confirmDelete.id, 'deleteUser');
+                        setConfirmDelete(null);
+                      }}
+                      disabled={actionLoading === confirmDelete.id}
+                      className="flex-1 px-4 py-2.5 text-sm font-semibold bg-red-600 text-white rounded-xl hover:bg-red-700 disabled:opacity-50 transition-colors"
+                    >
+                      {actionLoading === confirmDelete.id ? 'Excluindo...' : 'Excluir'}
+                    </button>
+                  </div>
                 </div>
               </div>
             )}

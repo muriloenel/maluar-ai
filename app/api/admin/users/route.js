@@ -23,28 +23,33 @@ export async function GET(req) {
 
     if (planFilter) query = query.eq('plan', planFilter);
     if (statusFilter) query = query.eq('status', statusFilter);
+    // Buscar emails dos auth.users via admin API (antes do filtro por nome/email)
+    const { data: authData } = await supabase.auth.admin.listUsers({ perPage: 1000 });
+    let emailMap = {};
+    if (authData?.users) {
+      for (const au of authData.users) {
+        emailMap[au.id] = au.email;
+      }
+    }
+
     if (search) {
       const safeSearch = search.replace(/%/g, '\\%').replace(/_/g, '\\_');
-      query = query.or(`name.ilike.%${safeSearch}%`);
+      // Buscar IDs que batem pelo email
+      const emailMatchIds = Object.entries(emailMap)
+        .filter(([, email]) => email?.toLowerCase().includes(search))
+        .map(([id]) => id);
+
+      if (emailMatchIds.length > 0) {
+        query = query.or(`name.ilike.%${safeSearch}%,id.in.(${emailMatchIds.join(',')})`);
+      } else {
+        query = query.or(`name.ilike.%${safeSearch}%`);
+      }
     }
 
     query = query.order('created_at', { ascending: false }).range(offset, offset + limit - 1);
 
     const { data: users, count, error } = await query;
     if (error) throw error;
-
-    // Buscar emails dos auth.users via admin API
-    const userIds = (users || []).map(u => u.id);
-    let emailMap = {};
-    if (userIds.length > 0) {
-      // Buscar todos os auth users (service role)
-      const { data: authData } = await supabase.auth.admin.listUsers({ perPage: 1000 });
-      if (authData?.users) {
-        for (const au of authData.users) {
-          emailMap[au.id] = au.email;
-        }
-      }
-    }
 
     const enrichedUsers = (users || []).map(u => ({
       ...u,
@@ -97,6 +102,28 @@ export async function PATCH(req) {
         updates.messages_today = 0;
         updates.messages_reset_at = new Date().toISOString();
         break;
+      case 'resetPassword': {
+        // Buscar email do usuário
+        const { data: authUser, error: authErr } = await supabase.auth.admin.getUserById(userId);
+        if (authErr || !authUser?.user?.email) {
+          return Response.json({ error: 'Usuário não encontrado no auth' }, { status: 404 });
+        }
+        const { error: linkErr } = await supabase.auth.admin.generateLink({
+          type: 'recovery',
+          email: authUser.user.email,
+        });
+        if (linkErr) throw linkErr;
+        return Response.json({ success: true, action, userId, message: `Email de recuperação enviado para ${authUser.user.email}` });
+      }
+      case 'deleteUser': {
+        // Deletar perfil do banco
+        const { error: profileErr } = await supabase.from('profiles').delete().eq('id', userId);
+        if (profileErr) throw profileErr;
+        // Deletar do auth
+        const { error: authDelErr } = await supabase.auth.admin.deleteUser(userId);
+        if (authDelErr) throw authDelErr;
+        return Response.json({ success: true, action, userId });
+      }
       default:
         return Response.json({ error: 'Ação inválida' }, { status: 400 });
     }
