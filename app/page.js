@@ -310,7 +310,7 @@ export default function Home() {
           <div className="w-5" />
         </header>
 
-        {/* Mobile tab bar — simplificada */}
+        {/* Mobile tab bar — simplificada: Chat, Criar, Aprender, Menu */}
         <nav className="flex border-b border-border-light md:hidden">
           <button
             onClick={() => setActiveTab('chat')}
@@ -323,30 +323,30 @@ export default function Home() {
             💬 Chat
           </button>
           <button
-            onClick={() => setActiveTab('business')}
-            className={`flex-1 py-2.5 text-xs font-medium transition-colors whitespace-nowrap ${
-              activeTab === 'business'
-                ? 'text-accent border-b-2 border-accent'
-                : 'text-text-muted'
-            }`}
-          >
-            🚀 Negócio
-          </button>
-          <button
             onClick={() => setActiveTab('post')}
             className={`flex-1 py-2.5 text-xs font-medium transition-colors whitespace-nowrap ${
-              activeTab === 'post'
+              activeTab === 'post' || activeTab === 'image'
                 ? 'text-accent border-b-2 border-accent'
                 : 'text-text-muted'
             }`}
           >
-            ✍️ Post
+            🎨 Criar
+          </button>
+          <button
+            onClick={() => setActiveTab('business')}
+            className={`flex-1 py-2.5 text-xs font-medium transition-colors whitespace-nowrap ${
+              activeTab === 'business' || activeTab === 'pricing'
+                ? 'text-accent border-b-2 border-accent'
+                : 'text-text-muted'
+            }`}
+          >
+            💼 Negócio
           </button>
           <button
             onClick={() => setSidebarOpen(true)}
             className="flex-1 py-2.5 text-xs font-medium text-text-muted transition-colors whitespace-nowrap"
           >
-            ☰ Mais
+            ☰ Menu
           </button>
         </nav>
 

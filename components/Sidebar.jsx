@@ -219,7 +219,6 @@ const MODULES_BY_LEVEL = {
 
 export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activeTab, onTabChange, onChangeLevel, isOpen, onClose, chatList, activeChatId, onSelectChat, onDeleteChat, onSignOut, currentPlan, onUpgrade, onManageSubscription }) {
   const [showLevelPicker, setShowLevelPicker] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
   const [historySearch, setHistorySearch] = useState('');
   const { theme, toggle: toggleTheme } = useTheme();
   const modules = MODULES_BY_LEVEL[user?.level] || MODULES_BY_LEVEL.iniciante;
@@ -229,6 +228,22 @@ export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activ
   const filteredChats = historySearch.trim()
     ? chatList.filter((c) => c.title?.toLowerCase().includes(historySearch.toLowerCase()))
     : chatList;
+
+  // Componente reutilizável pra seção colapsável
+  const Section = ({ icon, title, children, defaultOpen = false }) => (
+    <details open={defaultOpen} className="group/section">
+      <summary className="flex items-center gap-2 px-3 py-2 cursor-pointer select-none hover:bg-surface-alt transition-colors list-none">
+        <span className="text-sm">{icon}</span>
+        <span className="text-[11px] font-semibold text-text-light uppercase tracking-wider flex-1">{title}</span>
+        <svg className="w-3.5 h-3.5 text-text-light group-open/section:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </summary>
+      <div className="px-2 pb-2">
+        {children}
+      </div>
+    </details>
+  );
 
   return (
     <>
@@ -259,7 +274,7 @@ export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activ
         </div>
 
         {/* Header - New Chat button */}
-        <div className="px-3 pb-1 pt-2">
+        <div className="px-3 pb-2 pt-2">
           <button
             onClick={() => {
               onSendPrompt(null);
@@ -274,220 +289,29 @@ export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activ
           </button>
         </div>
 
-        {/* Tab switcher — desktop only (mobile usa tab bar) */}
-        <div className="px-3 pb-2 hidden md:block">
-          <div className="flex bg-surface-alt rounded-xl p-0.5">
-            <button
-              onClick={() => onTabChange('chat')}
-              className={`flex-1 text-xs font-semibold py-2 rounded-lg transition-all duration-200 ${
-                activeTab === 'chat'
-                  ? 'bg-surface-card text-text shadow-soft'
-                  : 'text-text-muted hover:text-text'
-              }`}
-            >
-              Chat
-            </button>
-            <button
-              onClick={() => onTabChange('post')}
-              className={`flex-1 text-xs font-semibold py-2 rounded-lg transition-all duration-200 ${
-                activeTab === 'post'
-                  ? 'bg-surface-card text-text shadow-soft'
-                  : 'text-text-muted hover:text-text'
-              }`}
-            >
-              Post
-            </button>
-            <button
-              onClick={() => onTabChange('favorites')}
-              className={`flex-1 text-xs font-semibold py-2 rounded-lg transition-all duration-200 ${
-                activeTab === 'favorites'
-                  ? 'bg-surface-card text-text shadow-soft'
-                  : 'text-text-muted hover:text-text'
-              }`}
-            >
-              ⭐ Salvos
-            </button>
-          </div>
-        </div>
+        {/* Scrollable sections */}
+        <div className="flex-1 overflow-y-auto">
 
-        {/* Level badge */}
-        <div className="px-3 pb-2">
-          <div className="text-[10px] font-medium text-text-light uppercase tracking-wider px-1 mb-1.5">
-            Seu nível
-          </div>
-          <button
-            onClick={() => setShowLevelPicker(!showLevelPicker)}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-accent-bg border border-accent/10 hover:border-accent/30 transition-colors"
-          >
-            <span className="text-sm">{levelInfo.icon}</span>
-            <span className="text-xs font-medium text-text flex-1 text-left">{levelInfo.label}</span>
-            <span className="text-[10px] text-accent font-medium">Trocar</span>
-          </button>
-
-          {/* Level picker dropdown */}
-          {showLevelPicker && (
-            <div className="mt-1.5 bg-surface-card border border-border rounded-xl shadow-elevated overflow-hidden animate-fade-in">
-              {Object.entries(LEVEL_LABELS).map(([key, val]) => {
-                const levelLocked = isFree && key !== 'iniciante';
-                return (
-                <button
-                  key={key}
-                  onClick={() => {
-                    if (levelLocked) {
-                      onUpgrade?.();
-                      return;
-                    }
-                    onChangeLevel(key);
-                    setShowLevelPicker(false);
-                  }}
-                  className={`w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-surface-alt transition-colors ${
-                    user?.level === key ? 'bg-accent-bg' : ''
-                  } ${levelLocked ? 'opacity-60' : ''}`}
-                >
-                  <span className="text-sm">{val.icon}</span>
-                  <span className="text-xs font-medium text-text">{val.label}</span>
-                  {levelLocked && (
-                    <span className="ml-auto"><UpgradeInlineBadge label="Pro" onUpgrade={onUpgrade} /></span>
-                  )}
-                  {!levelLocked && user?.level === key && (
-                    <svg className="w-3.5 h-3.5 ml-auto text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                    </svg>
-                  )}
-                </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Separator */}
-        <div className="px-3">
-          <div className="border-t border-border-light" />
-        </div>
-
-        {/* Fixed shortcuts — visible in all tabs/levels */}
-        <div className="px-3 py-2 space-y-1.5">
-          <button
-            onClick={() => {
-              onTabChange('business');
-              onClose();
-            }}
-            className={`w-full flex items-center gap-2.5 px-2.5 py-2.5 rounded-xl border transition-colors ${
-              activeTab === 'business'
-                ? 'border-accent/30 bg-accent-light text-accent'
-                : 'border-border-light bg-surface-card hover:bg-surface-alt text-text-muted hover:text-text'
-            }`}
-          >
-            <span className="text-base">🚀</span>
-            <div className="flex-1 text-left">
-              <span className="text-[13px] font-semibold block leading-tight">Meu Negócio</span>
-              <span className="text-[10px] text-text-muted">Escale seu negócio de nail</span>
-            </div>
-            <svg className="w-4 h-4 text-text-light" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
-          <button
-            onClick={() => {
-              onTabChange('pricing');
-              onClose();
-            }}
-            className={`w-full flex items-center gap-2.5 px-2.5 py-2.5 rounded-xl border transition-colors ${
-              activeTab === 'pricing'
-                ? 'border-accent/30 bg-accent-light text-accent'
-                : 'border-border-light bg-surface-card hover:bg-surface-alt text-text-muted hover:text-text'
-            }`}
-          >
-            <span className="text-base">💰</span>
-            <div className="flex-1 text-left">
-              <span className="text-[13px] font-semibold block leading-tight">Calculadora de Preço</span>
-              <span className="text-[10px] text-text-muted">Materiais + tempo = preço ideal</span>
-            </div>
-            <svg className="w-4 h-4 text-text-light" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
-          <button
-            onClick={() => {
-              onTabChange('image');
-              onClose();
-            }}
-            className={`w-full flex items-center gap-2.5 px-2.5 py-2.5 rounded-xl border transition-colors ${
-              activeTab === 'image'
-                ? 'border-accent/30 bg-accent-light text-accent'
-                : 'border-border-light bg-surface-card hover:bg-surface-alt text-text-muted hover:text-text'
-            }`}
-          >
-            <span className="text-base">✨</span>
-            <div className="flex-1 text-left">
-              <span className="text-[13px] font-semibold block leading-tight">Criar Imagem IA</span>
-              <span className="text-[10px] text-text-muted">Gere nail designs com inteligência artificial</span>
-            </div>
-            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-gradient-to-r from-accent to-rose text-white">PRO</span>
-          </button>
-          <button
-            onClick={() => {
-              onTabChange('plans');
-              onClose();
-            }}
-            className={`w-full flex items-center gap-2.5 px-2.5 py-2.5 rounded-xl border transition-colors ${
-              activeTab === 'plans'
-                ? 'border-accent/30 bg-accent-light text-accent'
-                : 'border-border-light bg-surface-card hover:bg-surface-alt text-text-muted hover:text-text'
-            }`}
-          >
-            <span className="text-base">💎</span>
-            <div className="flex-1 text-left">
-              <span className="text-[13px] font-semibold block leading-tight">Planos</span>
-              <span className="text-[10px] text-text-muted">
-                {currentPlan === 'premium' ? 'Premium ativo ✨' : currentPlan === 'pro' ? 'Pro ativo 💅' : 'Grátis — Faça upgrade!'}
-              </span>
-            </div>
-            <svg className="w-4 h-4 text-text-light" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
-        </div>
-
-        {/* Chat History */}
-        {chatList && chatList.length > 0 && activeTab === 'chat' && (
-          <div className="px-3 py-2">
-            <button
-              onClick={() => setShowHistory(!showHistory)}
-              className="flex items-center gap-2 w-full px-1 mb-1"
-            >
-              <div className="text-[10px] font-medium text-text-light uppercase tracking-wider flex-1 text-left">
-                Histórico
-              </div>
-              <svg
-                className={`w-3.5 h-3.5 text-text-light transition-transform ${showHistory ? 'rotate-180' : ''}`}
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
-            {showHistory && (
-              <>
-                {chatList.length > 3 && (
-                  <div className="mb-1.5">
-                    <input
-                      type="text"
-                      value={historySearch}
-                      onChange={(e) => setHistorySearch(e.target.value)}
-                      placeholder="Buscar conversa..."
-                      className="w-full text-xs px-2.5 py-1.5 rounded-lg bg-surface border border-border-light focus:border-accent focus:outline-none text-text placeholder-text-light"
-                      aria-label="Buscar no histórico de chats"
-                    />
-                  </div>
+          {/* ═══ HISTÓRICO ═══ */}
+          {chatList && chatList.length > 0 && (
+            <Section icon="📋" title="Histórico">
+              {chatList.length > 3 && (
+                <div className="mb-1.5 px-1">
+                  <input
+                    type="text"
+                    value={historySearch}
+                    onChange={(e) => setHistorySearch(e.target.value)}
+                    placeholder="Buscar conversa..."
+                    className="w-full text-xs px-2.5 py-1.5 rounded-lg bg-surface border border-border-light focus:border-accent focus:outline-none text-text placeholder-text-light"
+                    aria-label="Buscar no histórico de chats"
+                  />
+                </div>
+              )}
+              <div className="space-y-0.5 max-h-48 overflow-y-auto">
+                {filteredChats.length === 0 && historySearch && (
+                  <p className="text-[11px] text-text-light px-2.5 py-2">Nenhum chat encontrado</p>
                 )}
-                <div className="space-y-0.5 max-h-40 overflow-y-auto">
-                  {filteredChats.length === 0 && historySearch && (
-                    <p className="text-[11px] text-text-light px-2.5 py-2">Nenhum chat encontrado</p>
-                  )}
-                  {filteredChats.map((chat) => (
+                {filteredChats.map((chat) => (
                   <div
                     key={chat.id}
                     className={`group flex items-center gap-1.5 rounded-lg transition-colors ${
@@ -520,45 +344,53 @@ export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activ
                     </button>
                   </div>
                 ))}
-                </div>
-              </>
-            )}
-            <div className="border-t border-border-light mt-2" />
-          </div>
-        )}
-
-        {/* Modules */}
-        <div className="flex-1 overflow-y-auto px-3 py-2 space-y-0.5">
-          {activeTab === 'chat' && (
-            <>
-              <div className="text-[10px] font-medium text-text-light uppercase tracking-wider px-1 mb-1.5 mt-1">
-                Sugestões pra você
               </div>
+            </Section>
+          )}
+
+          {/* ═══ CRIAR ═══ */}
+          <Section icon="🎨" title="Criar" defaultOpen>
+            <div className="space-y-1 px-1">
+              <button
+                onClick={() => { onTabChange('post'); onClose(); }}
+                className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-colors ${
+                  activeTab === 'post' ? 'bg-accent-bg text-accent' : 'text-text-muted hover:bg-surface-alt hover:text-text'
+                }`}
+              >
+                <span className="text-sm">✍️</span>
+                <span className="text-xs font-medium">Criar Post</span>
+              </button>
+              <button
+                onClick={() => { onTabChange('image'); onClose(); }}
+                className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-colors ${
+                  activeTab === 'image' ? 'bg-accent-bg text-accent' : 'text-text-muted hover:bg-surface-alt hover:text-text'
+                }`}
+              >
+                <span className="text-sm">✨</span>
+                <span className="text-xs font-medium flex-1">Criar Imagem IA</span>
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-gradient-to-r from-accent to-rose text-white">PRO</span>
+              </button>
+            </div>
+          </Section>
+
+          {/* ═══ APRENDER ═══ */}
+          <Section icon="📚" title="Aprender">
+            <div className="space-y-0.5 px-1">
               {modules.map((mod, idx) => (
                 <details key={idx} className="group">
                   <summary className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg cursor-pointer hover:bg-surface-alt transition-colors list-none">
                     <span className="text-sm">{mod.icon}</span>
-                    <span className="text-[13px] font-medium text-text-muted group-open:text-text">
-                      {mod.label}
-                    </span>
-                    <svg
-                      className="w-3.5 h-3.5 ml-auto text-text-light group-open:rotate-180 transition-transform"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
+                    <span className="text-xs font-medium text-text-muted group-open:text-text">{mod.label}</span>
+                    <svg className="w-3 h-3 ml-auto text-text-light group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
                   </summary>
-                  <div className="pl-8 pr-1 pb-1 space-y-0.5">
+                  <div className="pl-7 pr-1 pb-1 space-y-0.5">
                     {mod.prompts.map((prompt, i) => (
                       <button
                         key={i}
-                        onClick={() => {
-                          onSendPrompt(prompt);
-                          onClose();
-                        }}
-                        className="w-full text-left text-xs text-text-muted hover:text-accent px-2 py-1.5 rounded-md hover:bg-accent-bg transition-colors"
+                        onClick={() => { onSendPrompt(prompt); onClose(); }}
+                        className="w-full text-left text-[11px] text-text-muted hover:text-accent px-2 py-1.5 rounded-md hover:bg-accent-bg transition-colors"
                       >
                         {prompt}
                       </button>
@@ -566,52 +398,113 @@ export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activ
                   </div>
                 </details>
               ))}
-            </>
-          )}
+            </div>
+          </Section>
 
-          {activeTab === 'post' && (
-            <div className="space-y-2 pt-1">
-              <div className="text-[10px] font-medium text-text-light uppercase tracking-wider px-1 mb-1.5">
-                Criar conteúdo
-              </div>
-              {[
-                'Cria uma legenda pro Instagram',
-                'Post antes/depois de alongamento',
-                'Copy pra stories com promoção',
-              ].map((prompt, i) => (
-                <button
-                  key={i}
-                  onClick={() => {
-                    onOpenPostGenerator?.(prompt);
-                    onClose();
-                  }}
-                  className="w-full text-left text-xs text-text-muted hover:text-accent px-2.5 py-2 rounded-lg hover:bg-accent-bg transition-colors flex items-center gap-2"
-                >
-                  <svg className="w-3.5 h-3.5 text-text-light shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                  </svg>
-                  {prompt}
-                </button>
-              ))}
+          {/* ═══ MEU NEGÓCIO ═══ */}
+          <Section icon="💼" title="Meu Negócio">
+            <div className="space-y-1 px-1">
               <button
-                onClick={() => {
-                  onOpenPostGenerator?.();
-                  onClose();
-                }}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-accent text-white text-xs font-medium hover:bg-accent-hover transition-colors shadow-soft mt-2"
+                onClick={() => { onTabChange('business'); onClose(); }}
+                className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-colors ${
+                  activeTab === 'business' ? 'bg-accent-bg text-accent' : 'text-text-muted hover:bg-surface-alt hover:text-text'
+                }`}
               >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                Novo Post
+                <span className="text-sm">🚀</span>
+                <span className="text-xs font-medium">Hub de Negócios</span>
+              </button>
+              <button
+                onClick={() => { onTabChange('pricing'); onClose(); }}
+                className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-colors ${
+                  activeTab === 'pricing' ? 'bg-accent-bg text-accent' : 'text-text-muted hover:bg-surface-alt hover:text-text'
+                }`}
+              >
+                <span className="text-sm">💰</span>
+                <span className="text-xs font-medium">Calculadora de Preço</span>
+              </button>
+              <button
+                onClick={() => { onTabChange('favorites'); onClose(); }}
+                className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-colors ${
+                  activeTab === 'favorites' ? 'bg-accent-bg text-accent' : 'text-text-muted hover:bg-surface-alt hover:text-text'
+                }`}
+              >
+                <span className="text-sm">⭐</span>
+                <span className="text-xs font-medium">Salvos</span>
               </button>
             </div>
-          )}
+          </Section>
+
+          {/* ═══ CONFIGURAÇÕES ═══ */}
+          <Section icon="⚙️" title="Configurações">
+            <div className="space-y-1 px-1">
+              {/* Nível */}
+              <div>
+                <button
+                  onClick={() => setShowLevelPicker(!showLevelPicker)}
+                  className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left text-text-muted hover:bg-surface-alt hover:text-text transition-colors"
+                >
+                  <span className="text-sm">{levelInfo.icon}</span>
+                  <span className="text-xs font-medium flex-1">Nível: {levelInfo.label}</span>
+                  <span className="text-[10px] text-accent font-medium">Trocar</span>
+                </button>
+                {showLevelPicker && (
+                  <div className="ml-2 mt-1 bg-surface-card border border-border rounded-xl shadow-elevated overflow-hidden animate-fade-in">
+                    {Object.entries(LEVEL_LABELS).map(([key, val]) => {
+                      const levelLocked = isFree && key !== 'iniciante';
+                      return (
+                        <button
+                          key={key}
+                          onClick={() => {
+                            if (levelLocked) { onUpgrade?.(); return; }
+                            onChangeLevel(key);
+                            setShowLevelPicker(false);
+                          }}
+                          className={`w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-surface-alt transition-colors ${
+                            user?.level === key ? 'bg-accent-bg' : ''
+                          } ${levelLocked ? 'opacity-60' : ''}`}
+                        >
+                          <span className="text-sm">{val.icon}</span>
+                          <span className="text-xs font-medium text-text">{val.label}</span>
+                          {levelLocked && <span className="ml-auto"><UpgradeInlineBadge label="Pro" onUpgrade={onUpgrade} /></span>}
+                          {!levelLocked && user?.level === key && (
+                            <svg className="w-3.5 h-3.5 ml-auto text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              {/* Planos */}
+              <button
+                onClick={() => { onTabChange('plans'); onClose(); }}
+                className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-colors ${
+                  activeTab === 'plans' ? 'bg-accent-bg text-accent' : 'text-text-muted hover:bg-surface-alt hover:text-text'
+                }`}
+              >
+                <span className="text-sm">💎</span>
+                <span className="text-xs font-medium flex-1">Planos</span>
+                <span className="text-[10px] text-text-light">
+                  {currentPlan === 'premium' ? '✨ Premium' : currentPlan === 'pro' ? '💅 Pro' : 'Grátis'}
+                </span>
+              </button>
+              {/* Tema */}
+              <button
+                onClick={toggleTheme}
+                className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left text-text-muted hover:bg-surface-alt hover:text-text transition-colors"
+              >
+                <span className="text-sm">{theme === 'dark' ? '☀️' : '🌙'}</span>
+                <span className="text-xs font-medium">{theme === 'dark' ? 'Modo claro' : 'Modo escuro'}</span>
+              </button>
+            </div>
+          </Section>
+
         </div>
 
-        {/* Footer - User info + account + theme toggle */}
-        <div className="p-3 border-t border-border-light space-y-2">
-          {/* Minha Conta */}
+        {/* Footer - User info compacto */}
+        <div className="p-3 border-t border-border-light">
           <details className="group">
             <summary className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg cursor-pointer hover:bg-surface-alt transition-colors list-none">
               <div className="w-7 h-7 bg-accent-light rounded-full flex items-center justify-center">
@@ -619,7 +512,7 @@ export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activ
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium text-text truncate">{user?.name}</p>
-                <p className="text-[10px] text-text-light">Maluar AI</p>
+                <p className="text-[10px] text-text-light">{levelInfo.icon} {levelInfo.label}</p>
               </div>
               <svg className="w-3.5 h-3.5 text-text-light group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -664,39 +557,14 @@ export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activ
                 <a href="/termos" className="hover:text-accent transition-colors">Termos</a>
                 <a href="/privacidade" className="hover:text-accent transition-colors">Privacidade</a>
               </div>
-            </div>
-          </details>
-
-          <div className="flex items-center justify-end gap-1.5 px-2">
-            <button
-              onClick={toggleTheme}
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-text-light hover:text-accent hover:bg-accent-bg transition-colors"
-              title={theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
-              aria-label="Alternar tema"
-            >
-              {theme === 'dark' ? (
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-                </svg>
-              ) : (
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                </svg>
-              )}
-            </button>
-            {onSignOut && (
               <button
                 onClick={onSignOut}
-                className="w-7 h-7 rounded-lg flex items-center justify-center text-text-light hover:text-rose hover:bg-rose-light transition-colors"
-                title="Sair"
-                aria-label="Sair da conta"
+                className="flex items-center gap-2 px-2.5 py-1.5 rounded-md text-text-muted hover:text-rose hover:bg-rose-light transition-colors w-full text-left"
               >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
+                🚪 Sair
               </button>
-            )}
-          </div>
+            </div>
+          </details>
         </div>
       </aside>
     </>

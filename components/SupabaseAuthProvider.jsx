@@ -44,6 +44,13 @@ export default function SupabaseAuthProvider({ children }) {
       const { data: { session }, error } = await Promise.race([sessionPromise, timeoutPromise]);
 
       if (error || !session?.access_token) {
+        // Tentar refresh silencioso antes de usar fallback
+        try {
+          const { data: refreshData } = await supabase.auth.refreshSession();
+          if (refreshData?.session?.access_token) {
+            return refreshData.session.access_token;
+          }
+        } catch {}
         console.warn('[AUTH] getSession sem token, usando fallback localStorage');
         return getTokenFromStorage();
       }
@@ -129,20 +136,37 @@ export default function SupabaseAuthProvider({ children }) {
     const timeout = setTimeout(() => {
       if (!resolved) {
         console.warn('[AUTH] Timeout — assumindo deslogado');
-        setUser((prev) => prev === undefined ? null : prev);
+        setUser(null);
+        setProfile(null);
       }
     }, 5000);
 
     // onAuthStateChange é a FONTE PRIMÁRIA de verdade (boa prática Supabase)
     // Ele dispara INITIAL_SESSION no mount, SIGNED_IN no login, SIGNED_OUT no logout,
     // e TOKEN_REFRESHED quando o token é renovado automaticamente.
+    let retryingRefresh = false;
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         resolved = true;
         clearTimeout(timeout);
 
-        // Token expirado — Supabase dispara SIGNED_OUT quando refresh falha
+        // Token expirado — tentar refresh silencioso 1x antes de deslogar
         if (event === 'SIGNED_OUT') {
+          if (!retryingRefresh) {
+            retryingRefresh = true;
+            try {
+              console.log('[AUTH] SIGNED_OUT recebido — tentando refresh silencioso...');
+              const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+              if (refreshData?.session?.user && !refreshError) {
+                console.log('[AUTH] Refresh silencioso OK — sessão restaurada');
+                retryingRefresh = false;
+                setUser(refreshData.session.user);
+                await fetchProfile(refreshData.session.user);
+                return; // Sessão recuperada, não desloga
+              }
+            } catch {}
+            retryingRefresh = false;
+          }
           setUser(null);
           setProfile(null);
           return;
