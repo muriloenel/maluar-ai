@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
+import { getAuthUser } from '../../../lib/admin';
 
 // Workaround para proxy corporativo — APENAS em desenvolvimento
 if (process.env.NODE_ENV !== 'production' && process.env.ALLOW_SELF_SIGNED_CERTS === '1') {
@@ -12,7 +13,6 @@ const client = new Anthropic({
 
 // Supabase admin client para validar tokens
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 // Limites por plano
@@ -57,42 +57,6 @@ async function checkQuotaServer(userId, userEmail) {
   } catch (err) {
     console.error('[QUOTA] Erro ao verificar:', err.message);
     return { allowed: true }; // fail-open se DB falhar
-  }
-}
-
-async function validateAuth(req) {
-  if (!supabaseUrl || !supabaseKey) {
-    console.error('[AUTH] Supabase URL ou Key não configuradas');
-    return null;
-  }
-  const authHeader = req.headers.get('authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    console.error('[AUTH] Header Authorization ausente ou inválido');
-    return null;
-  }
-  const token = authHeader.slice(7);
-  if (!token) {
-    console.error('[AUTH] Token vazio');
-    return null;
-  }
-  try {
-    const supabase = createClient(supabaseUrl, supabaseKey, {
-      auth: { persistSession: false, autoRefreshToken: false },
-      global: { headers: { Authorization: `Bearer ${token}` } },
-    });
-    const { data, error } = await supabase.auth.getUser(token);
-    if (error) {
-      console.error('[AUTH] getUser error:', error.message);
-      return null;
-    }
-    if (!data?.user) {
-      console.error('[AUTH] getUser retornou sem user');
-      return null;
-    }
-    return data.user;
-  } catch (err) {
-    console.error('[AUTH] Exception:', err.message);
-    return null;
   }
 }
 
@@ -165,7 +129,7 @@ export async function POST(req) {
     const bodyPromise = req.json().catch(() => null);
 
     // Autenticação — OBRIGATÓRIA
-    const authUser = await validateAuth(req).catch(() => null);
+    const authUser = await getAuthUser(req).catch(() => null);
     if (!authUser) {
       return Response.json({ error: 'Faça login para usar o chat.' }, { status: 401 });
     }
@@ -274,6 +238,12 @@ export async function POST(req) {
     let model = isComplex ? SONNET : HAIKU;
     console.log(`[CHAT] Modelo: ${model}, Stream: ${!!stream}, User: ${authUser?.email || 'anon'}`);
 
+    // Prompt caching: enviar system como bloco com cache_control
+    // O system prompt é estável entre requests — alta taxa de cache hit (~90%)
+    const systemBlocks = safeSystem ? [
+      { type: 'text', text: safeSystem, cache_control: { type: 'ephemeral' } },
+    ] : undefined;
+
     // Streaming mode
     if (stream) {
       let response;
@@ -282,7 +252,7 @@ export async function POST(req) {
           model,
           max_tokens: imageRequest ? 2000 : 600,
           temperature: imageRequest ? 0.1 : 0.5,
-          system: safeSystem,
+          system: systemBlocks || safeSystem,
           messages,
           stream: true,
         });
@@ -310,7 +280,7 @@ export async function POST(req) {
               model: fallbackModel,
               max_tokens: imageRequest ? 2000 : 600,
               temperature: imageRequest ? 0.1 : 0.5,
-              system: safeSystem,
+              system: systemBlocks || safeSystem,
               messages,
               stream: true,
             });
@@ -382,7 +352,7 @@ export async function POST(req) {
         response = await client.messages.create({
           model: tryModel,
           max_tokens: imageRequest ? 2048 : 800,
-          system: safeSystem,
+          system: systemBlocks || safeSystem,
           messages,
         });
         usedModel = tryModel;
