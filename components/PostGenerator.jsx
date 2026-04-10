@@ -35,6 +35,23 @@ const POST_TYPES = [
   { id: 'depoimento', label: '💬 Depoimento' },
 ];
 
+// ── Formas e cores ─────────────────────────────────────────────────────
+const SHAPES = [
+  { id: 'none', label: 'Sem fundo' },
+  { id: 'rect', label: 'Retângulo' },
+  { id: 'pill', label: 'Pílula' },
+  { id: 'circle', label: 'Círculo' },
+];
+
+const SHAPE_COLORS = [
+  { id: '#7F77DD', label: 'Lilás' },
+  { id: '#D4AF37', label: 'Dourado' },
+  { id: '#000000', label: 'Preto' },
+  { id: '#FFFFFF', label: 'Branco' },
+  { id: '#E8567F', label: 'Rosa' },
+  { id: '#2D8B75', label: 'Verde' },
+];
+
 export default function PostGenerator({ user, userId, initialPrompt, plan = 'free', onUpgrade }) {
   const [platform, setPlatform] = useState('instagram');
   const [postType, setPostType] = useState('');
@@ -47,10 +64,10 @@ export default function PostGenerator({ user, userId, initialPrompt, plan = 'fre
   const [isLoading, setIsLoading] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [postHistory, setPostHistory] = useState([]);
-  // Editor de texto na imagem
-  const [overlayText, setOverlayText] = useState('');
-  const [textPosition, setTextPosition] = useState('bottom'); // top, center, bottom
-  const [textStyle, setTextStyle] = useState('light'); // light, dark, accent
+  // Editor de texto na imagem — até 3 blocos independentes
+  const [textBlocks, setTextBlocks] = useState([
+    { id: 1, text: '', position: 'bottom', shape: 'none', color: '#7F77DD' },
+  ]);
   const canvasRef = useRef(null);
   const { getAccessToken } = useAuth();
   const fileInputRef = useRef(null);
@@ -109,7 +126,19 @@ export default function PostGenerator({ user, userId, initialPrompt, plan = 'fre
     setResult(null);
   };
 
-  // ── Renderizar canvas com filtro + texto ─────────────────────────────
+  // Helper para atualizar um bloco
+  const updateBlock = (id, field, value) => {
+    setTextBlocks(prev => prev.map(b => b.id === id ? { ...b, [field]: value } : b));
+  };
+  const addBlock = () => {
+    if (textBlocks.length >= 3) return;
+    setTextBlocks(prev => [...prev, { id: Date.now(), text: '', position: prev.length === 0 ? 'bottom' : prev.length === 1 ? 'top' : 'center', shape: 'none', color: '#7F77DD' }]);
+  };
+  const removeBlock = (id) => {
+    setTextBlocks(prev => prev.filter(b => b.id !== id));
+  };
+
+  // ── Renderizar canvas com filtro + múltiplos textos ──────────────────
   const renderCanvas = useCallback((img) => {
     const canvas = document.createElement('canvas');
     canvas.width = img.width;
@@ -119,42 +148,80 @@ export default function PostGenerator({ user, userId, initialPrompt, plan = 'fre
     ctx.filter = f?.css || 'none';
     ctx.drawImage(img, 0, 0);
     ctx.filter = 'none';
-    // Texto overlay
-    if (overlayText.trim()) {
-      const lines = overlayText.split('\n').filter(Boolean);
-      const fontSize = Math.max(24, Math.round(img.width / 16));
-      const padding = Math.round(img.width * 0.06);
-      const lineHeight = fontSize * 1.3;
+
+    const activeBlocks = textBlocks.filter(b => b.text.trim());
+    activeBlocks.forEach((block) => {
+      const lines = block.text.split('\n').filter(Boolean);
+      const fontSize = Math.max(22, Math.round(img.width / 18));
+      const padding = Math.round(img.width * 0.05);
+      const lineHeight = fontSize * 1.35;
       const totalTextH = lines.length * lineHeight;
+
       // Posição vertical
-      let startY;
-      if (textPosition === 'top') startY = padding + fontSize;
-      else if (textPosition === 'center') startY = (img.height - totalTextH) / 2 + fontSize;
-      else startY = img.height - padding - totalTextH + fontSize;
-      // Fundo semi-transparente
-      const bgPad = fontSize * 0.4;
-      const maxW = lines.reduce((max, line) => {
-        ctx.font = `bold ${fontSize}px system-ui, -apple-system, sans-serif`;
-        return Math.max(max, ctx.measureText(line).width);
-      }, 0);
-      const bgX = (img.width - maxW) / 2 - bgPad;
-      const bgY = startY - fontSize - bgPad;
-      const bgH = totalTextH + bgPad * 2;
-      ctx.fillStyle = textStyle === 'dark' ? 'rgba(0,0,0,0.65)' : textStyle === 'accent' ? 'rgba(127,119,221,0.75)' : 'rgba(255,255,255,0.75)';
-      ctx.beginPath();
-      const r = fontSize * 0.3;
-      ctx.roundRect(bgX, bgY, maxW + bgPad * 2, bgH, r);
-      ctx.fill();
+      let centerY;
+      if (block.position === 'top') centerY = padding + totalTextH / 2;
+      else if (block.position === 'center') centerY = img.height / 2;
+      else centerY = img.height - padding - totalTextH / 2;
+
+      ctx.font = `bold ${fontSize}px system-ui, -apple-system, sans-serif`;
+      ctx.textAlign = 'center';
+      const maxW = lines.reduce((max, line) => Math.max(max, ctx.measureText(line).width), 0);
+      const bgPad = fontSize * 0.5;
+
+      // Determinar cor do texto baseado na luminosidade do fundo
+      const isLightBg = block.color === '#FFFFFF' || block.color === '#D4AF37';
+      const textColor = block.shape === 'none' ? '#ffffff' : isLightBg ? '#1a1a1a' : '#ffffff';
+      const shadowColor = block.shape === 'none' ? 'rgba(0,0,0,0.7)' : 'transparent';
+
+      // Desenhar forma
+      if (block.shape !== 'none') {
+        ctx.fillStyle = block.color + 'CC'; // 80% opacidade
+        if (block.shape === 'circle') {
+          const radius = Math.max(maxW / 2 + bgPad * 1.5, totalTextH / 2 + bgPad * 1.5);
+          ctx.beginPath();
+          ctx.arc(img.width / 2, centerY, radius, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (block.shape === 'pill') {
+          const w = maxW + bgPad * 3;
+          const h = totalTextH + bgPad * 2;
+          const r = h / 2;
+          const x = (img.width - w) / 2;
+          const y = centerY - h / 2;
+          ctx.beginPath();
+          ctx.roundRect(x, y, w, h, r);
+          ctx.fill();
+        } else {
+          // rect
+          const w = maxW + bgPad * 2.5;
+          const h = totalTextH + bgPad * 2;
+          const x = (img.width - w) / 2;
+          const y = centerY - h / 2;
+          ctx.beginPath();
+          ctx.roundRect(x, y, w, h, fontSize * 0.25);
+          ctx.fill();
+        }
+      }
+
       // Texto
       ctx.font = `bold ${fontSize}px system-ui, -apple-system, sans-serif`;
       ctx.textAlign = 'center';
-      ctx.fillStyle = textStyle === 'dark' ? '#ffffff' : textStyle === 'accent' ? '#ffffff' : '#1a1a1a';
+      ctx.fillStyle = textColor;
+      if (block.shape === 'none') {
+        ctx.shadowColor = shadowColor;
+        ctx.shadowBlur = 6;
+        ctx.shadowOffsetX = 1;
+        ctx.shadowOffsetY = 1;
+      }
+      const startY = centerY - totalTextH / 2 + fontSize;
       lines.forEach((line, i) => {
         ctx.fillText(line, img.width / 2, startY + i * lineHeight);
       });
-    }
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
+    });
+
     return canvas;
-  }, [activeFilter, overlayText, textPosition, textStyle]);
+  }, [activeFilter, textBlocks]);
 
   // ── Download foto com filtro + texto ──────────────────────────────────
   const downloadFiltered = useCallback(() => {
@@ -364,20 +431,28 @@ ${platform !== 'whatsapp' ? '**HASHTAGS:**\n(hashtags separadas por espaço, pro
                     className="w-full max-h-[400px] object-contain bg-black"
                     style={{ filter: FILTERS.find(f => f.id === activeFilter)?.css || 'none' }}
                   />
-                  {/* Overlay de texto (preview) */}
-                  {overlayText.trim() && (
-                    <div className={`absolute inset-x-0 px-4 flex ${
-                      textPosition === 'top' ? 'top-4' : textPosition === 'center' ? 'top-1/2 -translate-y-1/2' : 'bottom-4'
+                  {/* Overlay de textos (preview) */}
+                  {textBlocks.filter(b => b.text.trim()).map((block) => (
+                    <div key={block.id} className={`absolute inset-x-0 px-4 flex pointer-events-none ${
+                      block.position === 'top' ? 'top-3' : block.position === 'center' ? 'top-1/2 -translate-y-1/2' : 'bottom-3'
                     }`}>
-                      <div className={`mx-auto px-4 py-2 rounded-lg text-center max-w-[85%] ${
-                        textStyle === 'dark' ? 'bg-black/65 text-white' : textStyle === 'accent' ? 'bg-accent/75 text-white' : 'bg-white/75 text-gray-900'
-                      }`}>
-                        {overlayText.split('\n').map((line, i) => (
+                      <div className={`mx-auto px-4 py-2 text-center max-w-[85%] ${
+                        block.shape === 'circle' ? 'rounded-full aspect-square flex items-center justify-center min-w-[80px]' :
+                        block.shape === 'pill' ? 'rounded-full' :
+                        block.shape === 'rect' ? 'rounded-lg' : ''
+                      }`} style={block.shape !== 'none' ? {
+                        backgroundColor: block.color + 'CC',
+                        color: (block.color === '#FFFFFF' || block.color === '#D4AF37') ? '#1a1a1a' : '#ffffff',
+                      } : {
+                        color: '#ffffff',
+                        textShadow: '1px 1px 4px rgba(0,0,0,0.7)',
+                      }}>
+                        {block.text.split('\n').map((line, i) => (
                           <p key={i} className="font-bold text-sm leading-snug">{line}</p>
                         ))}
                       </div>
                     </div>
-                  )}
+                  ))}
                   <button
                     onClick={() => {
                       setImagePreview(null);
@@ -423,48 +498,82 @@ ${platform !== 'whatsapp' ? '**HASHTAGS:**\n(hashtags separadas por espaço, pro
                   </div>
                 </div>
 
-                {/* ✏️ Texto na imagem — sempre visível */}
-                <div className="bg-surface-card border border-border rounded-xl p-3 space-y-2.5">
-                  <div className="flex items-center gap-2 mb-1">
-                    <svg className="w-4 h-4 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                    <span className="text-xs font-semibold text-text">Texto na imagem</span>
-                  </div>
-                  <textarea
-                    value={overlayText}
-                    onChange={(e) => setOverlayText(e.target.value)}
-                    placeholder="Ex: Alongamento Gel • Agende já!"
-                    rows={2}
-                    maxLength={120}
-                    className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text placeholder-text-light focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all resize-none"
-                  />
-                  {overlayText.trim() && (
-                    <div className="flex items-center gap-3">
-                      <div className="flex-1">
-                        <p className="text-[10px] text-text-light mb-1">Posição</p>
-                        <div className="flex gap-1">
-                          {[{ id: 'top', label: '↑ Topo' }, { id: 'center', label: '― Centro' }, { id: 'bottom', label: '↓ Base' }].map(pos => (
-                            <button
-                              key={pos.id}
-                              onClick={() => setTextPosition(pos.id)}
-                              className={`flex-1 text-[10px] py-1 rounded-md transition-colors ${textPosition === pos.id ? 'bg-accent text-white' : 'bg-surface text-text-muted hover:bg-accent-bg'}`}
-                            >{pos.label}</button>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-[10px] text-text-light mb-1">Estilo</p>
-                        <div className="flex gap-1">
-                          {[{ id: 'light', label: 'Claro' }, { id: 'dark', label: 'Escuro' }, { id: 'accent', label: 'Roxo' }].map(s => (
-                            <button
-                              key={s.id}
-                              onClick={() => setTextStyle(s.id)}
-                              className={`flex-1 text-[10px] py-1 rounded-md transition-colors ${textStyle === s.id ? 'bg-accent text-white' : 'bg-surface text-text-muted hover:bg-accent-bg'}`}
-                            >{s.label}</button>
-                          ))}
-                        </div>
-                      </div>
+                {/* ✏️ Textos na imagem — múltiplos blocos */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <svg className="w-4 h-4 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                      <span className="text-xs font-semibold text-text">Textos na imagem</span>
                     </div>
-                  )}
+                    {textBlocks.length < 3 && (
+                      <button onClick={addBlock} className="text-[11px] text-accent hover:text-accent-hover font-medium">
+                        + Adicionar texto
+                      </button>
+                    )}
+                  </div>
+
+                  {textBlocks.map((block, idx) => (
+                    <div key={block.id} className="bg-surface-card border border-border rounded-xl p-3 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-text-light font-medium uppercase">Texto {idx + 1}</span>
+                        <div className="flex-1" />
+                        {textBlocks.length > 1 && (
+                          <button onClick={() => removeBlock(block.id)} className="text-[10px] text-text-light hover:text-rose">✕ Remover</button>
+                        )}
+                      </div>
+                      <input
+                        value={block.text}
+                        onChange={(e) => updateBlock(block.id, 'text', e.target.value)}
+                        placeholder={idx === 0 ? 'Ex: Alongamento Gel' : idx === 1 ? 'Ex: Agende já! 💅' : 'Ex: @seu.instagram'}
+                        maxLength={80}
+                        className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text placeholder-text-light focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all"
+                      />
+                      {block.text.trim() && (
+                        <div className="space-y-2">
+                          {/* Posição */}
+                          <div className="flex gap-1">
+                            {[{ id: 'top', label: '↑ Topo' }, { id: 'center', label: '― Centro' }, { id: 'bottom', label: '↓ Base' }].map(pos => (
+                              <button
+                                key={pos.id}
+                                onClick={() => updateBlock(block.id, 'position', pos.id)}
+                                className={`flex-1 text-[10px] py-1 rounded-md transition-colors ${block.position === pos.id ? 'bg-accent text-white' : 'bg-surface text-text-muted hover:bg-accent-bg'}`}
+                              >{pos.label}</button>
+                            ))}
+                          </div>
+                          {/* Forma */}
+                          <div>
+                            <p className="text-[10px] text-text-light mb-1">Forma</p>
+                            <div className="flex gap-1">
+                              {SHAPES.map(s => (
+                                <button
+                                  key={s.id}
+                                  onClick={() => updateBlock(block.id, 'shape', s.id)}
+                                  className={`flex-1 text-[10px] py-1 rounded-md transition-colors ${block.shape === s.id ? 'bg-accent text-white' : 'bg-surface text-text-muted hover:bg-accent-bg'}`}
+                                >{s.label}</button>
+                              ))}
+                            </div>
+                          </div>
+                          {/* Cor (só se tiver forma) */}
+                          {block.shape !== 'none' && (
+                            <div>
+                              <p className="text-[10px] text-text-light mb-1">Cor</p>
+                              <div className="flex gap-1.5">
+                                {SHAPE_COLORS.map(c => (
+                                  <button
+                                    key={c.id}
+                                    onClick={() => updateBlock(block.id, 'color', c.id)}
+                                    className={`w-7 h-7 rounded-full border-2 transition-all ${block.color === c.id ? 'border-accent scale-110' : 'border-border hover:border-accent/40'}`}
+                                    style={{ backgroundColor: c.id }}
+                                    title={c.label}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
 
                 {/* Baixar imagem */}
