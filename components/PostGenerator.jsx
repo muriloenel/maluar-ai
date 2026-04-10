@@ -5,6 +5,13 @@ import { useToast } from './Toast';
 import { dbLoadPostHistory, dbSavePost, dbDeletePost } from '../lib/db';
 import { useAuth } from './SupabaseAuthProvider';
 
+// ── Plataformas ────────────────────────────────────────────────────────
+const PLATFORMS = [
+  { id: 'instagram', label: 'Instagram', icon: '📸' },
+  { id: 'facebook', label: 'Facebook', icon: '📘' },
+  { id: 'whatsapp', label: 'WhatsApp', icon: '📲' },
+];
+
 // ── Filtros estilo Instagram (CSS filter) ──────────────────────────────
 const FILTERS = [
   { id: 'original', label: 'Original', css: 'none' },
@@ -29,6 +36,7 @@ const POST_TYPES = [
 ];
 
 export default function PostGenerator({ user, userId, initialPrompt, plan = 'free', onUpgrade }) {
+  const [platform, setPlatform] = useState('instagram');
   const [postType, setPostType] = useState('');
   const [extraInfo, setExtraInfo] = useState(initialPrompt || '');
   const [imagePreview, setImagePreview] = useState(null);
@@ -39,6 +47,12 @@ export default function PostGenerator({ user, userId, initialPrompt, plan = 'fre
   const [isLoading, setIsLoading] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [postHistory, setPostHistory] = useState([]);
+  // Editor de texto na imagem
+  const [showTextEditor, setShowTextEditor] = useState(false);
+  const [overlayText, setOverlayText] = useState('');
+  const [textPosition, setTextPosition] = useState('bottom'); // top, center, bottom
+  const [textStyle, setTextStyle] = useState('light'); // light, dark, accent
+  const canvasRef = useRef(null);
   const { getAccessToken } = useAuth();
   const fileInputRef = useRef(null);
   const toast = useToast();
@@ -96,20 +110,60 @@ export default function PostGenerator({ user, userId, initialPrompt, plan = 'fre
     setResult(null);
   };
 
-  // ── Download foto com filtro (Canvas) ────────────────────────────────
+  // ── Renderizar canvas com filtro + texto ─────────────────────────────
+  const renderCanvas = useCallback((img) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = img.width;
+    canvas.height = img.height;
+    const ctx = canvas.getContext('2d');
+    const f = FILTERS.find(x => x.id === activeFilter);
+    ctx.filter = f?.css || 'none';
+    ctx.drawImage(img, 0, 0);
+    ctx.filter = 'none';
+    // Texto overlay
+    if (overlayText.trim()) {
+      const lines = overlayText.split('\n').filter(Boolean);
+      const fontSize = Math.max(24, Math.round(img.width / 16));
+      const padding = Math.round(img.width * 0.06);
+      const lineHeight = fontSize * 1.3;
+      const totalTextH = lines.length * lineHeight;
+      // Posição vertical
+      let startY;
+      if (textPosition === 'top') startY = padding + fontSize;
+      else if (textPosition === 'center') startY = (img.height - totalTextH) / 2 + fontSize;
+      else startY = img.height - padding - totalTextH + fontSize;
+      // Fundo semi-transparente
+      const bgPad = fontSize * 0.4;
+      const maxW = lines.reduce((max, line) => {
+        ctx.font = `bold ${fontSize}px system-ui, -apple-system, sans-serif`;
+        return Math.max(max, ctx.measureText(line).width);
+      }, 0);
+      const bgX = (img.width - maxW) / 2 - bgPad;
+      const bgY = startY - fontSize - bgPad;
+      const bgH = totalTextH + bgPad * 2;
+      ctx.fillStyle = textStyle === 'dark' ? 'rgba(0,0,0,0.65)' : textStyle === 'accent' ? 'rgba(127,119,221,0.75)' : 'rgba(255,255,255,0.75)';
+      ctx.beginPath();
+      const r = fontSize * 0.3;
+      ctx.roundRect(bgX, bgY, maxW + bgPad * 2, bgH, r);
+      ctx.fill();
+      // Texto
+      ctx.font = `bold ${fontSize}px system-ui, -apple-system, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.fillStyle = textStyle === 'dark' ? '#ffffff' : textStyle === 'accent' ? '#ffffff' : '#1a1a1a';
+      lines.forEach((line, i) => {
+        ctx.fillText(line, img.width / 2, startY + i * lineHeight);
+      });
+    }
+    return canvas;
+  }, [activeFilter, overlayText, textPosition, textStyle]);
+
+  // ── Download foto com filtro + texto ──────────────────────────────────
   const downloadFiltered = useCallback(() => {
     if (!imagePreview) return;
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext('2d');
-      const f = FILTERS.find(x => x.id === activeFilter);
-      ctx.filter = f?.css || 'none';
-      ctx.drawImage(img, 0, 0);
-      ctx.filter = 'none';
+      const canvas = renderCanvas(img);
       const link = document.createElement('a');
       link.download = `maluar-${activeFilter}-${Date.now()}.jpg`;
       link.href = canvas.toDataURL('image/jpeg', 0.95);
@@ -117,7 +171,7 @@ export default function PostGenerator({ user, userId, initialPrompt, plan = 'fre
       toast?.('Foto baixada!');
     };
     img.src = imagePreview;
-  }, [imagePreview, activeFilter, toast]);
+  }, [imagePreview, activeFilter, renderCanvas, toast]);
 
   // ── Gerar legenda ────────────────────────────────────────────────────
   const generatePost = async () => {
@@ -129,27 +183,44 @@ export default function PostGenerator({ user, userId, initialPrompt, plan = 'fre
     setResult(null);
 
     const typeLabel = POST_TYPES.find(t => t.id === postType)?.label?.replace(/^.+\s/, '') || postType;
+    const platformLabel = PLATFORMS.find(p => p.id === platform)?.label || 'Instagram';
+
+    // Regras específicas por plataforma
+    const platformRules = {
+      instagram: `- Plataforma: Instagram Feed/Carousel
+- Legenda até 2200 chars, mas ideal 150-300 palavras
+- 20-30 hashtags relevantes (misture populares + nicho)
+- Use emojis com moderação (2-4)
+- CTA: "Link na bio", "Salve pra depois", "Marque uma amiga"`,
+      facebook: `- Plataforma: Facebook
+- Texto mais conversacional e pessoal, como se falasse com uma amiga
+- Menos hashtags (3-5 no máximo, Facebook não depende de hashtags)
+- Pode ser mais longo e storytelling
+- CTA: "Curte", "Compartilha", "Comenta aqui embaixo"`,
+      whatsapp: `- Plataforma: Status/Broadcast do WhatsApp
+- Texto CURTO e direto (máx 100 palavras)
+- SEM hashtags (WhatsApp não usa)
+- Tom íntimo, como mensagem pra cliente
+- Pode usar mais emojis (3-6)
+- CTA: "Chama no inbox", "Agenda comigo", "Responde esse status"`,
+    };
 
     const systemPrompt = `Você é uma expert em social media para nail designers brasileiras. Crie conteúdo profissional, autêntico e envolvente.
 
 REGRAS:
 - PT-BR, tom amigável e profissional
-- Hashtags relevantes para nail design brasileiro
-- Emojis com moderação (2-4 por post)
 - Se tiver foto: descreva o que vê e crie conteúdo baseado nela
 - Tipo de post: ${typeLabel}
+${platformRules[platform] || platformRules.instagram}
 
 FORMATO DE RESPOSTA (use exatamente estas seções):
 **LEGENDA:**
-(legenda completa pronta pra copiar — máx 300 palavras)
+(legenda completa pronta pra copiar)
 
-**HASHTAGS:**
-(15-20 hashtags separadas por espaço, prontas pra copiar)
-
-**DICA:**
+${platform !== 'whatsapp' ? '**HASHTAGS:**\n(hashtags separadas por espaço, prontas pra copiar)\n\n' : ''}**DICA:**
 (1-2 frases: melhor horário, formato ideal ou sugestão rápida)`;
 
-    let promptText = `Crie um post para Instagram, tipo: ${typeLabel}.`;
+    let promptText = `Crie um post para ${platformLabel}, tipo: ${typeLabel}.`;
     if (extraInfo) promptText += ` Contexto: ${extraInfo}`;
     if (!imageBase64) promptText += ' Não tenho foto, crie baseado no tipo.';
 
@@ -185,7 +256,7 @@ FORMATO DE RESPOSTA (use exatamente estas seções):
 
       if (!text.startsWith('Erro') && userId) {
         const saved = await dbSavePost(userId, {
-          platform: 'Instagram',
+          platform: platformLabel,
           postType: typeLabel,
           content: text,
         }).catch(() => null);
@@ -265,11 +336,28 @@ FORMATO DE RESPOSTA (use exatamente estas seções):
             </div>
           )}
 
+          {/* Plataforma */}
+          <div className="flex gap-2">
+            {PLATFORMS.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => { setPlatform(p.id); setResult(null); }}
+                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium transition-all border ${
+                  platform === p.id
+                    ? 'border-accent bg-accent-light text-text shadow-soft'
+                    : 'border-border bg-surface-card text-text-muted hover:border-accent/40'
+                }`}
+              >
+                <span>{p.icon}</span> {p.label}
+              </button>
+            ))}
+          </div>
+
           {/* ① FOTO */}
           <div>
             {imagePreview ? (
               <div className="space-y-3">
-                {/* Preview com filtro */}
+                {/* Preview com filtro + texto overlay */}
                 <div className="relative rounded-xl overflow-hidden border border-border shadow-soft">
                   <img
                     src={imagePreview}
@@ -277,6 +365,20 @@ FORMATO DE RESPOSTA (use exatamente estas seções):
                     className="w-full max-h-[400px] object-contain bg-black"
                     style={{ filter: FILTERS.find(f => f.id === activeFilter)?.css || 'none' }}
                   />
+                  {/* Overlay de texto (preview) */}
+                  {overlayText.trim() && (
+                    <div className={`absolute inset-x-0 px-4 flex ${
+                      textPosition === 'top' ? 'top-4' : textPosition === 'center' ? 'top-1/2 -translate-y-1/2' : 'bottom-4'
+                    }`}>
+                      <div className={`mx-auto px-4 py-2 rounded-lg text-center max-w-[85%] ${
+                        textStyle === 'dark' ? 'bg-black/65 text-white' : textStyle === 'accent' ? 'bg-accent/75 text-white' : 'bg-white/75 text-gray-900'
+                      }`}>
+                        {overlayText.split('\n').map((line, i) => (
+                          <p key={i} className="font-bold text-sm leading-snug">{line}</p>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <button
                     onClick={() => {
                       setImagePreview(null);
@@ -322,17 +424,66 @@ FORMATO DE RESPOSTA (use exatamente estas seções):
                   </div>
                 </div>
 
-                {/* Baixar foto com filtro */}
-                {activeFilter !== 'original' && (
+                {/* Baixar foto / Adicionar texto */}
+                <div className="flex items-center gap-3">
                   <button
-                    onClick={downloadFiltered}
-                    className="flex items-center gap-2 text-xs text-accent hover:text-accent-hover font-medium transition-colors"
+                    onClick={() => setShowTextEditor(!showTextEditor)}
+                    className={`flex items-center gap-1.5 text-xs font-medium transition-colors ${showTextEditor ? 'text-accent' : 'text-text-muted hover:text-accent'}`}
                   >
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                    </svg>
-                    Baixar foto com filtro
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                    Adicionar texto
                   </button>
+                  {(activeFilter !== 'original' || overlayText.trim()) && (
+                    <button
+                      onClick={downloadFiltered}
+                      className="flex items-center gap-1.5 text-xs text-accent hover:text-accent-hover font-medium transition-colors"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      Baixar imagem
+                    </button>
+                  )}
+                </div>
+
+                {/* Editor de texto na imagem */}
+                {showTextEditor && (
+                  <div className="bg-surface-card border border-border rounded-xl p-3 space-y-2.5 animate-fade-in">
+                    <textarea
+                      value={overlayText}
+                      onChange={(e) => setOverlayText(e.target.value)}
+                      placeholder="Ex: Alongamento Gel • Agende já!"
+                      rows={2}
+                      maxLength={120}
+                      className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text placeholder-text-light focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all resize-none"
+                    />
+                    <div className="flex items-center gap-4">
+                      <div className="flex-1">
+                        <p className="text-[10px] text-text-light mb-1">Posição</p>
+                        <div className="flex gap-1">
+                          {[{ id: 'top', label: '↑ Topo' }, { id: 'center', label: '― Centro' }, { id: 'bottom', label: '↓ Base' }].map(pos => (
+                            <button
+                              key={pos.id}
+                              onClick={() => setTextPosition(pos.id)}
+                              className={`flex-1 text-[10px] py-1 rounded-md transition-colors ${textPosition === pos.id ? 'bg-accent text-white' : 'bg-surface text-text-muted hover:bg-accent-bg'}`}
+                            >{pos.label}</button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-[10px] text-text-light mb-1">Estilo</p>
+                        <div className="flex gap-1">
+                          {[{ id: 'light', label: 'Claro' }, { id: 'dark', label: 'Escuro' }, { id: 'accent', label: 'Roxo' }].map(s => (
+                            <button
+                              key={s.id}
+                              onClick={() => setTextStyle(s.id)}
+                              className={`flex-1 text-[10px] py-1 rounded-md transition-colors ${textStyle === s.id ? 'bg-accent text-white' : 'bg-surface text-text-muted hover:bg-accent-bg'}`}
+                            >{s.label}</button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 )}
               </div>
             ) : (
