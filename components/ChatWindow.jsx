@@ -532,32 +532,6 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
         </div>
       </div>
 
-      {/* Occasion quick chips — only show for new chats with just the welcome msg */}
-      {messages.length <= 1 && !isLoading && !isStreaming && (
-        <div className="px-4 pb-3">
-          <div className="max-w-2xl mx-auto">
-            <p className="text-[11px] text-text-light mb-2 font-medium uppercase tracking-wide">Comece por uma ocasião</p>
-            <div className="flex flex-wrap gap-1.5">
-              {[
-                { label: '💍 Casamento', prompt: 'Quero sugestões de nail design para casamento' },
-                { label: '🎉 Festa', prompt: 'Ideias de unha para festa/balada' },
-                { label: '💼 Trabalho', prompt: 'Design de unha elegante para o dia a dia no trabalho' },
-                { label: '🌴 Dia-a-dia', prompt: 'Design simples e bonito para o dia a dia' },
-                { label: '🎄 Natal/Ano Novo', prompt: 'Nail art temática para Natal e Ano Novo' },
-              ].map((item, idx) => (
-                <button
-                  key={item.label}
-                  onClick={() => sendMessage(item.prompt)}
-                  className={`text-xs px-3 py-1.5 rounded-full border border-border-light bg-surface-card text-text-muted hover:border-accent hover:text-accent hover:bg-accent-bg transition-all card-glow animate-fade-in-delayed delay-${(idx + 1) * 100}`}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Input */}
       <div className="border-t border-border-light bg-surface-card/80 backdrop-blur-sm">
         <form onSubmit={handleSubmitWithFile} className="max-w-2xl mx-auto p-4">

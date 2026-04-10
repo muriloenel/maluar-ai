@@ -128,22 +128,21 @@ export default function Home() {
 
   const handleNewChat = async () => {
     if (!user) return;
+    // Resetar estado imediatamente pra UI responder rápido
+    const tempId = 'new-' + Date.now();
+    setChatMessages(null);
+    setActiveChatId(tempId);
+    setActiveTab('chat');
     try {
       const chat = await dbCreateChat(user.id);
       if (chat) {
         setActiveChatId(chat.id);
-        setChatMessages(null);
-        await refreshChatList();
-        setActiveTab('chat');
+        refreshChatList(); // não bloqueia
         return;
       }
     } catch (err) {
-      console.warn('Erro ao criar chat (modo convidado?):', err);
+      console.warn('[NEW-CHAT] Erro ao criar:', err?.message);
     }
-    // Fallback: modo convidado sem DB — reseta mensagens in-memory
-    setActiveChatId('local-' + Date.now());
-    setChatMessages(null);
-    setActiveTab('chat');
   };
 
   const handleSelectChat = async (chatId) => {

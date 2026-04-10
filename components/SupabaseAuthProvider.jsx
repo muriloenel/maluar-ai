@@ -203,6 +203,20 @@ export default function SupabaseAuthProvider({ children }) {
     };
   }, [supabase, fetchProfile]);
 
+  // Auto-refresh profile quando usuário volta à aba (captura mudanças de plano via webhook)
+  useEffect(() => {
+    if (!supabase || !user) return;
+    let lastRefresh = Date.now();
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && Date.now() - lastRefresh > 30000) {
+        lastRefresh = Date.now();
+        fetchProfile(user).catch(() => {});
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [supabase, user, fetchProfile]);
+
   const signOut = useCallback(async () => {
     // Limpar state imediatamente (não esperar o Supabase que pode travar no lock)
     setUser(null);

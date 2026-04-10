@@ -74,6 +74,8 @@ export async function POST(req) {
       'customer_email': user.email,
       'metadata[user_id]': user.id,
       'metadata[plan]': plan,
+      'subscription_data[metadata][plan]': plan,
+      'subscription_data[metadata][user_id]': user.id,
     });
 
     if (session.error) {

@@ -8,6 +8,11 @@ const STRIPE_API = 'https://api.stripe.com/v1';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
 
+// Mapa reverso: price ID → nome do plano (para subscription events que não carregam metadata)
+const PRICE_TO_PLAN = {};
+if (process.env.STRIPE_PRICE_PRO) PRICE_TO_PLAN[process.env.STRIPE_PRICE_PRO.trim()] = 'pro';
+if (process.env.STRIPE_PRICE_PREMIUM) PRICE_TO_PLAN[process.env.STRIPE_PRICE_PREMIUM.trim()] = 'premium';
+
 async function verifyStripeSignature(req) {
   const signature = req.headers.get('stripe-signature');
   if (!signature || !STRIPE_WEBHOOK_SECRET) return null;
@@ -133,11 +138,26 @@ export async function POST(req) {
 
       case 'customer.subscription.updated': {
         const sub = event.data.object;
-        const { data: profile } = await supabase
+        // Tentar encontrar profile por stripe_customer_id, fallback por user_id do metadata
+        let profile = null;
+        const { data: byCustomer } = await supabase
           .from('profiles')
           .select('id, plan')
           .eq('stripe_customer_id', sub.customer)
           .single();
+        profile = byCustomer;
+        if (!profile && sub.metadata?.user_id) {
+          const { data: byUserId } = await supabase
+            .from('profiles')
+            .select('id, plan')
+            .eq('id', sub.metadata.user_id)
+            .single();
+          profile = byUserId;
+          // Associar customer_id para próximas buscas
+          if (profile) {
+            await supabase.from('profiles').update({ stripe_customer_id: sub.customer }).eq('id', profile.id);
+          }
+        }
 
         if (profile) {
           const status = sub.status;
@@ -155,6 +175,18 @@ export async function POST(req) {
               sendPaymentFailedEmail(customer.email, customer.name).catch(() => {});
             }
             console.log(`[WEBHOOK] past_due para ${profile.id} — grace period, plano mantido`);
+          } else if (status === 'active' || status === 'trialing') {
+            // Assinatura ativa — garantir que o plano está correto no DB
+            // Resolve caso checkout.session.completed tenha falhado
+            const priceId = sub.items?.data?.[0]?.price?.id;
+            const correctPlan = sub.metadata?.plan || PRICE_TO_PLAN[priceId];
+            if (correctPlan && profile.plan !== correctPlan) {
+              console.log(`[WEBHOOK] Corrigindo plano: ${profile.plan} → ${correctPlan} para ${profile.id}`);
+              await supabase
+                .from('profiles')
+                .update({ plan: correctPlan, updated_at: new Date().toISOString() })
+                .eq('id', profile.id);
+            }
           }
         }
         break;
@@ -162,17 +194,27 @@ export async function POST(req) {
 
       case 'customer.subscription.deleted': {
         const sub = event.data.object;
-        const { data: profile } = await supabase
+        let delProfile = null;
+        const { data: delByCustomer } = await supabase
           .from('profiles')
           .select('id')
           .eq('stripe_customer_id', sub.customer)
           .single();
+        delProfile = delByCustomer;
+        if (!delProfile && sub.metadata?.user_id) {
+          const { data: delByUserId } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('id', sub.metadata.user_id)
+            .single();
+          delProfile = delByUserId;
+        }
 
-        if (profile) {
+        if (delProfile) {
           await supabase
             .from('profiles')
             .update({ plan: 'free', stripe_subscription_id: null, updated_at: new Date().toISOString() })
-            .eq('id', profile.id);
+            .eq('id', delProfile.id);
 
           // Enviar email de cancelamento
           const customer = await stripeGet(`/customers/${sub.customer}`).catch(() => null);
