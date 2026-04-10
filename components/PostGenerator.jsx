@@ -54,8 +54,6 @@ export default function PostGenerator({ user, userId, initialPrompt, plan = 'fre
   }, [userId]);
   const fileInputRef = useRef(null);
   const toast = useToast();
-  const [aiImagePrompt, setAiImagePrompt] = useState('');
-  const [generatingAiImage, setGeneratingAiImage] = useState(false);
   const [enhancingPhoto, setEnhancingPhoto] = useState(false);
 
   const enhancePhoto = async () => {
@@ -99,42 +97,6 @@ export default function PostGenerator({ user, userId, initialPrompt, plan = 'fre
       toast?.('Erro ao melhorar foto. Tente novamente.');
     } finally {
       setEnhancingPhoto(false);
-    }
-  };
-
-  const generateAiImage = async () => {
-    if (!aiImagePrompt.trim()) return;
-    setGeneratingAiImage(true);
-    try {
-      const token = getAccessToken ? await getAccessToken() : null;
-      const res = await fetch('/api/image/generate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token && { Authorization: `Bearer ${token}` }),
-        },
-        body: JSON.stringify({ prompt: aiImagePrompt }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast?.(data.error || 'Erro ao gerar imagem');
-        return;
-      }
-      // Baixar a imagem e converter para base64 para usar no editor
-      const imgRes = await fetch(data.url);
-      const blob = await imgRes.blob();
-      const reader = new FileReader();
-      reader.onload = () => {
-        setImagePreview(reader.result);
-        setImageBase64(reader.result.split(',')[1]);
-        setImageMediaType(blob.type || 'image/png');
-        toast?.('Imagem gerada com IA!');
-      };
-      reader.readAsDataURL(blob);
-    } catch {
-      toast?.('Erro ao gerar imagem. Tente novamente.');
-    } finally {
-      setGeneratingAiImage(false);
     }
   };
 
@@ -324,7 +286,7 @@ CTA: (chamada pra ação curta: "Agende pelo WhatsApp", "Chame no direct", etc.)
             <div>
               <h2 className="font-display text-xl font-bold text-text">Criar Post</h2>
               <p className="text-text-muted text-sm mt-0.5">
-                Gere legendas e conteúdo pra suas redes sociais
+                Suba sua foto real e monte um post profissional com templates
               </p>
             </div>
             {postHistory.length > 0 && (
@@ -458,7 +420,7 @@ CTA: (chamada pra ação curta: "Agende pelo WhatsApp", "Chame no direct", etc.)
                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                         </svg>
-                        ✨ Melhorar foto com IA
+                        ✨ Melhorar iluminação e cores
                       </>
                     )}
                   </button>
@@ -468,59 +430,23 @@ CTA: (chamada pra ação curta: "Agende pelo WhatsApp", "Chame no direct", etc.)
                     onClick={onUpgrade}
                     className="flex items-center gap-2 px-3 py-2 rounded-xl text-[11px] font-medium text-text-muted border border-border hover:border-accent/40 transition-all"
                   >
-                    ✨ Melhorar foto com IA <span className="text-[9px] bg-accent/15 text-accent px-1.5 py-0.5 rounded-full font-bold">PRO</span>
+                    ✨ Melhorar iluminação e cores <span className="text-[9px] bg-accent/15 text-accent px-1.5 py-0.5 rounded-full font-bold">PRO</span>
                   </button>
                 )}
               </div>
             ) : (
-              <div className="space-y-2">
-                <label
-                  htmlFor="post-file-input"
-                  className="flex items-center gap-3 px-4 py-3 border-2 border-dashed border-border rounded-xl text-text-muted hover:border-accent hover:text-accent hover:bg-accent-bg transition-all w-full cursor-pointer"
-                >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                  <span className="text-sm">Enviar foto da galeria</span>
-                </label>
-
-                <div className="flex items-center gap-2 text-text-light text-[11px]">
-                  <div className="flex-1 h-px bg-border" />
-                  <span>ou gere com IA</span>
-                  <div className="flex-1 h-px bg-border" />
+              <label
+                htmlFor="post-file-input"
+                className="flex items-center gap-3 px-4 py-3 border-2 border-dashed border-border rounded-xl text-text-muted hover:border-accent hover:text-accent hover:bg-accent-bg transition-all w-full cursor-pointer"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <div>
+                  <span className="text-sm block">Enviar foto real</span>
+                  <span className="text-[11px] text-text-light">Use sua foto de trabalho para um post autêntico</span>
                 </div>
-
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={aiImagePrompt}
-                    onChange={(e) => setAiImagePrompt(e.target.value)}
-                    placeholder="Ex: Unhas stiletto rosa com glitter..."
-                    className="flex-1 bg-surface-card border border-border rounded-xl px-3 py-2.5 text-sm text-text placeholder-text-light focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all"
-                    maxLength={500}
-                    disabled={generatingAiImage}
-                  />
-                  <button
-                    onClick={generateAiImage}
-                    disabled={generatingAiImage || !aiImagePrompt.trim()}
-                    className="px-4 py-2.5 rounded-xl text-xs font-semibold bg-accent text-white hover:bg-accent-hover disabled:opacity-50 transition-colors whitespace-nowrap flex items-center gap-1.5"
-                  >
-                    {generatingAiImage ? (
-                      <>
-                        <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        Gerando...
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                        </svg>
-                        Gerar
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
+              </label>
             )}
             <input
               id="post-file-input"
@@ -593,8 +519,8 @@ CTA: (chamada pra ação curta: "Agende pelo WhatsApp", "Chame no direct", etc.)
               <div className="flex items-center gap-2">
                 <span className="text-lg">🎨</span>
                 <div>
-                  <p className="text-sm font-medium text-text">Quer só montar a imagem?</p>
-                  <p className="text-xs text-text-muted">Use o editor abaixo pra criar seu post direto, sem precisar gerar texto.</p>
+                  <p className="text-sm font-medium text-text">Monte seu post profissional</p>
+                  <p className="text-xs text-text-muted">Escolha um template, adicione texto com fontes profissionais e baixe pronto pra postar.</p>
                 </div>
               </div>
               <PostImageEditor

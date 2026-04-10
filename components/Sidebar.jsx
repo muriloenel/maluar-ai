@@ -340,29 +340,17 @@ export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activ
           )}
 
           {/* ═══ CRIAR ═══ */}
-          <Section icon="🎨" title="Criar" defaultOpen>
-            <div className="space-y-1 px-1">
-              <button
-                onClick={() => { onTabChange('post'); onClose(); }}
-                className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-colors ${
-                  activeTab === 'post' ? 'bg-accent-bg text-accent' : 'text-text-muted hover:bg-surface-alt hover:text-text'
-                }`}
-              >
-                <span className="text-sm">✍️</span>
-                <span className="text-xs font-medium">Criar Post</span>
-              </button>
-              <button
-                onClick={() => { onTabChange('image'); onClose(); }}
-                className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-colors ${
-                  activeTab === 'image' ? 'bg-accent-bg text-accent' : 'text-text-muted hover:bg-surface-alt hover:text-text'
-                }`}
-              >
-                <span className="text-sm">✨</span>
-                <span className="text-xs font-medium flex-1">Criar Imagem IA</span>
-                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-gradient-to-r from-accent to-rose text-white">PRO</span>
-              </button>
-            </div>
-          </Section>
+          <div className="px-3 py-1">
+            <button
+              onClick={() => { onTabChange('post'); onClose(); }}
+              className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left transition-colors ${
+                activeTab === 'post' ? 'bg-accent-bg text-accent' : 'text-text-muted hover:bg-surface-alt hover:text-text'
+              }`}
+            >
+              <span className="text-sm">🎨</span>
+              <span className="text-[11px] font-semibold text-text-light uppercase tracking-wider">Criar Post</span>
+            </button>
+          </div>
 
           {/* ═══ APRENDER ═══ */}
           <div className="px-3 py-1">

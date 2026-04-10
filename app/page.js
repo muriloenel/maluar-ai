@@ -22,7 +22,6 @@ const FavoritesGallery = dynamic(() => import('../components/FavoritesGallery'),
 const PricingCalculator = dynamic(() => import('../components/PricingCalculator'), { ssr: false, loading: () => <TabSpinner /> });
 const BusinessHub = dynamic(() => import('../components/BusinessHub'), { ssr: false, loading: () => <TabSpinner /> });
 const PricingPlans = dynamic(() => import('../components/PricingPlans'), { ssr: false, loading: () => <TabSpinner /> });
-const ImageGenerator = dynamic(() => import('../components/ImageGenerator'), { ssr: false, loading: () => <TabSpinner /> });
 
 // Spinner para transição entre abas
 function TabSpinner() {
@@ -332,7 +331,7 @@ export default function Home() {
           <button
             onClick={() => setActiveTab('post')}
             className={`flex-1 py-2.5 text-xs font-medium transition-colors whitespace-nowrap ${
-              activeTab === 'post' || activeTab === 'image'
+              activeTab === 'post'
                 ? 'text-accent border-b-2 border-accent'
                 : 'text-text-muted'
             }`}
@@ -392,8 +391,6 @@ export default function Home() {
                 getAccessToken={getAccessToken}
                 onManageSubscription={handleManageSubscription}
               />
-            ) : activeTab === 'image' ? (
-              <ImageGenerator plan={effectiveProfile.plan || 'free'} onUpgrade={handleUpgrade} />
             ) : (
               <PostGenerator key={postKey} user={userForComponents} userId={user.id} initialPrompt={postPrompt} plan={effectiveProfile.plan || 'free'} onUpgrade={handleUpgrade} />
             )}
