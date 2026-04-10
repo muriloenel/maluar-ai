@@ -1,118 +1,71 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
-import PostImageEditor from './PostImageEditor';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useToast } from './Toast';
 import { dbLoadPostHistory, dbSavePost, dbDeletePost } from '../lib/db';
 import { useAuth } from './SupabaseAuthProvider';
-import UpgradePrompt from './UpgradePrompt';
 
-const PLATFORMS = [
-  { id: 'instagram', label: 'Instagram', icon: '📸' },
-  { id: 'facebook', label: 'Facebook', icon: '📘' },
-  { id: 'stories', label: 'Stories', icon: '📱' },
+// ── Filtros estilo Instagram (CSS filter) ──────────────────────────────
+const FILTERS = [
+  { id: 'original', label: 'Original', css: 'none' },
+  { id: 'clarendon', label: 'Clarendon', css: 'contrast(1.2) saturate(1.35)' },
+  { id: 'gingham', label: 'Gingham', css: 'brightness(1.05) hue-rotate(-10deg) saturate(0.7)' },
+  { id: 'moon', label: 'Moon', css: 'grayscale(0.6) brightness(1.1) contrast(0.95)' },
+  { id: 'lark', label: 'Lark', css: 'brightness(1.1) saturate(0.9) contrast(1.05)' },
+  { id: 'juno', label: 'Juno', css: 'contrast(1.15) saturate(1.4) brightness(1.05) sepia(0.05)' },
+  { id: 'valencia', label: 'Valencia', css: 'brightness(1.08) sepia(0.15) saturate(1.2) contrast(1.05)' },
+  { id: 'warm', label: 'Quente', css: 'sepia(0.2) saturate(1.3) brightness(1.05)' },
+  { id: 'cool', label: 'Frio', css: 'saturate(0.85) brightness(1.1) hue-rotate(10deg)' },
+  { id: 'vivid', label: 'Vívido', css: 'saturate(1.5) contrast(1.1) brightness(1.02)' },
 ];
 
 const POST_TYPES = [
-  { id: 'resultado', label: 'Resultado / Antes e Depois' },
-  { id: 'dica', label: 'Dica Técnica' },
-  { id: 'promocao', label: 'Promoção / Oferta' },
-  { id: 'bastidor', label: 'Bastidores / Processo' },
-  { id: 'depoimento', label: 'Depoimento de Cliente' },
-  { id: 'tendencia', label: 'Tendência / Inspiração' },
+  { id: 'resultado', label: '📸 Resultado' },
+  { id: 'antesdepois', label: '🔄 Antes e Depois' },
+  { id: 'dica', label: '💡 Dica Técnica' },
+  { id: 'promocao', label: '🔥 Promoção' },
+  { id: 'bastidor', label: '🎬 Bastidores' },
+  { id: 'depoimento', label: '💬 Depoimento' },
 ];
 
 export default function PostGenerator({ user, userId, initialPrompt, plan = 'free', onUpgrade }) {
-  const [platform, setPlatformRaw] = useState('instagram');
-  const [postType, setPostTypeRaw] = useState('resultado');
-
-  const setPlatform = (val) => { setPlatformRaw(val); setResult(null); };
-  const setPostType = (val) => { setPostTypeRaw(val); setResult(null); };
+  const [postType, setPostType] = useState('');
   const [extraInfo, setExtraInfo] = useState(initialPrompt || '');
   const [imagePreview, setImagePreview] = useState(null);
   const [imageBase64, setImageBase64] = useState(null);
   const [imageMediaType, setImageMediaType] = useState('image/jpeg');
+  const [activeFilter, setActiveFilter] = useState('original');
   const [result, setResult] = useState(null);
-  const [structuredData, setStructuredData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [postHistory, setPostHistory] = useState([]);
   const { getAccessToken } = useAuth();
+  const fileInputRef = useRef(null);
+  const toast = useToast();
 
   const isFree = plan === 'free' || !plan;
   const POST_LIMITS = { free: 2, pro: 15, premium: 9999 };
   const dailyLimit = POST_LIMITS[plan] || POST_LIMITS.free;
-  // Count today's posts from history
   const todayStr = new Date().toISOString().slice(0, 10);
   const todayPosts = postHistory.filter(p => p.created_at?.slice(0, 10) === todayStr).length;
   const postsRemaining = Math.max(0, dailyLimit - todayPosts);
   const atLimit = postsRemaining <= 0 && isFree;
 
-  // Load post history from Supabase on mount
   useEffect(() => {
     if (userId) dbLoadPostHistory(userId).then(setPostHistory).catch(() => {});
   }, [userId]);
-  const fileInputRef = useRef(null);
-  const toast = useToast();
-  const [enhancingPhoto, setEnhancingPhoto] = useState(false);
 
-  const enhancePhoto = async () => {
-    if (!imageBase64 || enhancingPhoto) return;
-    setEnhancingPhoto(true);
-    try {
-      const token = getAccessToken ? await getAccessToken() : null;
-      const res = await fetch('/api/image/enhance', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token && { Authorization: `Bearer ${token}` }),
-        },
-        body: JSON.stringify({ action: 'enhance', imageBase64 }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast?.(data.error || 'Erro ao melhorar foto');
-        if (data.upgrade) onUpgrade?.();
-        return;
-      }
-      if (data.url) {
-        const imgRes = await fetch(data.url);
-        const blob = await imgRes.blob();
-        const reader = new FileReader();
-        reader.onload = () => {
-          setImagePreview(reader.result);
-          setImageBase64(reader.result.split(',')[1]);
-          setImageMediaType(blob.type || 'image/png');
-          toast?.('Foto melhorada com IA! ✨');
-        };
-        reader.readAsDataURL(blob);
-      } else if (data.b64) {
-        const dataUrl = `data:image/png;base64,${data.b64}`;
-        setImagePreview(dataUrl);
-        setImageBase64(data.b64);
-        setImageMediaType('image/png');
-        toast?.('Foto melhorada com IA! ✨');
-      }
-    } catch {
-      toast?.('Erro ao melhorar foto. Tente novamente.');
-    } finally {
-      setEnhancingPhoto(false);
-    }
-  };
-
+  // ── Upload ───────────────────────────────────────────────────────────
   const handleImageUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     if (file.size > 5 * 1024 * 1024) {
       alert('Imagem muito grande! Máximo 5MB.');
       return;
     }
 
-    // Detectar HEIF/HEIC por tipo ou extensão
     const isHeic = file.type === 'image/heic' || file.type === 'image/heif'
       || /\.(heic|heif)$/i.test(file.name);
-
     let fileToProcess = file;
 
     if (isHeic) {
@@ -120,9 +73,8 @@ export default function PostGenerator({ user, userId, initialPrompt, plan = 'fre
         const heic2any = (await import('heic2any')).default;
         const blob = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.92 });
         fileToProcess = new File([blob], file.name.replace(/\.(heic|heif)$/i, '.jpg'), { type: 'image/jpeg' });
-      } catch (err) {
-        console.error('[Maluar] HEIC conversion failed:', err);
-        alert('Não foi possível converter a foto HEIF. Desative "Fotos de alta eficiência" nas configurações da câmera e tente novamente.');
+      } catch {
+        alert('Não foi possível converter a foto HEIF. Desative "Fotos de alta eficiência" nas configurações da câmera.');
         return;
       }
     }
@@ -140,97 +92,104 @@ export default function PostGenerator({ user, userId, initialPrompt, plan = 'fre
     };
     reader.readAsDataURL(fileToProcess);
     e.target.value = '';
+    setActiveFilter('original');
+    setResult(null);
   };
 
-  const removeImage = () => {
-    setImagePreview(null);
-    setImageBase64(null);
-  };
+  // ── Download foto com filtro (Canvas) ────────────────────────────────
+  const downloadFiltered = useCallback(() => {
+    if (!imagePreview) return;
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      const f = FILTERS.find(x => x.id === activeFilter);
+      ctx.filter = f?.css || 'none';
+      ctx.drawImage(img, 0, 0);
+      ctx.filter = 'none';
+      const link = document.createElement('a');
+      link.download = `maluar-${activeFilter}-${Date.now()}.jpg`;
+      link.href = canvas.toDataURL('image/jpeg', 0.95);
+      link.click();
+      toast?.('Foto baixada!');
+    };
+    img.src = imagePreview;
+  }, [imagePreview, activeFilter, toast]);
 
+  // ── Gerar legenda ────────────────────────────────────────────────────
   const generatePost = async () => {
+    if (!postType) {
+      toast?.('Selecione o tipo de post');
+      return;
+    }
     setIsLoading(true);
     setResult(null);
 
-    const platformLabel = PLATFORMS.find((p) => p.id === platform)?.label;
-    const typeLabel = POST_TYPES.find((t) => t.id === postType)?.label;
+    const typeLabel = POST_TYPES.find(t => t.id === postType)?.label?.replace(/^.+\s/, '') || postType;
 
-    const systemPrompt = `Você é uma expert em social media marketing para nail designers. Crie conteúdo profissional e envolvente.
+    const systemPrompt = `Você é uma expert em social media para nail designers brasileiras. Crie conteúdo profissional, autêntico e envolvente.
 
 REGRAS:
-- Sempre em PT-BR, tom amigável e profissional
+- PT-BR, tom amigável e profissional
 - Hashtags relevantes para nail design brasileiro
 - Emojis com moderação (2-4 por post)
 - Se tiver foto: descreva o que vê e crie conteúdo baseado nela
-- Adapte o tom para a plataforma: ${platformLabel}
 - Tipo de post: ${typeLabel}
 
 FORMATO DE RESPOSTA (use exatamente estas seções):
 **LEGENDA:**
-(a legenda completa pronta pra copiar)
+(legenda completa pronta pra copiar — máx 300 palavras)
 
 **HASHTAGS:**
-(hashtags separadas, prontas pra copiar)
+(15-20 hashtags separadas por espaço, prontas pra copiar)
 
-**DICA DE PUBLICAÇÃO:**
-(melhor horário, formato ideal, sugestão extra)
+**DICA:**
+(1-2 frases: melhor horário, formato ideal ou sugestão rápida)`;
 
-**TEMPLATE:**
-TÍTULO: (frase curta e impactante pra ser o destaque visual do post, máx 50 chars, SEM emoji)
-DESCRIÇÃO: (1 frase descrevendo o serviço/resultado, máx 80 chars)
-TÓPICO 1: (primeiro benefício/destaque, curto, máx 40 chars)
-TÓPICO 2: (segundo benefício/destaque, curto, máx 40 chars)
-TÓPICO 3: (terceiro benefício/destaque, curto, máx 40 chars)
-LOCAL: (cidade se mencionada, senão deixe vazio)
-CTA: (chamada pra ação curta: "Agende pelo WhatsApp", "Chame no direct", etc.)`;
+    let promptText = `Crie um post para Instagram, tipo: ${typeLabel}.`;
+    if (extraInfo) promptText += ` Contexto: ${extraInfo}`;
+    if (!imageBase64) promptText += ' Não tenho foto, crie baseado no tipo.';
 
-    let promptText = `Crie um post para ${platformLabel}, tipo: ${typeLabel}.`;
-    if (extraInfo) promptText += ` Contexto extra: ${extraInfo}`;
-    if (!imageBase64) promptText += ' Não tenho foto, crie com base no tipo de post.';
-
-    const messages = [
-      {
-        role: 'user',
-        content: imageBase64
-          ? [
-              { type: 'image', source: { type: 'base64', media_type: imageMediaType, data: imageBase64 } },
-              { type: 'text', text: promptText },
-            ]
-          : promptText,
-      },
-    ];
+    const messages = [{
+      role: 'user',
+      content: imageBase64
+        ? [
+            { type: 'image', source: { type: 'base64', media_type: imageMediaType, data: imageBase64 } },
+            { type: 'text', text: promptText },
+          ]
+        : promptText,
+    }];
 
     try {
-      const authToken = getAccessToken ? await getAccessToken() : null;
-      const fetchHeaders = { 'Content-Type': 'application/json' };
-      if (authToken) fetchHeaders['Authorization'] = `Bearer ${authToken}`;
+      const token = getAccessToken ? await getAccessToken() : null;
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
 
       const res = await fetch('/api/chat', {
         method: 'POST',
-        headers: fetchHeaders,
+        headers,
         body: JSON.stringify({ messages, system: systemPrompt }),
       });
 
       if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Erro na API');
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Erro na API');
       }
 
       const data = await res.json();
-      const text = data.content?.[0]?.text || 'Não consegui gerar o post. Tenta de novo!';
+      const text = data.content?.[0]?.text || 'Não consegui gerar. Tenta de novo!';
       setResult(text);
-      setStructuredData(extractTemplateData(text));
-      setIsLoading(false); // Desbloqueia o botão IMEDIATAMENTE após gerar
 
-      // Save to history (não bloqueia a UI)
       if (!text.startsWith('Erro') && userId) {
-        try {
-          const platformLabel2 = PLATFORMS.find((p) => p.id === platform)?.label;
-          const typeLabel2 = POST_TYPES.find((t) => t.id === postType)?.label;
-          const saved = await dbSavePost(userId, { platform: platformLabel2, postType: typeLabel2, content: text });
-          if (saved) setPostHistory(prev => [saved, ...prev]);
-        } catch (saveErr) {
-          // Silently fail — post já foi gerado, salvar é secundário
-        }
+        const saved = await dbSavePost(userId, {
+          platform: 'Instagram',
+          postType: typeLabel,
+          content: text,
+        }).catch(() => null);
+        if (saved) setPostHistory(prev => [saved, ...prev]);
       }
     } catch (err) {
       setResult(`Erro: ${err.message}`);
@@ -239,213 +198,153 @@ CTA: (chamada pra ação curta: "Agende pelo WhatsApp", "Chame no direct", etc.)
     }
   };
 
+  // ── Helpers ──────────────────────────────────────────────────────────
+  const extractSection = (section) => {
+    if (!result) return '';
+    const regex = new RegExp(`\\*\\*${section}[:\\s]*\\*\\*\\s*([\\s\\S]*?)(?=\\*\\*[A-ZÁÉÍÓÚÂ]|$)`, 'i');
+    const match = result.match(regex);
+    return match ? match[1].trim() : '';
+  };
+
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
     toast?.('Copiado!');
   };
 
-  // Extrair dados estruturados da seção TEMPLATE da resposta da IA
-  const extractTemplateData = (text) => {
-    const templateMatch = text.match(/\*\*TEMPLATE[^*]*\*\*\s*([\s\S]*?)$/i);
-    if (!templateMatch) return null;
-    const section = templateMatch[1];
-    const get = (key) => {
-      const m = section.match(new RegExp(`${key}:\\s*(.+)`, 'i'));
-      return m ? m[1].trim() : '';
-    };
-    return {
-      headline: get('TÍTULO') || get('TITULO'),
-      subtitle: get('DESCRIÇÃO') || get('DESCRICAO'),
-      bullets: [get('TÓPICO 1') || get('TOPICO 1'), get('TÓPICO 2') || get('TOPICO 2'), get('TÓPICO 3') || get('TOPICO 3')].filter(Boolean),
-      location: get('LOCAL'),
-      cta: get('CTA'),
-    };
-  };
-
   const shareOnWhatsApp = () => {
-    if (!result) return;
-    const legenda = extractSection('LEGENDA') || result.replace(/\*\*/g, '');
+    const legenda = extractSection('LEGENDA') || result?.replace(/\*\*/g, '') || '';
     const hashtags = extractSection('HASHTAGS');
-    const text = encodeURIComponent(`${legenda}\n\n${hashtags}`.trim());
-    window.open(`https://wa.me/?text=${text}`, '_blank');
+    window.open(`https://wa.me/?text=${encodeURIComponent(`${legenda}\n\n${hashtags}`.trim())}`, '_blank');
   };
 
-  const extractSection = (section) => {
-    if (!result) return '';
-    const regex = new RegExp(`\\*\\*${section}:\\*\\*\\s*([\\s\\S]*?)(?=\\*\\*[A-Z]|$)`, 'i');
-    const match = result.match(regex);
-    return match ? match[1].trim() : '';
-  };
-
+  // ── Render ───────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col h-full bg-surface">
       <div className="flex-1 overflow-y-auto px-4 py-6">
         <div className="max-w-xl mx-auto space-y-5">
+
           {/* Header */}
           <div className="flex items-center justify-between">
             <div>
               <h2 className="font-display text-xl font-bold text-text">Criar Post</h2>
-              <p className="text-text-muted text-sm mt-0.5">
-                Suba sua foto real e monte um post profissional com templates
-              </p>
+              <p className="text-text-muted text-xs mt-0.5">Foto + filtro + legenda pronta pra postar</p>
             </div>
             {postHistory.length > 0 && (
               <button
                 onClick={() => setShowHistory(!showHistory)}
-                className="text-xs text-accent hover:text-accent-hover font-medium flex items-center gap-1 transition-colors"
+                className="text-xs text-accent hover:text-accent-hover font-medium flex items-center gap-1"
               >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                Histórico ({postHistory.length})
+                📋 Histórico ({postHistory.length})
               </button>
             )}
           </div>
 
-          {/* Post History */}
+          {/* Histórico */}
           {showHistory && postHistory.length > 0 && (
-            <div className="bg-surface-card border border-border rounded-xl p-3 space-y-2 max-h-60 overflow-y-auto animate-fade-in">
-              <div className="text-[10px] font-medium text-text-light uppercase tracking-wider">Últimas gerações</div>
+            <div className="bg-surface-card border border-border rounded-xl p-3 space-y-2 max-h-48 overflow-y-auto animate-fade-in">
               {postHistory.map((item) => (
                 <div key={item.id} className="flex items-start gap-2 group">
                   <button
-                    onClick={() => {
-                      setResult(item.content);
-                      setShowHistory(false);
-                    }}
-                    className="flex-1 text-left text-xs text-text-muted hover:text-accent px-2 py-2 rounded-lg hover:bg-accent-bg transition-colors"
+                    onClick={() => { setResult(item.content); setShowHistory(false); }}
+                    className="flex-1 text-left text-xs text-text-muted hover:text-accent px-2 py-1.5 rounded-lg hover:bg-accent-bg transition-colors"
                   >
-                    <span className="font-medium text-text block">{item.platform} · {item.post_type}</span>
-                    <span className="line-clamp-2">{item.content?.slice(0, 100)}...</span>
-                    <span className="text-[10px] text-text-light block mt-0.5">
-                      {new Date(item.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
-                    </span>
+                    <span className="font-medium text-text block">{item.post_type}</span>
+                    <span className="line-clamp-1">{item.content?.slice(0, 80)}...</span>
                   </button>
                   <button
                     onClick={async () => {
                       await dbDeletePost(item.id);
                       setPostHistory(prev => prev.filter(p => p.id !== item.id));
                     }}
-                    className="opacity-0 group-hover:opacity-100 shrink-0 w-5 h-5 flex items-center justify-center text-text-light hover:text-rose transition-all mt-2"
-                    title="Excluir"
+                    className="opacity-0 group-hover:opacity-100 shrink-0 text-text-light hover:text-rose mt-1"
                   >
-                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
+                    ✕
                   </button>
                 </div>
               ))}
             </div>
           )}
 
-          {/* Platform */}
+          {/* ① FOTO */}
           <div>
-            <label className="block text-text text-xs font-medium mb-2 uppercase tracking-wide">
-              Plataforma
-            </label>
-            <div className="flex gap-2">
-              {PLATFORMS.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => setPlatform(p.id)}
-                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all border ${
-                    platform === p.id
-                      ? 'border-accent bg-accent-light text-text shadow-soft'
-                      : 'border-border bg-surface-card text-text-muted hover:border-accent/40'
-                  }`}
-                >
-                  <span>{p.icon}</span>
-                  {p.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Post type */}
-          <div>
-            <label className="block text-text text-xs font-medium mb-2 uppercase tracking-wide">
-              Tipo de Post
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              {POST_TYPES.map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => setPostType(t.id)}
-                  className={`px-3 py-2.5 rounded-xl text-xs font-medium transition-all border text-left ${
-                    postType === t.id
-                      ? 'border-accent bg-accent-light text-text shadow-soft'
-                      : 'border-border bg-surface-card text-text-muted hover:border-accent/40'
-                  }`}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Image upload or AI generate */}
-          <div>
-            <label className="block text-text text-xs font-medium mb-2 uppercase tracking-wide">
-              Foto (opcional)
-            </label>
             {imagePreview ? (
-              <div className="space-y-2">
-                <div className="relative inline-block">
+              <div className="space-y-3">
+                {/* Preview com filtro */}
+                <div className="relative rounded-xl overflow-hidden border border-border shadow-soft">
                   <img
                     src={imagePreview}
-                    alt="Preview"
-                    className="w-32 h-32 object-cover rounded-xl border border-border shadow-soft"
+                    alt="Sua foto"
+                    className="w-full max-h-[400px] object-contain bg-black"
+                    style={{ filter: FILTERS.find(f => f.id === activeFilter)?.css || 'none' }}
                   />
                   <button
-                    onClick={removeImage}
-                    className="absolute -top-2 -right-2 w-6 h-6 bg-rose text-white rounded-full flex items-center justify-center text-xs shadow-soft hover:scale-110 transition-transform"
+                    onClick={() => {
+                      setImagePreview(null);
+                      setImageBase64(null);
+                      setActiveFilter('original');
+                      setResult(null);
+                    }}
+                    className="absolute top-2 right-2 w-7 h-7 bg-black/60 text-white rounded-full flex items-center justify-center text-xs hover:bg-black/80 transition-colors"
                   >
                     ✕
                   </button>
                 </div>
-                {/* Botão melhorar foto com IA */}
-                {!isFree && (
+
+                {/* Filtros — strip horizontal */}
+                <div>
+                  <p className="text-[11px] text-text-light font-medium mb-2 uppercase tracking-wide">Filtro</p>
+                  <div className="flex gap-2 overflow-x-auto pb-1.5 -mx-1 px-1 scrollbar-hide">
+                    {FILTERS.map((f) => (
+                      <button
+                        key={f.id}
+                        onClick={() => setActiveFilter(f.id)}
+                        className={`shrink-0 flex flex-col items-center gap-1 transition-all ${
+                          activeFilter === f.id ? 'scale-105' : 'opacity-70 hover:opacity-100'
+                        }`}
+                      >
+                        <div className={`w-14 h-14 rounded-lg overflow-hidden border-2 transition-colors ${
+                          activeFilter === f.id ? 'border-accent' : 'border-transparent'
+                        }`}>
+                          <img
+                            src={imagePreview}
+                            alt={f.label}
+                            className="w-full h-full object-cover"
+                            style={{ filter: f.css }}
+                          />
+                        </div>
+                        <span className={`text-[10px] font-medium ${
+                          activeFilter === f.id ? 'text-accent' : 'text-text-light'
+                        }`}>
+                          {f.label}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Baixar foto com filtro */}
+                {activeFilter !== 'original' && (
                   <button
-                    onClick={enhancePhoto}
-                    disabled={enhancingPhoto}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 transition-all shadow-soft"
+                    onClick={downloadFiltered}
+                    className="flex items-center gap-2 text-xs text-accent hover:text-accent-hover font-medium transition-colors"
                   >
-                    {enhancingPhoto ? (
-                      <>
-                        <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        Melhorando...
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                        </svg>
-                        ✨ Melhorar iluminação e cores
-                      </>
-                    )}
-                  </button>
-                )}
-                {isFree && (
-                  <button
-                    onClick={onUpgrade}
-                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-[11px] font-medium text-text-muted border border-border hover:border-accent/40 transition-all"
-                  >
-                    ✨ Melhorar iluminação e cores <span className="text-[9px] bg-accent/15 text-accent px-1.5 py-0.5 rounded-full font-bold">PRO</span>
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    Baixar foto com filtro
                   </button>
                 )}
               </div>
             ) : (
               <label
                 htmlFor="post-file-input"
-                className="flex items-center gap-3 px-4 py-3 border-2 border-dashed border-border rounded-xl text-text-muted hover:border-accent hover:text-accent hover:bg-accent-bg transition-all w-full cursor-pointer"
+                className="flex flex-col items-center gap-3 px-6 py-8 border-2 border-dashed border-border rounded-xl text-text-muted hover:border-accent hover:text-accent hover:bg-accent-bg transition-all cursor-pointer"
               >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                <svg className="w-10 h-10 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
-                <div>
-                  <span className="text-sm block">Enviar foto real</span>
-                  <span className="text-[11px] text-text-light">Use sua foto de trabalho para um post autêntico</span>
-                </div>
+                <span className="text-sm font-medium">Toque pra enviar sua foto</span>
+                <span className="text-[11px] text-text-light">JPG, PNG ou HEIC — Máximo 5MB</span>
               </label>
             )}
             <input
@@ -458,120 +357,110 @@ CTA: (chamada pra ação curta: "Agende pelo WhatsApp", "Chame no direct", etc.)
             />
           </div>
 
-          {/* Extra context */}
-          <div>
-            <label className="block text-text text-xs font-medium mb-2 uppercase tracking-wide">
-              Informação extra (opcional)
-            </label>
-            <textarea
-              value={extraInfo}
-              onChange={(e) => setExtraInfo(e.target.value)}
-              placeholder="Ex: Alongamento em gel, cliente amou, serviço durou 2h..."
-              rows={2}
-              className="w-full bg-surface-card border border-border rounded-xl px-4 py-3 text-text placeholder-text-light focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all text-sm shadow-soft resize-none"
-              maxLength={500}
-            />
+          {/* ② TIPO + CONTEXTO */}
+          <div className="space-y-3">
+            <div>
+              <label className="block text-text text-xs font-medium mb-1.5">Tipo de post</label>
+              <select
+                value={postType}
+                onChange={(e) => { setPostType(e.target.value); setResult(null); }}
+                className="w-full bg-surface-card border border-border rounded-xl px-3 py-2.5 text-sm text-text focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all appearance-none"
+              >
+                <option value="" disabled>Selecione...</option>
+                {POST_TYPES.map(t => (
+                  <option key={t.id} value={t.id}>{t.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-text text-xs font-medium mb-1.5">
+                Sobre o que é? <span className="text-text-light font-normal">(opcional)</span>
+              </label>
+              <textarea
+                value={extraInfo}
+                onChange={(e) => setExtraInfo(e.target.value)}
+                placeholder="Ex: Alongamento gel, a cliente amou, ficou 2h..."
+                rows={2}
+                maxLength={500}
+                className="w-full bg-surface-card border border-border rounded-xl px-3 py-2.5 text-sm text-text placeholder-text-light focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all resize-none"
+              />
+            </div>
           </div>
 
-          {/* Generate button */}
+          {/* ③ GERAR */}
           {atLimit ? (
             <div className="rounded-xl border border-accent/20 bg-accent-bg p-4 text-center">
-              <p className="text-xs font-semibold text-text mb-1">Limite de posts atingido hoje ({dailyLimit}/{dailyLimit})</p>
-              <p className="text-[11px] text-text-muted mb-3">Faça upgrade pra gerar até {POST_LIMITS.pro} posts/dia</p>
-              <button onClick={onUpgrade} className="px-4 py-2 rounded-lg bg-accent text-white text-xs font-semibold hover:bg-accent-hover transition-colors">
+              <p className="text-xs font-semibold text-text mb-1">
+                Limite de posts atingido ({dailyLimit}/{dailyLimit})
+              </p>
+              <p className="text-[11px] text-text-muted mb-3">
+                Upgrade pra gerar até {POST_LIMITS.pro} posts/dia
+              </p>
+              <button
+                onClick={onUpgrade}
+                className="px-4 py-2 rounded-lg bg-accent text-white text-xs font-semibold hover:bg-accent-hover transition-colors"
+              >
                 Fazer upgrade 💅
               </button>
             </div>
           ) : (
-          <div>
-            {isFree && (
-              <p className="text-[11px] text-text-light text-center mb-1.5">
-                {postsRemaining} de {dailyLimit} posts restantes hoje
-              </p>
-            )}
-            <button
-              onClick={generatePost}
-              disabled={isLoading}
-              className="w-full py-3.5 rounded-xl font-semibold text-sm transition-all bg-accent text-white hover:bg-accent-hover shadow-soft disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-            {isLoading ? (
-              <>
-                <span className="typing-dot w-1.5 h-1.5 bg-white rounded-full inline-block" />
-                <span className="typing-dot w-1.5 h-1.5 bg-white rounded-full inline-block" />
-                <span className="typing-dot w-1.5 h-1.5 bg-white rounded-full inline-block" />
-                <span className="ml-2">Gerando...</span>
-              </>
-            ) : (
-              <>
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-                Gerar Post
-              </>
-            )}
-            </button>
-          </div>
-          )}
-
-          {/* Image Editor - aparece com ou sem resultado da IA */}
-          {imagePreview && !result && (
-            <div className="bg-accent-bg border border-accent/10 rounded-xl p-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <span className="text-lg">🎨</span>
-                <div>
-                  <p className="text-sm font-medium text-text">Monte seu post profissional</p>
-                  <p className="text-xs text-text-muted">Escolha um template, adicione texto com fontes profissionais e baixe pronto pra postar.</p>
-                </div>
-              </div>
-              <PostImageEditor
-                imageSrc={imagePreview}
-                legenda=""
-                platform={platform}
-                structuredData={null}
-                plan={plan}
-                onUpgrade={onUpgrade}
-                getAccessToken={getAccessToken}
-                imageBase64Source={imageBase64}
-              />
+            <div>
+              {isFree && (
+                <p className="text-[11px] text-text-light text-center mb-1.5">
+                  {postsRemaining} de {dailyLimit} restantes hoje
+                </p>
+              )}
+              <button
+                onClick={generatePost}
+                disabled={isLoading || !postType}
+                className="w-full py-3 rounded-xl font-semibold text-sm transition-all bg-accent text-white hover:bg-accent-hover shadow-soft disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {isLoading ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Gerando legenda...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    Gerar legenda e hashtags
+                  </>
+                )}
+              </button>
             </div>
           )}
 
-          {/* Result */}
+          {/* ④ RESULTADO */}
           {result && (
             <div className="animate-fade-in space-y-3 pb-6">
               <div className="flex items-center justify-between">
-                <h3 className="font-display text-lg font-bold text-text">Resultado</h3>
-                <div className="flex items-center gap-2">
+                <h3 className="font-display text-base font-bold text-text">Pronto pra postar!</h3>
+                <div className="flex items-center gap-3">
                   <button
                     onClick={shareOnWhatsApp}
-                    className="text-xs text-green-600 hover:text-green-700 font-medium flex items-center gap-1 transition-colors"
-                    aria-label="Compartilhar no WhatsApp"
+                    className="text-xs text-green-600 hover:text-green-700 font-medium"
                   >
-                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-                    </svg>
-                    WhatsApp
+                    📲 WhatsApp
                   </button>
                   <button
                     onClick={() => copyToClipboard(result.replace(/\*\*/g, ''))}
-                    className="text-xs text-accent hover:text-accent-hover font-medium flex items-center gap-1 transition-colors"
+                    className="text-xs text-accent hover:text-accent-hover font-medium"
                   >
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
-                    Copiar tudo
+                    📋 Copiar tudo
                   </button>
                 </div>
               </div>
 
               {/* Legenda */}
               {extractSection('LEGENDA') && (
-                <div className="bg-surface-card border border-border rounded-xl p-4 shadow-soft">
+                <div className="bg-surface-card border border-border rounded-xl p-4">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-[11px] font-medium text-accent uppercase tracking-wide">Legenda</span>
                     <button
                       onClick={() => copyToClipboard(extractSection('LEGENDA'))}
-                      className="text-[11px] text-text-light hover:text-accent transition-colors"
+                      className="text-[11px] text-text-light hover:text-accent"
                     >
                       Copiar
                     </button>
@@ -584,53 +473,34 @@ CTA: (chamada pra ação curta: "Agende pelo WhatsApp", "Chame no direct", etc.)
 
               {/* Hashtags */}
               {extractSection('HASHTAGS') && (
-                <div className="bg-surface-card border border-border rounded-xl p-4 shadow-soft">
+                <div className="bg-surface-card border border-border rounded-xl p-4">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-[11px] font-medium text-accent uppercase tracking-wide">Hashtags</span>
                     <button
                       onClick={() => copyToClipboard(extractSection('HASHTAGS'))}
-                      className="text-[11px] text-text-light hover:text-accent transition-colors"
+                      className="text-[11px] text-text-light hover:text-accent"
                     >
                       Copiar
                     </button>
                   </div>
-                  <p className="text-sm text-accent/80 whitespace-pre-wrap">
-                    {extractSection('HASHTAGS')}
-                  </p>
+                  <p className="text-sm text-accent/80">{extractSection('HASHTAGS')}</p>
                 </div>
               )}
 
               {/* Dica */}
-              {extractSection('DICA DE PUBLICAÇÃO') && (
-                <div className="bg-accent-bg border border-accent/10 rounded-xl p-4">
-                  <span className="text-[11px] font-medium text-accent uppercase tracking-wide block mb-2">
-                    Dica de Publicação
-                  </span>
-                  <p className="text-sm text-text-muted whitespace-pre-wrap">
-                    {extractSection('DICA DE PUBLICAÇÃO')}
+              {extractSection('DICA') && (
+                <div className="bg-accent-bg border border-accent/10 rounded-xl p-3">
+                  <p className="text-xs text-text-muted">
+                    <span className="font-semibold text-accent">💡 Dica:</span> {extractSection('DICA')}
                   </p>
                 </div>
               )}
 
-              {/* Raw fallback */}
+              {/* Fallback */}
               {!extractSection('LEGENDA') && (
-                <div className="bg-surface-card border border-border rounded-xl p-4 shadow-soft">
-                  <p className="text-sm text-text whitespace-pre-wrap leading-relaxed">{result}</p>
+                <div className="bg-surface-card border border-border rounded-xl p-4">
+                  <p className="text-sm text-text whitespace-pre-wrap">{result}</p>
                 </div>
-              )}
-
-              {/* Image Editor */}
-              {imagePreview && (
-                <PostImageEditor
-                  imageSrc={imagePreview}
-                  legenda={extractSection('LEGENDA') || result}
-                  platform={platform}
-                  structuredData={structuredData}
-                  plan={plan}
-                  onUpgrade={onUpgrade}
-                  getAccessToken={getAccessToken}
-                  imageBase64Source={imageBase64}
-                />
               )}
             </div>
           )}
