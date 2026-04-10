@@ -1,4 +1,5 @@
 import { getAuthUser } from '../../../../lib/admin';
+import { checkoutSchema, parseBody } from '../../../../lib/validation';
 
 const STRIPE_SECRET = (process.env.STRIPE_SECRET_KEY || '').trim();
 const STRIPE_API = 'https://api.stripe.com/v1';
@@ -44,10 +45,12 @@ export async function POST(req) {
       return Response.json({ error: 'Stripe não configurado' }, { status: 500 });
     }
 
-    const { plan } = await req.json();
-    if (!['pro', 'premium'].includes(plan)) {
-      return Response.json({ error: 'Plano inválido' }, { status: 400 });
+    const body = await req.json();
+    const { error: validationError, data: validated } = parseBody(checkoutSchema, body);
+    if (validationError) {
+      return Response.json({ error: validationError }, { status: 400 });
     }
+    const { plan } = validated;
     const priceId = PLAN_PRICES[plan];
     if (!priceId) {
       console.error(`[STRIPE] Price ID não configurado para plano "${plan}"`);

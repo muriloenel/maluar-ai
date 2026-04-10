@@ -12,6 +12,8 @@ export default function AuthScreen() {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [level, setLevel] = useState('');
+  const [acceptTerms, setAcceptTerms] = useState(false);
+  const [acceptEmails, setAcceptEmails] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const toast = useToast();
@@ -58,6 +60,10 @@ export default function AuthScreen() {
       setError('Preencha seu nome e nível');
       return;
     }
+    if (!acceptTerms) {
+      setError('Você precisa aceitar os Termos de Uso e a Política de Privacidade para criar sua conta.');
+      return;
+    }
     const phoneDigits = phone.replace(/\D/g, '');
     if (phoneDigits.length < 10 || phoneDigits.length > 11) {
       setError('Telefone inválido. Use DDD + número (ex: 11 99999-9999)');
@@ -76,7 +82,7 @@ export default function AuthScreen() {
         email,
         password,
         options: {
-          data: { name: name.trim(), level, phone: phoneDigits },
+          data: { name: name.trim(), level, phone: phoneDigits, email_opt_in: acceptEmails },
           emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       });
@@ -286,9 +292,35 @@ export default function AuthScreen() {
 
             {error && <p className="text-rose text-xs font-medium">{error}</p>}
 
+            {/* LGPD: Consentimento obrigatório */}
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={acceptTerms}
+                onChange={(e) => setAcceptTerms(e.target.checked)}
+                className="mt-0.5 accent-[#7F77DD] w-4 h-4 rounded"
+              />
+              <span className="text-xs text-text-muted leading-relaxed">
+                Li e aceito os <a href="/termos" target="_blank" className="text-accent hover:underline">Termos de Uso</a> e a <a href="/privacidade" target="_blank" className="text-accent hover:underline">Política de Privacidade</a>. <span className="text-rose">*</span>
+              </span>
+            </label>
+
+            {/* Opt-in de emails (não obrigatório) */}
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={acceptEmails}
+                onChange={(e) => setAcceptEmails(e.target.checked)}
+                className="mt-0.5 accent-[#7F77DD] w-4 h-4 rounded"
+              />
+              <span className="text-xs text-text-muted leading-relaxed">
+                Quero receber dicas de nail design e novidades por email
+              </span>
+            </label>
+
             <button
               type="submit"
-              disabled={loading || !name.trim() || !level || !phone.replace(/\D/g, '')}
+              disabled={loading || !name.trim() || !level || !phone.replace(/\D/g, '') || !acceptTerms}
               className="w-full py-3.5 rounded-xl font-semibold text-sm btn-gradient shadow-soft"
             >
               {loading ? 'Criando conta...' : 'Criar conta grátis'}

@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
 import { getAuthUser } from '../../../lib/admin';
+import { chatBodySchema, parseBody } from '../../../lib/validation';
 
 // Workaround para proxy corporativo — APENAS em desenvolvimento
 if (process.env.NODE_ENV !== 'production' && process.env.ALLOW_SELF_SIGNED_CERTS === '1') {
@@ -191,13 +192,15 @@ export async function POST(req) {
       );
     }
 
-    const messages = body?.messages;
-    const system = body?.system;
-    const stream = body?.stream;
-
-    if (!messages || !Array.isArray(messages) || messages.length === 0) {
-      return Response.json({ error: 'Mensagens inválidas' }, { status: 400 });
+    // Validar body com Zod
+    const { error: validationError, data: validatedBody } = parseBody(chatBodySchema, body);
+    if (validationError) {
+      return Response.json({ error: validationError }, { status: 400 });
     }
+
+    const messages = validatedBody.messages;
+    const stream = validatedBody.stream;
+    const safeSystem = (validatedBody.system || '').slice(0, 15000);
 
     // Garantir que primeira mensagem seja 'user' (exigência da API Claude)
     while (messages.length > 0 && messages[0].role !== 'user') {
@@ -205,43 +208,6 @@ export async function POST(req) {
     }
     if (messages.length === 0) {
       return Response.json({ error: 'Mensagens inválidas' }, { status: 400 });
-    }
-
-    // Limitar tamanho do payload para evitar abuso
-    if (messages.length > 20) {
-      return Response.json({ error: 'Limite de mensagens por requisição excedido' }, { status: 400 });
-    }
-
-    // Limitar tamanho do system prompt
-    const safeSystem = typeof system === 'string' ? system.slice(0, 15000) : '';
-
-    // Validar estrutura das mensagens
-    for (const msg of messages) {
-      if (!msg.role || !['user', 'assistant'].includes(msg.role)) {
-        return Response.json({ error: 'Mensagem com role inválido' }, { status: 400 });
-      }
-      if (!msg.content) {
-        return Response.json({ error: 'Mensagem sem conteúdo' }, { status: 400 });
-      }
-      // Limitar tamanho do texto individual e de imagens base64
-      let textLength = 0;
-      if (typeof msg.content === 'string') {
-        textLength = msg.content.length;
-      } else if (Array.isArray(msg.content)) {
-        for (const block of msg.content) {
-          if (block.type === 'text') textLength += (block.text || '').length;
-          // Validar tamanho de imagens base64 (máx ~5MB decodificado = ~6.7MB em base64)
-          if (block.type === 'image' && block.source?.data) {
-            const b64Len = block.source.data.length || 0;
-            if (b64Len > 7 * 1024 * 1024) {
-              return Response.json({ error: 'Imagem muito grande (máx 5MB)' }, { status: 400 });
-            }
-          }
-        }
-      }
-      if (textLength > 50000) {
-        return Response.json({ error: 'Mensagem muito longa' }, { status: 400 });
-      }
     }
 
     const imageRequest = hasImage(messages);

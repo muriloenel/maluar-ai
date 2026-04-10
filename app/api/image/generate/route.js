@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { createClient } from '@supabase/supabase-js';
+import { imageGenerateSchema, parseBody } from '../../../../lib/validation';
 
 let _openai;
 function getOpenAI() {
@@ -61,10 +62,12 @@ export async function POST(req) {
       }, { status: 429 });
     }
 
-    const { prompt } = await req.json();
-    if (!prompt || typeof prompt !== 'string' || prompt.length > 1000) {
-      return Response.json({ error: 'Prompt inválido (máx 1000 caracteres)' }, { status: 400 });
+    const body = await req.json();
+    const { error: validationError, data: validated } = parseBody(imageGenerateSchema, body);
+    if (validationError) {
+      return Response.json({ error: validationError }, { status: 400 });
     }
+    const { prompt } = validated;
 
     // Prompt de segurança + qualidade nail design
     const enhancedPrompt = `Professional nail design photo: ${prompt}. 

@@ -64,8 +64,13 @@ export default function PrivacidadePage() {
           <h2>8. Alterações</h2>
           <p>Atualizações nesta política serão comunicadas por email. O uso continuado após alterações implica aceitação.</p>
 
-          <h2>9. Contato do Encarregado (DPO)</h2>
-          <p>Para questões sobre privacidade e proteção de dados: <strong>contato@maluar.ai</strong></p>
+          <h2>9. Encarregado de Proteção de Dados (DPO)</h2>
+          <p>
+            Nos termos do Art. 41 da LGPD, o encarregado pela proteção de dados pessoais é:<br />
+            <strong>Karina Oliveira</strong><br />
+            Email: <strong>privacidade@maluar.ai</strong>
+          </p>
+          <p>Para exercer seus direitos de titular ou esclarecer dúvidas sobre o tratamento de seus dados, entre em contato pelo email acima.</p>
         </div>
       </div>
     </div>
