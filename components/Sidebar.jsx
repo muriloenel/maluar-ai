@@ -66,15 +66,6 @@ const MODULES_BY_LEVEL = {
         'Me ajuda a calcular o preço certo dos meus serviços',
       ],
     },
-    {
-      icon: '📱',
-      label: 'Instagram do Zero',
-      prompts: [
-        'Como montar meu Instagram profissional do zero?',
-        'O que postar quando não tenho clientes ainda?',
-        'Me dá um plano de conteúdo pra primeira semana',
-      ],
-    },
   ],
   intermediario: [
     {
@@ -377,26 +368,14 @@ export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activ
           <Section icon="📚" title="Aprender">
             <div className="space-y-0.5 px-1">
               {modules.map((mod, idx) => (
-                <details key={idx} className="group">
-                  <summary className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg cursor-pointer hover:bg-surface-alt transition-colors list-none">
-                    <span className="text-sm">{mod.icon}</span>
-                    <span className="text-xs font-medium text-text-muted group-open:text-text">{mod.label}</span>
-                    <svg className="w-3 h-3 ml-auto text-text-light group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </summary>
-                  <div className="pl-7 pr-1 pb-1 space-y-0.5">
-                    {mod.prompts.map((prompt, i) => (
-                      <button
-                        key={i}
-                        onClick={() => { onSendPrompt(prompt); onClose(); }}
-                        className="w-full text-left text-[11px] text-text-muted hover:text-accent px-2 py-1.5 rounded-md hover:bg-accent-bg transition-colors"
-                      >
-                        {prompt}
-                      </button>
-                    ))}
-                  </div>
-                </details>
+                <button
+                  key={idx}
+                  onClick={() => { onSendPrompt(`Quero aprender sobre ${mod.label.toLowerCase()}`); onClose(); }}
+                  className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left text-text-muted hover:bg-surface-alt hover:text-text transition-colors"
+                >
+                  <span className="text-sm">{mod.icon}</span>
+                  <span className="text-xs font-medium">{mod.label}</span>
+                </button>
               ))}
             </div>
           </Section>
@@ -412,6 +391,13 @@ export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activ
               >
                 <span className="text-sm">🚀</span>
                 <span className="text-xs font-medium">Hub de Negócios</span>
+              </button>
+              <button
+                onClick={() => { onSendPrompt('Como montar meu Instagram profissional do zero? Me dá um plano completo'); onClose(); }}
+                className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left text-text-muted hover:bg-surface-alt hover:text-text transition-colors"
+              >
+                <span className="text-sm">📱</span>
+                <span className="text-xs font-medium">Instagram do Zero</span>
               </button>
               <button
                 onClick={() => { onTabChange('pricing'); onClose(); }}
@@ -457,7 +443,6 @@ export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activ
                           onClick={() => {
                             if (levelLocked) { onUpgrade?.(); return; }
                             onChangeLevel(key);
-                            setShowLevelPicker(false);
                           }}
                           className={`w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-surface-alt transition-colors ${
                             user?.level === key ? 'bg-accent-bg' : ''
