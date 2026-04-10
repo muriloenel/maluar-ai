@@ -365,20 +365,20 @@ export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activ
           </Section>
 
           {/* ═══ APRENDER ═══ */}
-          <Section icon="📚" title="Aprender">
-            <div className="space-y-0.5 px-1">
-              {modules.map((mod, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => { onSendPrompt(`Quero aprender sobre ${mod.label.toLowerCase()}`); onClose(); }}
-                  className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left text-text-muted hover:bg-surface-alt hover:text-text transition-colors"
-                >
-                  <span className="text-sm">{mod.icon}</span>
-                  <span className="text-xs font-medium">{mod.label}</span>
-                </button>
-              ))}
-            </div>
-          </Section>
+          <div className="px-3 py-1">
+            <button
+              onClick={() => {
+                const level = user?.level || 'iniciante';
+                const levelLabel = LEVEL_LABELS[level]?.label || 'Iniciante';
+                onSendPrompt(`Sou nail designer nível ${levelLabel.toLowerCase()}. Quero aprender e evoluir na profissão. Me sugira os próximos passos e o que estudar.`);
+                onClose();
+              }}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-text-muted hover:bg-surface-alt hover:text-text transition-colors"
+            >
+              <span className="text-sm">📚</span>
+              <span className="text-[11px] font-semibold text-text-light uppercase tracking-wider">Aprender</span>
+            </button>
+          </div>
 
           {/* ═══ MEU NEGÓCIO ═══ */}
           <Section icon="💼" title="Meu Negócio">
