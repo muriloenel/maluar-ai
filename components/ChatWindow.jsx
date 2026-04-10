@@ -15,10 +15,12 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
   const [pendingFile, setPendingFile] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [quotaModal, setQuotaModal] = useState(null);
+  const [isListening, setIsListening] = useState(false);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
   const chatAreaRef = useRef(null);
+  const recognitionRef = useRef(null);
   const titleSetRef = useRef(false);
   const chatIdRef = useRef(null);
   const msgIdRef = useRef(0);
@@ -40,10 +42,56 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
     scrollToBottom();
   }, [messages, isLoading]);
 
-  // Cleanup: abortar streaming ao desmontar componente
+  // Cleanup: abortar streaming e parar reconhecimento de voz ao desmontar
   useEffect(() => {
-    return () => { abortRef.current?.abort(); };
+    return () => {
+      abortRef.current?.abort();
+      recognitionRef.current?.abort();
+    };
   }, []);
+
+  // Voice input (STT) via Web Speech API
+  const toggleVoiceInput = useCallback(() => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      return;
+    }
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert('Seu navegador não suporta reconhecimento de voz. Use o Chrome ou Edge.');
+      return;
+    }
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'pt-BR';
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognitionRef.current = recognition;
+    let finalTranscript = '';
+    recognition.onresult = (event) => {
+      let interim = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const t = event.results[i][0].transcript;
+        if (event.results[i].isFinal) { finalTranscript += t; } else { interim = t; }
+      }
+      setInput(finalTranscript + interim);
+    };
+    recognition.onend = () => {
+      setIsListening(false);
+      if (finalTranscript.trim()) {
+        setInput(finalTranscript.trim());
+        setTimeout(() => inputRef.current?.focus(), 50);
+      }
+    };
+    recognition.onerror = (e) => {
+      setIsListening(false);
+      if (e.error !== 'aborted' && e.error !== 'no-speech') {
+        console.warn('[Voice] Recognition error:', e.error);
+      }
+    };
+    recognition.start();
+    setIsListening(true);
+  }, [isListening]);
 
   // Set welcome message only for brand new chats (no initialMessages)
   useEffect(() => {
@@ -554,6 +602,25 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
               onChange={handleImageUpload}
               className="sr-only"
             />
+            <button
+              type="button"
+              onClick={toggleVoiceInput}
+              className={`shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+                isListening
+                  ? 'bg-rose-100 text-rose-500 animate-pulse'
+                  : 'text-text-light hover:text-accent hover:bg-accent-bg'
+              }`}
+              title={isListening ? 'Parar gravação' : 'Falar com a Maluar'}
+              aria-label={isListening ? 'Parar gravação de voz' : 'Enviar mensagem por voz'}
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                {isListening ? (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                ) : (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4M12 15a3 3 0 003-3V5a3 3 0 00-6 0v7a3 3 0 003 3z" />
+                )}
+              </svg>
+            </button>
             <input
               ref={inputRef}
               type="text"

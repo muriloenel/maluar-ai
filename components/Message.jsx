@@ -15,6 +15,7 @@ function MessageInner({ role, content, isTyping, imagePreview, timestamp, isErro
   const [copied, setCopied] = useState(false);
   const [saved, setSaved] = useState(false);
   const [feedback, setFeedback] = useState(null); // 'up' | 'down' | null
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const toast = useToast();
 
   if (isTyping) {
@@ -56,6 +57,31 @@ function MessageInner({ role, content, isTyping, imagePreview, timestamp, isErro
     win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Maluar AI — Recria Design</title><style>body{font-family:Inter,system-ui,sans-serif;max-width:700px;margin:40px auto;padding:20px;color:#1A1A2E;line-height:1.7;}h1{color:#7F77DD;font-size:1.3em;border-bottom:2px solid #7F77DD;padding-bottom:8px;}strong{color:#1A1A2E;}ul,ol{padding-left:1.5em;}li{margin-bottom:4px;}.footer{margin-top:32px;padding-top:12px;border-top:1px solid #d8d4e8;color:#6B7280;font-size:0.85em;text-align:center;}</style></head><body><h1>💅 Maluar AI — Recria Design</h1>${escaped}<div class="footer">Gerado por Maluar AI · ${new Date().toLocaleDateString('pt-BR')}</div></body></html>`);
     win.document.close();
     setTimeout(() => { win.print(); }, 500);
+  };
+
+  const handleSpeak = () => {
+    if (isSpeaking) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+      return;
+    }
+    if (!window.speechSynthesis) return;
+    // Limpar markdown/emojis para leitura mais natural
+    const cleanText = content
+      .replace(/[#*_~`>|-]/g, '')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .replace(/\n{2,}/g, '. ')
+      .replace(/\n/g, ' ')
+      .trim();
+    if (!cleanText) return;
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.lang = 'pt-BR';
+    utterance.rate = 1.0;
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = () => setIsSpeaking(false);
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+    setIsSpeaking(true);
   };
 
   return (
@@ -130,6 +156,25 @@ function MessageInner({ role, content, isTyping, imagePreview, timestamp, isErro
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
+              </button>
+            )}
+            {/* Listen button - TTS */}
+            {content && (
+              <button
+                onClick={handleSpeak}
+                className={`transition-opacity ml-1.5 ${isSpeaking ? 'opacity-100 text-accent' : 'opacity-0 group-hover:opacity-100 text-text-light hover:text-accent'}`}
+                title={isSpeaking ? 'Parar leitura' : 'Ouvir resposta'}
+                aria-label={isSpeaking ? 'Parar leitura em voz alta' : 'Ouvir resposta em voz alta'}
+              >
+                {isSpeaking ? (
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                  </svg>
+                ) : (
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072M18.364 5.636a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707A1 1 0 0112 5.586v12.828a1 1 0 01-1.707.707L5.586 15z" />
+                  </svg>
+                )}
               </button>
             )}
           </div>
