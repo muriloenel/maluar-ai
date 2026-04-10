@@ -285,7 +285,7 @@ export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activ
 
           {/* ═══ HISTÓRICO ═══ */}
           {chatList && chatList.length > 0 && (
-            <Section icon="📋" title="Histórico">
+            <Section icon="📋" title="Histórico" defaultOpen>
               {chatList.length > 3 && (
                 <div className="mb-1.5 px-1">
                   <input
