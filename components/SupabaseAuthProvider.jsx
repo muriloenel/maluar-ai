@@ -37,10 +37,10 @@ export default function SupabaseAuthProvider({ children }) {
     };
 
     try {
-      // Timeout de 3s — getSession() pode travar com lock do storage
+      // Timeout de 1.5s — getSession() pode travar com lock do storage
       const sessionPromise = supabase.auth.getSession();
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('getSession timeout')), 3000)
+        setTimeout(() => reject(new Error('getSession timeout')), 1500)
       );
       const { data: { session }, error } = await Promise.race([sessionPromise, timeoutPromise]);
 
@@ -52,12 +52,11 @@ export default function SupabaseAuthProvider({ children }) {
             return refreshData.session.access_token;
           }
         } catch {}
-        console.warn('[AUTH] getSession sem token, usando fallback localStorage');
         return getTokenFromStorage();
       }
       return session.access_token;
     } catch (err) {
-      console.warn('[AUTH] getAccessToken falhou:', err?.message, '— usando fallback localStorage');
+      // Timeout ou erro — usar localStorage direto (rápido, sem lock)
       return getTokenFromStorage();
     }
   }, [supabase]);

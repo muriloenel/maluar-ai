@@ -44,7 +44,7 @@ export default function RootLayout({ children }) {
   return (
     <html lang="pt-BR" className={`${jakarta.variable} ${playfair.variable}`} suppressHydrationWarning>
       <head>
-        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="Maluar AI" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'maluar-ai-v6';
+const CACHE_NAME = 'maluar-ai-v7';
 const STATIC_ASSETS = [];
 
 self.addEventListener('install', (event) => {
@@ -21,13 +21,14 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Skip non-GET, API, auth, supabase, and non-http requests
+  // Skip non-GET, API, auth, supabase, external domains, and non-http requests
   if (
     request.method !== 'GET' ||
     url.pathname.startsWith('/api/') ||
     url.pathname.startsWith('/auth/') ||
     request.url.includes('supabase') ||
-    !request.url.startsWith('http')
+    !request.url.startsWith('http') ||
+    url.origin !== self.location.origin
   ) return;
 
   // NEVER cache HTML pages — causes auth desync
