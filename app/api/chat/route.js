@@ -22,10 +22,22 @@ const UNLIMITED_EMAILS = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.
 // Supabase admin client reutilizável (connection pool)
 const _adminSb = (supabaseUrl && supabaseServiceKey) ? createClient(supabaseUrl, supabaseServiceKey) : null;
 
+// Circuit breaker para quota check — se DB falhar N vezes seguidas, bloqueia
+let _quotaFailCount = 0;
+const QUOTA_FAIL_THRESHOLD = 3; // após 3 falhas consecutivas, bloqueia
+const QUOTA_FAIL_RESET_MS = 60_000; // reseta contador após 1 min sem falhas
+let _quotaFailResetTimer = null;
+
 // Verificação server-side de quota (bloqueante)
 async function checkQuotaServer(userId, userEmail) {
   if (!userId || !_adminSb) return { allowed: true };
   if (userEmail && UNLIMITED_EMAILS.includes(userEmail.toLowerCase())) return { allowed: true };
+
+  // Circuit breaker aberto — bloqueia para proteger custo
+  if (_quotaFailCount >= QUOTA_FAIL_THRESHOLD) {
+    console.error(`[QUOTA] Circuit breaker ABERTO (${_quotaFailCount} falhas). Bloqueando requests.`);
+    return { allowed: false, error: 'Serviço temporariamente indisponível. Tente novamente em alguns minutos.' };
+  }
 
   try {
     // Tenta com status; se coluna não existir, tenta sem
@@ -53,10 +65,23 @@ async function checkQuotaServer(userId, userEmail) {
     }
 
     const remaining = Math.max(0, limit - (profile.messages_today || 0));
+    // Sucesso — resetar circuit breaker
+    if (_quotaFailCount > 0) {
+      _quotaFailCount = 0;
+      clearTimeout(_quotaFailResetTimer);
+    }
     return { allowed: remaining > 0, remaining, limit, plan: profile.plan };
   } catch (err) {
     console.error('[QUOTA] Erro ao verificar:', err.message);
-    return { allowed: true }; // fail-open se DB falhar
+    _quotaFailCount++;
+    // Auto-reset após 1 min para re-tentar
+    clearTimeout(_quotaFailResetTimer);
+    _quotaFailResetTimer = setTimeout(() => { _quotaFailCount = 0; }, QUOTA_FAIL_RESET_MS);
+    // Fail-closed: bloqueia para proteger custo
+    if (_quotaFailCount >= QUOTA_FAIL_THRESHOLD) {
+      return { allowed: false, error: 'Serviço temporariamente indisponível. Tente novamente em alguns minutos.' };
+    }
+    return { allowed: true }; // primeiras falhas: fail-open (tolerância)
   }
 }
 

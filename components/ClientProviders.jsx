@@ -4,6 +4,7 @@ import { useEffect, Component } from 'react';
 import { ToastProvider } from './Toast';
 import { ThemeProvider } from './ThemeProvider';
 import SupabaseAuthProvider from './SupabaseAuthProvider';
+import PostHogProvider from './PostHogProvider';
 
 // ErrorBoundary para capturar erros client-side e evitar tela branca
 class ErrorBoundary extends Component {
@@ -56,6 +57,7 @@ export default function ClientProviders({ children }) {
 
   return (
     <ErrorBoundary>
+      <PostHogProvider>
       <SupabaseAuthProvider>
         <ThemeProvider>
           <ToastProvider>
@@ -63,6 +65,7 @@ export default function ClientProviders({ children }) {
           </ToastProvider>
         </ThemeProvider>
       </SupabaseAuthProvider>
+      </PostHogProvider>
     </ErrorBoundary>
   );
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { trackEvent } from './PostHogProvider';
 
 const PLANS = [
   {
@@ -79,6 +80,7 @@ export default function PricingPlans({ currentPlan = 'free', getAccessToken, onM
 
   const handleUpgrade = async (planId) => {
     if (planId === 'free' || planId === currentPlan) return;
+    trackEvent('upgrade_clicked', { plan: planId, from_plan: currentPlan });
     setLoading(planId);
     setError(null);
 

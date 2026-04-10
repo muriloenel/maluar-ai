@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { getSupabase } from '../lib/supabase';
+import { identifyUser, resetPostHog } from './PostHogProvider';
 
 const AuthContext = createContext({
   user: undefined,
@@ -206,6 +207,7 @@ export default function SupabaseAuthProvider({ children }) {
     // Limpar state imediatamente (não esperar o Supabase que pode travar no lock)
     setUser(null);
     setProfile(null);
+    resetPostHog();
     try { localStorage.removeItem('maluar-auth'); } catch {}
     // Tentar signOut no Supabase com timeout (não bloquear se travar)
     if (supabase) {
@@ -259,6 +261,11 @@ export default function SupabaseAuthProvider({ children }) {
     if (data) setProfile(data);
     return data;
   }, [user, supabase]);
+
+  // PostHog: identificar usuário quando user+profile estão disponíveis
+  useEffect(() => {
+    if (user && profile) identifyUser(user, profile);
+  }, [user, profile]);
 
   return (
     <AuthContext.Provider value={{ user, profile, signOut, updateProfile, patchProfile, refreshProfile, supabase, getAccessToken }}>

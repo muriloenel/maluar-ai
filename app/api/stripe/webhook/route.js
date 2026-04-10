@@ -135,17 +135,26 @@ export async function POST(req) {
         const sub = event.data.object;
         const { data: profile } = await supabase
           .from('profiles')
-          .select('id')
+          .select('id, plan')
           .eq('stripe_customer_id', sub.customer)
           .single();
 
         if (profile) {
           const status = sub.status;
-          if (status === 'canceled' || status === 'unpaid' || status === 'past_due') {
+          if (status === 'canceled' || status === 'unpaid') {
+            // Cancelado ou impago definitivo — rebaixar imediatamente
             await supabase
               .from('profiles')
               .update({ plan: 'free', updated_at: new Date().toISOString() })
               .eq('id', profile.id);
+          } else if (status === 'past_due') {
+            // Grace period: manter plano ativo, enviar alerta de pagamento
+            // O rebaixamento acontece apenas em 'unpaid' ou 'canceled' (Stripe escala automaticamente)
+            const customer = await stripeGet(`/customers/${sub.customer}`).catch(() => null);
+            if (customer?.email) {
+              sendPaymentFailedEmail(customer.email, customer.name).catch(() => {});
+            }
+            console.log(`[WEBHOOK] past_due para ${profile.id} — grace period, plano mantido`);
           }
         }
         break;

@@ -5,6 +5,7 @@ import Message from './Message';
 import { searchKnowledge } from '../lib/knowledge-base';
 import { buildSystemPrompt } from '../lib/system-prompt';
 import { dbSaveMessage, dbUpdateChatTitle, dbSaveFavorite, dbDeleteErrorMessages, dbCheckMessageQuota, dbIncrementMessageCount } from '../lib/db';
+import { trackEvent } from './PostHogProvider';
 
 export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onPromptConsumed, chatId, initialMessages, onChatUpdated, onFavoritesChanged, onOpenSidebar, getAccessToken, onAuthExpired, onUpgrade }) {
   const [messages, setMessages] = useState(initialMessages || []);
@@ -168,6 +169,7 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
     busyRef.current = true;
     busyRef.since = Date.now();
     setIsLoading(true);
+    trackEvent('message_sent', { has_image: !!imageBase64 });
 
     try {
       // Verificar quota de mensagens diárias

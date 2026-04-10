@@ -27,44 +27,30 @@ export async function GET(req) {
     return Response.json(results, { status: 500 });
   }
 
-  // Testar modelos em ordem de prioridade
-  const modelsToTry = [
-    'claude-sonnet-4-20250514',
-    'claude-haiku-4-5',
-    'claude-haiku-4-5-20251001',
-    'claude-3-5-haiku-latest',
-  ];
-
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  const modelResults = [];
 
-  for (const model of modelsToTry) {
-    try {
-      const response = await client.messages.create({
-        model,
-        max_tokens: 20,
-        messages: [{ role: 'user', content: 'Diga apenas "ok"' }],
-      });
-      modelResults.push({
-        model,
-        status: 'OK',
-        response: response.content?.[0]?.text || 'sem texto',
-      });
-    } catch (err) {
-      modelResults.push({
-        model,
-        status: 'ERRO',
-        errorStatus: err?.status,
-        errorType: err?.error?.type,
-        errorMessage: err?.error?.message?.slice(0, 100) || err?.message?.slice(0, 100),
-      });
-    }
+  // Health: testar apenas Haiku (mais rápido e barato, <500ms)
+  // Para teste completo de todos os modelos, usar /api/admin/stats
+  try {
+    const response = await client.messages.create({
+      model: 'claude-haiku-4-5',
+      max_tokens: 10,
+      messages: [{ role: 'user', content: 'ok' }],
+    });
+    results.anthropic = {
+      status: 'OK',
+      model: 'claude-haiku-4-5',
+      response: response.content?.[0]?.text || 'sem texto',
+    };
+  } catch (err) {
+    results.anthropic = {
+      status: 'ERRO',
+      model: 'claude-haiku-4-5',
+      errorStatus: err?.status,
+      errorMessage: err?.error?.message?.slice(0, 100) || err?.message?.slice(0, 100),
+    };
   }
 
-  results.anthropic = {
-    status: modelResults.some(m => m.status === 'OK') ? 'OK' : 'ERRO',
-    models: modelResults,
-  };
-
-  return Response.json(results);
+  const ok = results.anthropic?.status === 'OK';
+  return Response.json(results, { status: ok ? 200 : 500 });
 }
