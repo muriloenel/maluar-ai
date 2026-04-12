@@ -37,10 +37,10 @@ export default function SupabaseAuthProvider({ children }) {
     };
 
     try {
-      // Timeout de 1.5s — getSession() pode travar com lock do storage
+      // Timeout de 3s — getSession() pode travar com lock do storage
       const sessionPromise = supabase.auth.getSession();
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('getSession timeout')), 1500)
+        setTimeout(() => reject(new Error('getSession timeout')), 3000)
       );
       const { data: { session }, error } = await Promise.race([sessionPromise, timeoutPromise]);
 
@@ -130,8 +130,8 @@ export default function SupabaseAuthProvider({ children }) {
       return;
     }
 
-    // Timeout de segurança: se o Supabase não responder em 5s, assume "deslogado"
-    // pra não travar no "Carregando..." infinito (proxy corporativo, rede lenta, etc.)
+    // Timeout de segurança: se o Supabase não responder em 8s, assume "deslogado"
+    // (aumentado de 5s pra funcionar em redes 3G/4G lentas)
     let resolved = false;
     const timeout = setTimeout(() => {
       if (!resolved) {
@@ -139,7 +139,7 @@ export default function SupabaseAuthProvider({ children }) {
         setUser(null);
         setProfile(null);
       }
-    }, 5000);
+    }, 8000);
 
     // onAuthStateChange é a FONTE PRIMÁRIA de verdade (boa prática Supabase)
     // Ele dispara INITIAL_SESSION no mount, SIGNED_IN no login, SIGNED_OUT no logout,
