@@ -223,11 +223,11 @@ export async function POST(req) {
     // Modelos: Sonnet para complexo/imagens, Haiku para msgs simples (3x mais barato)
     const SONNET = 'claude-sonnet-4-20250514';
     const HAIKU = 'claude-haiku-4-5';
-    // Fallbacks: se modelo primário falhar, tentar estes na ordem
     const FALLBACKS = [SONNET, HAIKU, 'claude-3-5-sonnet-latest'];
-    // Routing: Haiku para msgs simples, Sonnet para complexo/imagens
     let model = isComplex ? SONNET : HAIKU;
-    console.log(`[CHAT] Modelo: ${model}, Stream: ${!!stream}, User: ${authUser?.email || 'anon'}`);
+    // max_tokens: curto para conversa casual, médio para complexo, alto para imagens
+    const maxTokens = imageRequest ? 2000 : isComplex ? 600 : 300;
+    console.log(`[CHAT] Modelo: ${model}, maxTokens: ${maxTokens}, Stream: ${!!stream}, User: ${authUser?.email || 'anon'}`);
 
     // Prompt caching: enviar system como bloco com cache_control
     // O system prompt é estável entre requests — alta taxa de cache hit (~90%)
@@ -241,7 +241,7 @@ export async function POST(req) {
       try {
         response = await client.messages.create({
           model,
-          max_tokens: imageRequest ? 2000 : 600,
+          max_tokens: maxTokens,
           temperature: imageRequest ? 0.1 : 0.5,
           system: systemBlocks || safeSystem,
           messages,
@@ -269,7 +269,7 @@ export async function POST(req) {
           try {
             response = await client.messages.create({
               model: fallbackModel,
-              max_tokens: imageRequest ? 2000 : 600,
+              max_tokens: maxTokens,
               temperature: imageRequest ? 0.1 : 0.5,
               system: systemBlocks || safeSystem,
               messages,
@@ -342,7 +342,7 @@ export async function POST(req) {
       try {
         response = await client.messages.create({
           model: tryModel,
-          max_tokens: imageRequest ? 2048 : 800,
+          max_tokens: maxTokens,
           system: systemBlocks || safeSystem,
           messages,
         });

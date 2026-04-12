@@ -172,19 +172,6 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
     trackEvent('message_sent', { has_image: !!imageBase64 });
 
     try {
-      // Verificar quota de mensagens diárias
-      if (userId) {
-          try {
-            const quota = await dbCheckMessageQuota(userId, userEmail);
-            if (!quota.allowed) {
-              setQuotaModal({ limit: quota.limit });
-              return; // finally vai resetar isLoading
-            }
-          } catch (err) {
-            // Timeout ou erro na quota — deixar server-side barrar se necessário
-          }
-      }
-
       const userContent = imageBase64
         ? [
             { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageBase64 } },
@@ -198,7 +185,6 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
       // Marcar que título será gerado (mas gerar via IA após primeira resposta)
       const shouldGenerateTitle = !titleSetRef.current && chatId && !chatId.startsWith('local-');
       if (shouldGenerateTitle) {
-        // Título temporário imediato (primeiras palavras)
         const tempTitle = displayText.slice(0, 40) + (displayText.length > 40 ? '…' : '');
         dbUpdateChatTitle(chatId, tempTitle).catch(() => {});
         titleSetRef.current = true;
@@ -211,8 +197,19 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
       setInput('');
       setLastFailedMsg(null);
 
+      // Preparar tudo em paralelo (quota, auth, knowledge) para reduzir latência
       const knowledgeContext = searchKnowledge(typeof userContent === 'string' ? userContent : text);
       const systemPrompt = buildSystemPrompt(user.name, user.level, knowledgeContext);
+
+      const [quotaResult, authToken] = await Promise.all([
+        userId ? dbCheckMessageQuota(userId, userEmail).catch(() => ({ allowed: true })) : Promise.resolve({ allowed: true }),
+        getAccessToken ? getAccessToken().catch(() => null) : Promise.resolve(null),
+      ]);
+
+      if (!quotaResult.allowed) {
+        setQuotaModal({ limit: quotaResult.limit });
+        return;
+      }
 
       const currentMessages = messagesRef.current;
       const allMessages = [
@@ -225,7 +222,6 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
 
       // Enviar apenas últimas 8 mensagens para manter respostas focadas e concisas
       const apiMessages = allMessages.slice(-8);
-      // Garantir que primeira mensagem seja 'user' (exigência da API Claude)
       while (apiMessages.length > 0 && apiMessages[0].role !== 'user') {
         apiMessages.shift();
       }
@@ -234,9 +230,6 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
       abortRef.current?.abort();
       const controller = new AbortController();
       abortRef.current = controller;
-
-      // Obter token de auth para a API (opcional — modo convidado funciona sem)
-      const authToken = getAccessToken ? await getAccessToken() : null;
 
       const fetchHeaders = { 'Content-Type': 'application/json' };
       if (authToken) fetchHeaders['Authorization'] = `Bearer ${authToken}`;
