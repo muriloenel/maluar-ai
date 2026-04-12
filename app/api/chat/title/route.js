@@ -28,7 +28,7 @@ export async function POST(req) {
       model: 'claude-haiku-4-5',
       max_tokens: 30,
       temperature: 0.3,
-      system: 'Gere um título curto e descritivo (máximo 6 palavras, em português) para uma conversa de nail design que começou com a seguinte mensagem do usuário. Responda APENAS com o título, sem aspas, sem pontuação final.',
+      system: 'Gere um título curto (máximo 5 palavras, em português) que resuma O TEMA da mensagem do usuário. O título deve identificar o assunto principal (ex: "Dúvida sobre gel construtor", "Preço de alongamento", "Kit iniciante nail design"). Responda APENAS com o título, sem aspas, sem pontuação final, sem artigos desnecessários. NUNCA use "Bem-vindo" ou saudações como título.',
       messages: [{ role: 'user', content: userMessage }],
     });
 

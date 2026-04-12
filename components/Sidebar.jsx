@@ -513,7 +513,16 @@ export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activ
               <span className="text-xs font-bold text-accent">{user?.name?.[0]?.toUpperCase()}</span>
             </div>
             <div className="flex-1 min-w-0 text-left">
-              <p className="text-xs font-medium text-text truncate">{user?.name}</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-xs font-medium text-text truncate">{user?.name}</p>
+                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${
+                  currentPlan === 'premium' ? 'bg-gradient-to-r from-accent to-rose text-white' :
+                  currentPlan === 'pro' ? 'bg-accent-bg text-accent' :
+                  'bg-surface-alt text-text-light'
+                }`}>
+                  {currentPlan === 'premium' ? 'Premium' : currentPlan === 'pro' ? 'Pro' : 'Free'}
+                </span>
+              </div>
               <p className="text-[10px] text-text-light">{levelInfo.icon} {levelInfo.label}</p>
             </div>
             <svg className={`w-3.5 h-3.5 text-text-light transition-transform ${showUserMenu ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
