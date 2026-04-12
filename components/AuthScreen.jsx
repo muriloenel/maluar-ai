@@ -297,7 +297,7 @@ export default function AuthScreen() {
               onClick={() => { setMode('phone'); setError(''); setOtpSent(false); setOtpCode(''); }}
               className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-border text-sm font-medium text-text-muted hover:border-accent/30 hover:bg-accent-bg transition-all"
             >
-              📱 Entrar com SMS
+              📱 Entrar com celular
             </button>
 
             <p className="text-center text-xs text-text-muted">
