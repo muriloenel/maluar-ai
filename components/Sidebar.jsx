@@ -212,6 +212,7 @@ export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activ
   const [showLevelPicker, setShowLevelPicker] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [historySearch, setHistorySearch] = useState('');
+  const [openSections, setOpenSections] = useState({});
   const userMenuRef = useRef(null);
   const { theme, toggle: toggleTheme } = useTheme();
 
@@ -235,20 +236,30 @@ export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activ
     : chatList;
 
   // Componente reutilizável pra seção colapsável
-  const Section = ({ icon, title, children, defaultOpen = false }) => (
-    <details open={defaultOpen} className="group/section">
-      <summary className="flex items-center gap-2 px-3 py-2 cursor-pointer select-none hover:bg-surface-alt transition-colors list-none">
-        <span className="text-sm">{icon}</span>
-        <span className="text-[11px] font-semibold text-text-light uppercase tracking-wider flex-1">{title}</span>
-        <svg className="w-3.5 h-3.5 text-text-light group-open/section:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
-      </summary>
-      <div className="px-2 pb-2">
-        {children}
+  const toggleSection = (key) => setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
+
+  const Section = ({ id, icon, title, children, defaultOpen = false }) => {
+    const isOpen = openSections[id] !== undefined ? openSections[id] : defaultOpen;
+    return (
+      <div className="group/section">
+        <button
+          onClick={() => toggleSection(id)}
+          className="w-full flex items-center gap-2 px-3 py-2 cursor-pointer select-none hover:bg-surface-alt transition-colors"
+        >
+          <span className="text-sm">{icon}</span>
+          <span className="text-[11px] font-semibold text-text-light uppercase tracking-wider flex-1 text-left">{title}</span>
+          <svg className={`w-3.5 h-3.5 text-text-light transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        {isOpen && (
+          <div className="px-2 pb-2">
+            {children}
+          </div>
+        )}
       </div>
-    </details>
-  );
+    );
+  };
 
   return (
     <>
@@ -299,7 +310,7 @@ export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activ
 
           {/* ═══ HISTÓRICO ═══ */}
           {chatList && chatList.length > 0 && (
-            <Section icon="📋" title="Histórico" defaultOpen>
+            <Section id="history" icon="📋" title="Histórico" defaultOpen>
               {chatList.length > 3 && (
                 <div className="mb-1.5 px-1">
                   <input
@@ -383,7 +394,7 @@ export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activ
           </div>
 
           {/* ═══ MEU NEGÓCIO ═══ */}
-          <Section icon="💼" title="Meu Negócio">
+          <Section id="business" icon="💼" title="Meu Negócio">
             <div className="space-y-1 px-1">
               <button
                 onClick={() => { onTabChange('business'); onClose(); }}
@@ -425,7 +436,7 @@ export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activ
           </Section>
 
           {/* ═══ CONFIGURAÇÕES ═══ */}
-          <Section icon="⚙️" title="Configurações">
+          <Section id="settings" icon="⚙️" title="Configurações">
             <div className="space-y-1 px-1">
               {/* Nível */}
               <div>
