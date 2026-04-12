@@ -195,9 +195,12 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
       const userMessage = { role: 'user', content: userContent };
       const displayText = imageBase64 ? `${text || 'Foto enviada para análise'}` : text;
 
-      // Set chat title from first user message
-      if (!titleSetRef.current && chatId && !chatId.startsWith('local-')) {
-        dbUpdateChatTitle(chatId, displayText).catch(() => {});
+      // Marcar que título será gerado (mas gerar via IA após primeira resposta)
+      const shouldGenerateTitle = !titleSetRef.current && chatId && !chatId.startsWith('local-');
+      if (shouldGenerateTitle) {
+        // Título temporário imediato (primeiras palavras)
+        const tempTitle = displayText.slice(0, 40) + (displayText.length > 40 ? '…' : '');
+        dbUpdateChatTitle(chatId, tempTitle).catch(() => {});
         titleSetRef.current = true;
         onChatUpdated?.();
       }
@@ -316,6 +319,21 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
       }
       persistMessage({ role: 'assistant', content: finalContent });
       if (userId) dbIncrementMessageCount(userId).catch(() => {});
+
+      // Gerar título com IA (async, não bloqueia UX)
+      if (shouldGenerateTitle && chatId) {
+        const authToken = getAccessToken ? await getAccessToken().catch(() => null) : null;
+        fetch('/api/chat/title', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}),
+          },
+          body: JSON.stringify({ chatId, message: displayText }),
+        })
+          .then(() => onChatUpdated?.())
+          .catch(() => {}); // fallback silencioso — título temporário permanece
+      }
     } catch (err) {
       if (err.name === 'AbortError') return;
       setLastFailedMsg({ text, imageBase64, mediaType, imageDataUrl });

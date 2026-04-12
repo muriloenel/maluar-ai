@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTheme } from './ThemeProvider';
 import { UpgradeInlineBadge } from './UpgradePrompt';
 
@@ -210,8 +210,22 @@ const MODULES_BY_LEVEL = {
 
 export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activeTab, onTabChange, onChangeLevel, isOpen, onClose, chatList, activeChatId, onSelectChat, onDeleteChat, onSignOut, currentPlan, onUpgrade, onManageSubscription }) {
   const [showLevelPicker, setShowLevelPicker] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
   const [historySearch, setHistorySearch] = useState('');
+  const userMenuRef = useRef(null);
   const { theme, toggle: toggleTheme } = useTheme();
+
+  // Fechar menu do usuário ao clicar fora
+  useEffect(() => {
+    if (!showUserMenu) return;
+    const handler = (e) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
+        setShowUserMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showUserMenu]);
   const modules = MODULES_BY_LEVEL[user?.level] || MODULES_BY_LEVEL.iniciante;
   const levelInfo = LEVEL_LABELS[user?.level] || LEVEL_LABELS.iniciante;
   const isFree = currentPlan === 'free' || !currentPlan;
@@ -280,8 +294,8 @@ export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activ
           </button>
         </div>
 
-        {/* Scrollable sections */}
-        <div className="flex-1 overflow-y-auto">
+        {/* Scrollable sections — min-h-0 obrigatório em flex para overflow funcionar */}
+        <div className="flex-1 overflow-y-auto min-h-0">
 
           {/* ═══ HISTÓRICO ═══ */}
           {chatList && chatList.length > 0 && (
@@ -356,12 +370,12 @@ export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activ
           <div className="px-3 py-1">
             <button
               onClick={() => {
-                const level = user?.level || 'iniciante';
-                const levelLabel = LEVEL_LABELS[level]?.label || 'Iniciante';
-                onSendPrompt(`Sou nail designer nível ${levelLabel.toLowerCase()}. Quero aprender e evoluir na profissão. Me sugira os próximos passos e o que estudar.`);
+                onTabChange('learn');
                 onClose();
               }}
-              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left text-text-muted hover:bg-surface-alt hover:text-text transition-colors"
+              className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left transition-colors ${
+                activeTab === 'learn' ? 'bg-accent-bg text-accent' : 'text-text-muted hover:bg-surface-alt hover:text-text'
+              }`}
             >
               <span className="text-sm">📚</span>
               <span className="text-[11px] font-semibold text-text-light uppercase tracking-wider">Aprender</span>
@@ -381,8 +395,10 @@ export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activ
                 <span className="text-xs font-medium">Hub de Negócios</span>
               </button>
               <button
-                onClick={() => { onSendPrompt('Como montar meu Instagram profissional do zero? Me dá um plano completo'); onClose(); }}
-                className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left text-text-muted hover:bg-surface-alt hover:text-text transition-colors"
+                onClick={() => { onTabChange('instagram-zero'); onClose(); }}
+                className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-colors ${
+                  activeTab === 'instagram-zero' ? 'bg-accent-bg text-accent' : 'text-text-muted hover:bg-surface-alt hover:text-text'
+                }`}
               >
                 <span className="text-sm">📱</span>
                 <span className="text-xs font-medium">Instagram do Zero</span>
@@ -476,68 +492,74 @@ export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activ
 
         </div>
 
-        {/* Footer - User info compacto */}
-        <div className="p-3 border-t border-border-light">
-          <details className="group">
-            <summary className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg cursor-pointer hover:bg-surface-alt transition-colors list-none">
-              <div className="w-7 h-7 bg-accent-light rounded-full flex items-center justify-center">
-                <span className="text-xs font-bold text-accent">{user?.name?.[0]?.toUpperCase()}</span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-text truncate">{user?.name}</p>
-                <p className="text-[10px] text-text-light">{levelInfo.icon} {levelInfo.label}</p>
-              </div>
-              <svg className="w-3.5 h-3.5 text-text-light group-open:rotate-180 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </summary>
-            <div className="mt-1 ml-2 mr-1 space-y-0.5 text-[11px]">
-              <a
-                href="/api/account/export"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 px-2.5 py-1.5 rounded-md text-text-muted hover:text-accent hover:bg-accent-bg transition-colors"
-              >
-                📦 Exportar meus dados
-              </a>
-              <button
-                onClick={async () => {
-                  if (!confirm('Tem certeza? TODOS os seus dados serão excluídos permanentemente. Essa ação não pode ser desfeita.')) return;
-                  if (!confirm('Última chance: realmente deseja excluir sua conta?')) return;
-                  try {
-                    const res = await fetch('/api/account/delete', { method: 'DELETE', headers: { 'Authorization': `Bearer ${window.__maluarToken || ''}` } });
-                    if (res.ok) {
-                      alert('Conta excluída com sucesso.');
-                      onSignOut?.();
-                    } else {
-                      alert('Erro ao excluir conta. Tente novamente.');
-                    }
-                  } catch { alert('Erro de conexão.'); }
-                }}
-                className="flex items-center gap-2 px-2.5 py-1.5 rounded-md text-text-muted hover:text-rose hover:bg-rose-light transition-colors w-full text-left"
-              >
-                🗑️ Excluir minha conta
-              </button>
-              {currentPlan !== 'free' && currentPlan && onManageSubscription && (
-                <button
-                  onClick={onManageSubscription}
-                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-md text-text-muted hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors w-full text-left"
-                >
-                  💳 Cancelar assinatura
-                </button>
-              )}
-              <div className="flex gap-3 px-2.5 py-1 text-text-light">
-                <a href="/termos" className="hover:text-accent transition-colors">Termos</a>
-                <a href="/privacidade" className="hover:text-accent transition-colors">Privacidade</a>
-              </div>
-              <button
-                onClick={onSignOut}
-                className="flex items-center gap-2 px-2.5 py-1.5 rounded-md text-text-muted hover:text-rose hover:bg-rose-light transition-colors w-full text-left"
-              >
-                🚪 Sair
-              </button>
+        {/* Footer - User info compacto — flex-shrink-0 garante posição fixa */}
+        <div ref={userMenuRef} className="flex-shrink-0 p-3 border-t border-border-light relative">
+          <button
+            onClick={() => setShowUserMenu(prev => !prev)}
+            className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg w-full cursor-pointer hover:bg-surface-alt transition-colors"
+          >
+            <div className="w-7 h-7 bg-accent-light rounded-full flex items-center justify-center">
+              <span className="text-xs font-bold text-accent">{user?.name?.[0]?.toUpperCase()}</span>
             </div>
-          </details>
+            <div className="flex-1 min-w-0 text-left">
+              <p className="text-xs font-medium text-text truncate">{user?.name}</p>
+              <p className="text-[10px] text-text-light">{levelInfo.icon} {levelInfo.label}</p>
+            </div>
+            <svg className={`w-3.5 h-3.5 text-text-light transition-transform ${showUserMenu ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          {/* Popover que abre para CIMA — nunca cobre nav items */}
+          {showUserMenu && (
+            <div className="absolute bottom-full left-3 right-3 mb-1 bg-surface-card border border-border rounded-xl shadow-elevated z-50 animate-fade-in">
+              <div className="p-2 space-y-0.5 text-[11px]">
+                <a
+                  href="/api/account/export"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-md text-text-muted hover:text-accent hover:bg-accent-bg transition-colors"
+                >
+                  📦 Exportar meus dados
+                </a>
+                <button
+                  onClick={async () => {
+                    if (!confirm('Tem certeza? TODOS os seus dados serão excluídos permanentemente. Essa ação não pode ser desfeita.')) return;
+                    if (!confirm('Última chance: realmente deseja excluir sua conta?')) return;
+                    try {
+                      const res = await fetch('/api/account/delete', { method: 'DELETE', headers: { 'Authorization': `Bearer ${window.__maluarToken || ''}` } });
+                      if (res.ok) {
+                        alert('Conta excluída com sucesso.');
+                        onSignOut?.();
+                      } else {
+                        alert('Erro ao excluir conta. Tente novamente.');
+                      }
+                    } catch { alert('Erro de conexão.'); }
+                  }}
+                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-md text-text-muted hover:text-rose hover:bg-rose-light transition-colors w-full text-left"
+                >
+                  🗑️ Excluir minha conta
+                </button>
+                {currentPlan !== 'free' && currentPlan && onManageSubscription && (
+                  <button
+                    onClick={onManageSubscription}
+                    className="flex items-center gap-2 px-2.5 py-1.5 rounded-md text-text-muted hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors w-full text-left"
+                  >
+                    💳 Cancelar assinatura
+                  </button>
+                )}
+                <div className="flex gap-3 px-2.5 py-1 text-text-light">
+                  <a href="/termos" className="hover:text-accent transition-colors">Termos</a>
+                  <a href="/privacidade" className="hover:text-accent transition-colors">Privacidade</a>
+                </div>
+                <button
+                  onClick={onSignOut}
+                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-md text-text-muted hover:text-rose hover:bg-rose-light transition-colors w-full text-left"
+                >
+                  🚪 Sair
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </aside>
     </>

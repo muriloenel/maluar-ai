@@ -32,6 +32,127 @@ function TabSpinner() {
   );
 }
 
+const LEVEL_LABELS = {
+  iniciante: { label: 'Iniciante', icon: '🌱' },
+  intermediario: { label: 'Intermediária', icon: '💅' },
+  avancada: { label: 'Avançada', icon: '✨' },
+};
+
+// Landing screen — Aprender
+function LearnLanding({ user, onStart }) {
+  const level = user?.level || 'iniciante';
+  const info = LEVEL_LABELS[level] || LEVEL_LABELS.iniciante;
+
+  const topics = {
+    iniciante: [
+      { icon: '🌱', title: 'Primeiros passos na profissão' },
+      { icon: '🛒', title: 'Montar seu kit inicial' },
+      { icon: '📖', title: 'Técnicas básicas de nail design' },
+      { icon: '📅', title: 'Rotina de treino personalizada' },
+      { icon: '👥', title: 'Conquistar suas primeiras clientes' },
+    ],
+    intermediario: [
+      { icon: '💅', title: 'Aperfeiçoamento de técnicas' },
+      { icon: '🎨', title: 'Nail art que agrega valor' },
+      { icon: '💰', title: 'Precificação estratégica' },
+      { icon: '📱', title: 'Marketing no Instagram' },
+      { icon: '🚀', title: 'Captação de clientes' },
+    ],
+    avancada: [
+      { icon: '✨', title: 'Técnicas avançadas (encapsulamento, 3D)' },
+      { icon: '💰', title: 'Escalar seu negócio' },
+      { icon: '📊', title: 'Posicionamento premium' },
+      { icon: '🎓', title: 'Criar seus próprios cursos' },
+      { icon: '🏢', title: 'Formalizar sua empresa' },
+    ],
+  };
+
+  const levelTopics = topics[level] || topics.iniciante;
+
+  return (
+    <div className="flex-1 flex items-center justify-center p-6">
+      <div className="max-w-md w-full">
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-accent-bg mb-4">
+            <span className="text-3xl">📚</span>
+          </div>
+          <h2 className="text-xl font-bold text-text mb-2">Aprender Nail Design</h2>
+          <p className="text-sm text-text-muted">
+            Plano de aprendizado personalizado para seu nível{' '}
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent-bg text-accent text-xs font-semibold">
+              {info.icon} {info.label}
+            </span>
+          </p>
+        </div>
+
+        <div className="space-y-2 mb-8">
+          <p className="text-xs font-semibold text-text-light uppercase tracking-wider px-1">O que vamos abordar:</p>
+          {levelTopics.map((t, i) => (
+            <div key={i} className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-surface-alt">
+              <span className="text-base">{t.icon}</span>
+              <span className="text-sm text-text">{t.title}</span>
+            </div>
+          ))}
+        </div>
+
+        <button
+          onClick={() => onStart(`Sou nail designer nível ${info.label.toLowerCase()}. Quero aprender e evoluir na profissão. Me sugira os próximos passos e o que estudar.`)}
+          className="w-full btn-gradient py-3 rounded-xl text-sm font-semibold"
+        >
+          Começar meu plano de aprendizado
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Landing screen — Instagram do Zero
+function InstagramZeroLanding({ onStart }) {
+  const steps = [
+    { icon: '📸', title: 'Configurar perfil profissional', desc: 'Bio, foto, destaques e identidade visual' },
+    { icon: '📝', title: 'Estratégia de conteúdo', desc: 'O que postar, quando e com que frequência' },
+    { icon: '🎨', title: 'Feed que atrai clientes', desc: 'Fotos, Reels e Stories que convertem' },
+    { icon: '#️⃣', title: 'Hashtags e alcance', desc: 'Como ser encontrada pelas clientes certas' },
+    { icon: '💬', title: 'Engajamento e vendas', desc: 'Transformar seguidoras em clientes' },
+  ];
+
+  return (
+    <div className="flex-1 flex items-center justify-center p-6">
+      <div className="max-w-md w-full">
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-accent-bg mb-4">
+            <span className="text-3xl">📱</span>
+          </div>
+          <h2 className="text-xl font-bold text-text mb-2">Instagram do Zero</h2>
+          <p className="text-sm text-text-muted">
+            Plano completo para montar seu Instagram profissional de nail design e atrair clientes.
+          </p>
+        </div>
+
+        <div className="space-y-2 mb-8">
+          <p className="text-xs font-semibold text-text-light uppercase tracking-wider px-1">Etapas do plano:</p>
+          {steps.map((s, i) => (
+            <div key={i} className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-surface-alt">
+              <span className="text-base">{s.icon}</span>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-text">{s.title}</p>
+                <p className="text-xs text-text-muted">{s.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <button
+          onClick={() => onStart('Como montar meu Instagram profissional do zero? Me dá um plano completo')}
+          className="w-full btn-gradient py-3 rounded-xl text-sm font-semibold"
+        >
+          Iniciar plano do Instagram
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   const { user, profile, signOut, updateProfile, refreshProfile, getAccessToken } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -391,6 +512,10 @@ export default function Home() {
                 getAccessToken={getAccessToken}
                 onManageSubscription={handleManageSubscription}
               />
+            ) : activeTab === 'learn' ? (
+              <LearnLanding user={userForComponents} onStart={(prompt) => { handleSidebarPrompt(prompt); }} />
+            ) : activeTab === 'instagram-zero' ? (
+              <InstagramZeroLanding onStart={(prompt) => { handleBusinessPrompt(prompt); }} />
             ) : (
               <PostGenerator key={postKey} user={userForComponents} userId={user.id} initialPrompt={postPrompt} plan={effectiveProfile.plan || 'free'} onUpgrade={handleUpgrade} />
             )}

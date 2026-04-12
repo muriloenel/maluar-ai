@@ -10,6 +10,7 @@ export function useTheme() {
 
 export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState('light');
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     try {
@@ -17,8 +18,11 @@ export function ThemeProvider({ children }) {
       if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
         setTheme('dark');
         document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
       }
     } catch {}
+    setMounted(true);
   }, []);
 
   const toggle = useCallback(() => {
@@ -31,7 +35,7 @@ export function ThemeProvider({ children }) {
   }, []);
 
   return (
-    <ThemeContext.Provider value={{ theme, toggle }}>
+    <ThemeContext.Provider value={{ theme: mounted ? theme : 'light', toggle }}>
       {children}
     </ThemeContext.Provider>
   );
