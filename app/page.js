@@ -168,10 +168,19 @@ export default function Home() {
   const [dataLoaded, setDataLoaded] = useState(false);
   const [loadedUserId, setLoadedUserId] = useState(null);
   const selectingChatRef = useRef(null); // proteção contra race condition
+  const [globalBanner, setGlobalBanner] = useState('');
+  const [globalBannerType, setGlobalBannerType] = useState('info');
 
   // Callback para o ChatWindow avisar que consumiu o prompt
   const clearPendingPrompt = useCallback(() => {
     setPendingPrompt(null);
+  }, []);
+
+  // Buscar config do app (banner global, manutenção)
+  useEffect(() => {
+    fetch('/api/app-config').then(r => r.json()).then(data => {
+      if (data.globalBanner) { setGlobalBanner(data.globalBanner); setGlobalBannerType(data.globalBannerType || 'info'); }
+    }).catch(() => {});
   }, []);
 
   // Safety net: se sessionStorage tiver plano confirmado pelo checkout, usar como override
@@ -461,6 +470,17 @@ export default function Home() {
           </div>
           <div className="w-5" />
         </header>
+
+        {/* Global banner (admin configurable) */}
+        {globalBanner && (
+          <div className={`px-4 py-2 text-center text-xs font-medium ${
+            globalBannerType === 'warning' ? 'bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:text-amber-300' :
+            globalBannerType === 'success' ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300' :
+            'bg-blue-50 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300'
+          }`}>
+            {globalBanner}
+          </div>
+        )}
 
         {/* Mobile tab bar — simplificada: Chat, Criar, Aprender, Menu */}
         <nav className="flex border-b border-border-light md:hidden">

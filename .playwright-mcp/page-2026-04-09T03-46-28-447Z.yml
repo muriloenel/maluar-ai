@@ -1,0 +1,26 @@
+- generic [ref=e1]:
+  - generic [ref=e289]:
+    - generic [ref=e293]:
+      - generic [ref=e294]:
+        - img "Maluar" [ref=e296]
+        - heading "Maluar AI" [level=1] [ref=e298]
+        - paragraph [ref=e299]: Sua mentora de Nail Design
+      - generic [ref=e300]:
+        - generic [ref=e301]:
+          - generic [ref=e302]: Email
+          - textbox "seu@email.com" [active] [ref=e303]
+        - generic [ref=e304]:
+          - generic [ref=e305]: Senha
+          - textbox "••••••" [ref=e306]
+        - button "Entrar" [ref=e307] [cursor=pointer]
+        - button "Esqueci minha senha" [ref=e308] [cursor=pointer]
+        - paragraph [ref=e309]:
+          - text: Não tem conta?
+          - button "Criar conta grátis" [ref=e310] [cursor=pointer]
+    - generic [ref=e311]:
+      - link "Termos de Uso" [ref=e312] [cursor=pointer]:
+        - /url: /termos
+      - text: ·
+      - link "Política de Privacidade" [ref=e313] [cursor=pointer]:
+        - /url: /privacidade
+  - alert [ref=e27]

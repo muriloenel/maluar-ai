@@ -78,9 +78,22 @@ const Icons = {
       <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>
     </svg>
   ),
+  settings: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+      <circle cx="12" cy="12" r="3"/>
+    </svg>
+  ),
 };
 
 // ===== Color Tokens =====
+const CATEGORY_LABELS = {
+  quotas: '📊 Quotas & Limites',
+  ai: '🤖 IA & Bot',
+  business: '💰 Negócio',
+  system: '⚙️ Sistema',
+};
+
 const colors = {
   primary: '#7C3AED',     // violet-600
   primaryLight: '#A78BFA', // violet-400
@@ -396,6 +409,10 @@ export default function AdminDashboard() {
   const [userPage, setUserPage] = useState(1);
   const [actionLoading, setActionLoading] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [configs, setConfigs] = useState(null);
+  const [configEdits, setConfigEdits] = useState({});
+  const [configSaving, setConfigSaving] = useState(false);
+  const [configDefaults, setConfigDefaults] = useState({});
 
   const fetchApi = useCallback(async (path) => {
     const token = await getAccessToken();
@@ -449,6 +466,43 @@ export default function AdminDashboard() {
     }
   }, [fetchApi]);
 
+  const loadConfigs = useCallback(async () => {
+    try {
+      const data = await fetchApi('/api/admin/config');
+      setConfigs(data.configs);
+      setConfigDefaults(data.defaults || {});
+      setConfigEdits({});
+    } catch {
+      setConfigs(null);
+    }
+  }, [fetchApi]);
+
+  const saveConfigs = useCallback(async () => {
+    if (Object.keys(configEdits).length === 0) return;
+    setConfigSaving(true);
+    try {
+      const token = await getAccessToken();
+      // Converter tipos: números ficam como número, booleans como boolean
+      const updates = {};
+      for (const [key, val] of Object.entries(configEdits)) {
+        if (key === 'maintenance_mode') {
+          updates[key] = val === 'true' || val === true;
+        } else if (key.startsWith('quota_') || key.startsWith('rate_limit_') || key.startsWith('ai_max_tokens_') || key.startsWith('price_') || key === 'ai_temperature') {
+          updates[key] = Number(val);
+        } else {
+          updates[key] = val;
+        }
+      }
+      await fetch('/api/admin/config', {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ updates }),
+      });
+      await loadConfigs();
+    } catch {}
+    setConfigSaving(false);
+  }, [configEdits, getAccessToken, loadConfigs]);
+
   useEffect(() => {
     (async () => {
       setLoading(true);
@@ -460,7 +514,8 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     if (activeTab === 'users') loadUsers();
-  }, [activeTab, loadUsers]);
+    if (activeTab === 'config') loadConfigs();
+  }, [activeTab, loadUsers, loadConfigs]);
 
   const handleUserAction = async (userId, action, value) => {
     setActionLoading(userId);
@@ -523,6 +578,7 @@ export default function AdminDashboard() {
     { id: 'financial', label: 'Financeiro', icon: Icons.wallet },
     { id: 'monitoring', label: 'Monitoramento', icon: Icons.chart },
     { id: 'insights', label: 'Insights', icon: Icons.brain },
+    { id: 'config', label: 'Configurações', icon: Icons.settings },
   ];
 
   return (
@@ -1139,6 +1195,140 @@ export default function AdminDashboard() {
             ) : (
               <Card>
                 <EmptyState text="Sem dados de conversas para analisar. Os insights aparecerão quando houver mensagens." />
+              </Card>
+            )}
+          </>
+        )}
+
+        {/* ===== CONFIG TAB ===== */}
+        {activeTab === 'config' && (
+          <>
+            {configs ? (
+              <div className="space-y-6">
+                {/* Alertas de recomendação */}
+                {stats && (
+                  <Card title="💡 Recomendações">
+                    <div className="space-y-2 text-sm">
+                      {stats.aiCostMonth > 50 && (
+                        <p className="text-amber-600 dark:text-amber-400">⚠️ Custo IA alto (${stats.aiCostMonth?.toFixed(2)}/mês). Considere reduzir max_tokens casual para 200.</p>
+                      )}
+                      {stats.totalUsers > 100 && stats.conversionRate < 5 && (
+                        <p className="text-blue-600 dark:text-blue-400">📊 Taxa de conversão baixa ({stats.conversionRate?.toFixed(1)}%). Use o campo "Instruções extras" para promover planos Pro.</p>
+                      )}
+                      {!stats.aiCostMonth && stats.totalUsers < 10 && (
+                        <p className="text-green-600 dark:text-green-400">✅ App saudável. Configurações atuais estão adequadas para o volume atual.</p>
+                      )}
+                    </div>
+                  </Card>
+                )}
+
+                {/* Categorias */}
+                {Object.entries(CATEGORY_LABELS).map(([catKey, catLabel]) => {
+                  const items = configs[catKey];
+                  if (!items || items.length === 0) return null;
+                  return (
+                    <Card key={catKey} title={catLabel}>
+                      <div className="space-y-4">
+                        {items.map((item) => {
+                          const editValue = configEdits[item.key] !== undefined ? configEdits[item.key] : item.value;
+                          const isEdited = configEdits[item.key] !== undefined;
+                          const isBoolean = item.key === 'maintenance_mode';
+                          const isTextArea = item.key === 'ai_extra_instructions' || item.key === 'maintenance_message' || item.key === 'global_banner';
+                          const isSelect = item.key === 'global_banner_type';
+
+                          return (
+                            <div key={item.key} className="flex flex-col sm:flex-row sm:items-start gap-2">
+                              <div className="flex-1 min-w-0">
+                                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">
+                                  {item.label || item.key}
+                                  {isEdited && <span className="ml-2 text-xs text-amber-500 font-normal">• editado</span>}
+                                </label>
+                                {isBoolean ? (
+                                  <button
+                                    onClick={() => {
+                                      const current = editValue === true || editValue === 'true';
+                                      setConfigEdits(prev => ({ ...prev, [item.key]: (!current).toString() }));
+                                    }}
+                                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                                      (editValue === true || editValue === 'true')
+                                        ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                        : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                    }`}
+                                  >
+                                    {(editValue === true || editValue === 'true') ? '🔴 ATIVO — App bloqueado' : '🟢 Desativado — App normal'}
+                                  </button>
+                                ) : isTextArea ? (
+                                  <textarea
+                                    value={typeof editValue === 'string' ? editValue : JSON.stringify(editValue)}
+                                    onChange={(e) => setConfigEdits(prev => ({ ...prev, [item.key]: e.target.value }))}
+                                    rows={3}
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500 transition-all resize-y"
+                                    placeholder={item.key === 'ai_extra_instructions' ? 'Ex: Hoje promova o plano Pro para iniciantes...' : ''}
+                                  />
+                                ) : isSelect ? (
+                                  <select
+                                    value={editValue}
+                                    onChange={(e) => setConfigEdits(prev => ({ ...prev, [item.key]: e.target.value }))}
+                                    className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-800 dark:text-gray-200"
+                                  >
+                                    <option value="info">ℹ️ Info (azul)</option>
+                                    <option value="warning">⚠️ Aviso (amarelo)</option>
+                                    <option value="success">✅ Sucesso (verde)</option>
+                                  </select>
+                                ) : (
+                                  <input
+                                    type={typeof configDefaults[item.key] === 'number' ? 'number' : 'text'}
+                                    value={typeof editValue === 'string' ? editValue : JSON.stringify(editValue)}
+                                    onChange={(e) => setConfigEdits(prev => ({ ...prev, [item.key]: e.target.value }))}
+                                    step={item.key === 'ai_temperature' ? '0.1' : item.key.startsWith('price_') ? '0.01' : '1'}
+                                    min={item.key === 'ai_temperature' ? '0' : '0'}
+                                    max={item.key === 'ai_temperature' ? '1' : undefined}
+                                    className={`px-3 py-2 rounded-lg border text-sm transition-all w-full sm:w-48 ${
+                                      isEdited
+                                        ? 'border-amber-400 bg-amber-50 dark:bg-amber-900/10 dark:border-amber-600'
+                                        : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900'
+                                    } text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500`}
+                                  />
+                                )}
+                                {item.updated_at && (
+                                  <p className="text-[10px] text-gray-400 mt-1">
+                                    Atualizado: {new Date(item.updated_at).toLocaleString('pt-BR')}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </Card>
+                  );
+                })}
+
+                {/* Botão salvar */}
+                {Object.keys(configEdits).length > 0 && (
+                  <div className="sticky bottom-4 flex justify-center">
+                    <button
+                      onClick={saveConfigs}
+                      disabled={configSaving}
+                      className="px-8 py-3 bg-violet-600 hover:bg-violet-700 disabled:bg-violet-400 text-white rounded-xl text-sm font-semibold shadow-lg transition-all flex items-center gap-2"
+                    >
+                      {configSaving ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          Salvando...
+                        </>
+                      ) : (
+                        <>
+                          💾 Salvar {Object.keys(configEdits).length} alteração{Object.keys(configEdits).length > 1 ? 'ões' : ''}
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <Card>
+                <EmptyState text="Não foi possível carregar as configurações. Verifique se a tabela app_config foi criada no Supabase." />
               </Card>
             )}
           </>

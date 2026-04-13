@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import { createClient } from '@supabase/supabase-js';
 import { imageGenerateSchema, parseBody } from '../../../../lib/validation';
+import { getQuotaImages, getSystemConfig } from '../../../../lib/config';
 
 let _openai;
 function getOpenAI() {
@@ -12,11 +13,14 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const UNLIMITED_EMAILS = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
 
-// Limites diários de geração de imagem por plano
-const IMAGE_LIMITS = { free: 0, pro: 5, premium: 20 };
-
 export async function POST(req) {
   try {
+    // Verificar modo manutenção
+    const sysConfig = await getSystemConfig();
+    if (sysConfig.maintenanceMode) {
+      return Response.json({ error: sysConfig.maintenanceMessage }, { status: 503 });
+    }
+
     // Auth
     const authHeader = req.headers.get('authorization');
     const token = authHeader?.replace('Bearer ', '');
@@ -40,7 +44,7 @@ export async function POST(req) {
     }
     const profile = profileResult?.data;
     const plan = profile?.plan || 'free';
-    const limit = IMAGE_LIMITS[plan] || 0;
+    const limit = await getQuotaImages(plan);
 
     if (!isAdmin && plan === 'free') {
       return Response.json({

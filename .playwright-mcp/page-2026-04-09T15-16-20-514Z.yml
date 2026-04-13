@@ -1,0 +1,123 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e8]:
+      - generic [ref=e10]:
+        - img "Maluar" [ref=e12]
+        - generic [ref=e14]:
+          - heading "Maluar" [level=1] [ref=e15]
+          - paragraph [ref=e16]: Nail Design AI
+      - button "Novo chat" [ref=e18] [cursor=pointer]:
+        - img [ref=e19]
+        - generic [ref=e21]: Novo chat
+      - generic [ref=e22]:
+        - group [ref=e284]:
+          - generic "📋 Histórico" [ref=e285] [cursor=pointer]:
+            - generic [ref=e286]: 📋
+            - generic [ref=e287]: Histórico
+            - img [ref=e288]
+        - group [ref=e290]:
+          - generic "🎨 Criar" [ref=e291] [cursor=pointer]:
+            - generic [ref=e292]: 🎨
+            - generic [ref=e293]: Criar
+            - img [ref=e294]
+          - generic [ref=e297]:
+            - button "✍️ Criar Post" [ref=e298] [cursor=pointer]:
+              - generic [ref=e299]: ✍️
+              - generic [ref=e300]: Criar Post
+            - button "✨ Criar Imagem IA PRO" [ref=e301] [cursor=pointer]:
+              - generic [ref=e302]: ✨
+              - generic [ref=e303]: Criar Imagem IA
+              - generic [ref=e304]: PRO
+        - group [ref=e305]:
+          - generic "📚 Aprender" [ref=e306] [cursor=pointer]:
+            - generic [ref=e307]: 📚
+            - generic [ref=e308]: Aprender
+            - img [ref=e309]
+        - group [ref=e311]:
+          - generic "💼 Meu Negócio" [ref=e312] [cursor=pointer]:
+            - generic [ref=e313]: 💼
+            - generic [ref=e314]: Meu Negócio
+            - img [ref=e315]
+        - group [ref=e317]:
+          - generic "⚙️ Configurações" [ref=e318] [cursor=pointer]:
+            - generic [ref=e319]: ⚙️
+            - generic [ref=e320]: Configurações
+            - img [ref=e321]
+      - group [ref=e63]:
+        - generic "M Murilo ✨ Avançada" [ref=e64] [cursor=pointer]:
+          - generic [ref=e66]: M
+          - generic [ref=e67]:
+            - paragraph [ref=e68]: Murilo
+            - paragraph [ref=e69]: ✨ Avançada
+          - img [ref=e70]
+    - main [ref=e72]:
+      - generic [ref=e183]:
+        - button "Abrir menu" [ref=e184] [cursor=pointer]:
+          - img [ref=e185]
+        - generic [ref=e187]:
+          - generic [ref=e188]: 💅
+          - generic [ref=e189]: Maluar AI
+      - navigation [ref=e190]:
+        - button "💬 Chat" [ref=e191] [cursor=pointer]
+        - button "🎨 Criar" [ref=e192] [cursor=pointer]
+        - button "💼 Negócio" [active] [ref=e193] [cursor=pointer]
+        - button "☰ Menu" [ref=e194] [cursor=pointer]
+      - generic [ref=e325]:
+        - generic [ref=e326]:
+          - heading "🚀 Meu Negócio" [level=2] [ref=e327]
+          - paragraph [ref=e328]: Ferramentas pra você escalar seu negócio de nail design
+        - generic [ref=e329]:
+          - button "🎯 Planos de Ação" [ref=e330] [cursor=pointer]
+          - button "📣 Marketing" [ref=e331] [cursor=pointer]
+          - button "💬 WhatsApp" [ref=e332] [cursor=pointer]
+        - generic [ref=e333]:
+          - paragraph [ref=e334]: Escolha o que precisa agora
+          - button "🔍 Diagnóstico do Meu Negócio Descubra onde você está e o que fazer pra crescer" [ref=e335] [cursor=pointer]:
+            - generic [ref=e336]: 🔍
+            - generic [ref=e337]:
+              - generic [ref=e338]: Diagnóstico do Meu Negócio
+              - generic [ref=e339]: Descubra onde você está e o que fazer pra crescer
+            - img [ref=e340]
+          - button "🎯 Plano de Captação 30 Dias Consiga clientes reais em 4 semanas" [ref=e342] [cursor=pointer]:
+            - generic [ref=e343]: 🎯
+            - generic [ref=e344]:
+              - generic [ref=e345]: Plano de Captação 30 Dias
+              - generic [ref=e346]: Consiga clientes reais em 4 semanas
+            - img [ref=e347]
+          - button "💰 Organizar Minhas Finanças Saiba quanto ganha de verdade e planeje" [ref=e349] [cursor=pointer]:
+            - generic [ref=e350]: 💰
+            - generic [ref=e351]:
+              - generic [ref=e352]: Organizar Minhas Finanças
+              - generic [ref=e353]: Saiba quanto ganha de verdade e planeje
+            - img [ref=e354]
+          - button "⏰ Montar Minha Rotina Organize trabalho + casa + filhos" [ref=e356] [cursor=pointer]:
+            - generic [ref=e357]: ⏰
+            - generic [ref=e358]:
+              - generic [ref=e359]: Montar Minha Rotina
+              - generic [ref=e360]: Organize trabalho + casa + filhos
+            - img [ref=e361]
+          - button "📱 Plano de Conteúdo Mensal Calendário completo pro seu Instagram" [ref=e363] [cursor=pointer]:
+            - generic [ref=e364]: 📱
+            - generic [ref=e365]:
+              - generic [ref=e366]: Plano de Conteúdo Mensal
+              - generic [ref=e367]: Calendário completo pro seu Instagram
+            - img [ref=e368]
+          - button "📋 Como Formalizar (MEI) Passo a passo pra abrir seu MEI" [ref=e370] [cursor=pointer]:
+            - generic [ref=e371]: 📋
+            - generic [ref=e372]:
+              - generic [ref=e373]: Como Formalizar (MEI)
+              - generic [ref=e374]: Passo a passo pra abrir seu MEI
+            - img [ref=e375]
+          - button "📈 Subir Meu Preço Estratégia pra cobrar mais sem perder clientes" [ref=e377] [cursor=pointer]:
+            - generic [ref=e378]: 📈
+            - generic [ref=e379]:
+              - generic [ref=e380]: Subir Meu Preço
+              - generic [ref=e381]: Estratégia pra cobrar mais sem perder clientes
+            - img [ref=e382]
+          - button "🏠 Montar Meu Ateliê Checklist e custos pra seu espaço" [ref=e384] [cursor=pointer]:
+            - generic [ref=e385]: 🏠
+            - generic [ref=e386]:
+              - generic [ref=e387]: Montar Meu Ateliê
+              - generic [ref=e388]: Checklist e custos pra seu espaço
+            - img [ref=e389]
+  - alert [ref=e7]

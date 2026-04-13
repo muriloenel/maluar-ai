@@ -1,0 +1,2 @@
+[     381ms] [WARNING] <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes"> @ https://maluar-ai.vercel.app/:0
+[   23458ms] [WARNING] [AUTH] getAccessToken falhou: getSession timeout — usando fallback localStorage @ https://maluar-ai.vercel.app/_next/static/chunks/app/layout-f9532aed4ffb72e3.js:0

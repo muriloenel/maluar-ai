@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
 import { getAuthUser } from '../../../lib/admin';
 import { chatBodySchema, parseBody } from '../../../lib/validation';
+import { getQuotaMessages, getRateLimit, getAIConfig, getSystemConfig } from '../../../lib/config';
 
 // Workaround para proxy corporativo — APENAS em desenvolvimento
 if (process.env.NODE_ENV !== 'production' && process.env.ALLOW_SELF_SIGNED_CERTS === '1') {
@@ -16,8 +17,8 @@ const client = new Anthropic({
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-// Limites por plano
-const DAILY_LIMITS = { free: 15, pro: 150, premium: 9999 };
+// Limites por plano — defaults (fallback se config não carregar)
+const DAILY_LIMITS_DEFAULT = { free: 15, pro: 150, premium: 9999 };
 const UNLIMITED_EMAILS = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
 
 // Supabase admin client reutilizável (connection pool)
@@ -55,7 +56,7 @@ async function checkQuotaServer(userId, userEmail) {
     // Usuário desativado
     if (profile.status === 'inactive') return { allowed: false, status: 'inactive' };
 
-    const limit = DAILY_LIMITS[profile.plan] || DAILY_LIMITS.free;
+    const limit = await getQuotaMessages(profile.plan || 'free');
     const now = new Date();
     const resetAt = profile.messages_reset_at ? new Date(profile.messages_reset_at) : new Date(0);
     const isNewDay = now.toDateString() !== resetAt.toDateString();
@@ -122,11 +123,10 @@ async function logUsage(userId, model, inputTokens, outputTokens, feature = 'cha
 
 // Rate limiter em memória — diferenciado por plano
 const rateLimitMap = new Map();
-const RATE_LIMITS_BY_PLAN = { free: 15, pro: 30, premium: 60 };
 const RATE_WINDOW = 60_000;
 
-function checkRateLimit(ip, plan = 'free') {
-  const limit = RATE_LIMITS_BY_PLAN[plan] || RATE_LIMITS_BY_PLAN.free;
+async function checkRateLimitAsync(ip, plan = 'free') {
+  const limit = await getRateLimit(plan);
   const now = Date.now();
   const entry = rateLimitMap.get(ip);
   if (!entry || now > entry.reset) {
@@ -183,9 +183,15 @@ export async function POST(req) {
       );
     }
 
+    // Verificar modo manutenção
+    const sysConfig = await getSystemConfig();
+    if (sysConfig.maintenanceMode) {
+      return Response.json({ error: sysConfig.maintenanceMessage }, { status: 503 });
+    }
+
     // Rate limiting — prioriza userId (não spoofável) sobre IP
     const rateLimitKey = authUser?.id || req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'anonymous';
-    if (!checkRateLimit(rateLimitKey, userPlan)) {
+    if (!(await checkRateLimitAsync(rateLimitKey, userPlan))) {
       return Response.json(
         { error: 'Muitas requisições. Aguarde um momento antes de tentar novamente.' },
         { status: 429 }
@@ -220,19 +226,23 @@ export async function POST(req) {
         ? lastUserMsg.content.filter(b => b.type === 'text').map(b => b.text).join(' ')
         : '';
     const isComplex = imageRequest || lastText.length > 500 || /plano de ação|diagnóstico|análise|estratégia|financeiro|business|marketing|calendário|passo a passo|propaganda|post|legenda|story|stories|reels|campanha/i.test(lastText);
-    // Modelos: Sonnet para complexo/imagens, Haiku para msgs simples (3x mais barato)
-    const SONNET = 'claude-sonnet-4-20250514';
-    const HAIKU = 'claude-haiku-4-5';
+    // Modelos e tokens dinâmicos via admin config
+    const aiConfig = await getAIConfig();
+    const SONNET = aiConfig.modelComplex;
+    const HAIKU = aiConfig.modelDefault;
     const FALLBACKS = [SONNET, HAIKU, 'claude-3-5-sonnet-latest'];
     let model = isComplex ? SONNET : HAIKU;
-    // max_tokens: curto para conversa casual, médio para complexo, alto para imagens
-    const maxTokens = imageRequest ? 2000 : isComplex ? 600 : 300;
+    const maxTokens = imageRequest ? aiConfig.maxTokensImage : isComplex ? aiConfig.maxTokensComplex : aiConfig.maxTokensCasual;
+    
+    // Instruções extras do admin (injetadas no system prompt)
+    const extraInstructions = aiConfig.extraInstructions;
+    const finalSystem = extraInstructions ? `${safeSystem}\n\n[INSTRUÇÃO ADMIN]: ${extraInstructions}` : safeSystem;
     console.log(`[CHAT] Modelo: ${model}, maxTokens: ${maxTokens}, Stream: ${!!stream}, User: ${authUser?.email || 'anon'}`);
 
     // Prompt caching: enviar system como bloco com cache_control
     // O system prompt é estável entre requests — alta taxa de cache hit (~90%)
-    const systemBlocks = safeSystem ? [
-      { type: 'text', text: safeSystem, cache_control: { type: 'ephemeral' } },
+    const systemBlocks = finalSystem ? [
+      { type: 'text', text: finalSystem, cache_control: { type: 'ephemeral' } },
     ] : undefined;
 
     // Streaming mode
@@ -243,7 +253,7 @@ export async function POST(req) {
           model,
           max_tokens: maxTokens,
           temperature: imageRequest ? 0.1 : 0.5,
-          system: systemBlocks || safeSystem,
+          system: systemBlocks || finalSystem,
           messages,
           stream: true,
         });
@@ -271,7 +281,7 @@ export async function POST(req) {
               model: fallbackModel,
               max_tokens: maxTokens,
               temperature: imageRequest ? 0.1 : 0.5,
-              system: systemBlocks || safeSystem,
+              system: systemBlocks || finalSystem,
               messages,
               stream: true,
             });
@@ -343,7 +353,7 @@ export async function POST(req) {
         response = await client.messages.create({
           model: tryModel,
           max_tokens: maxTokens,
-          system: systemBlocks || safeSystem,
+          system: systemBlocks || finalSystem,
           messages,
         });
         usedModel = tryModel;

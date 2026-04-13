@@ -1,0 +1,85 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e8]:
+      - generic [ref=e10]:
+        - img "Maluar" [ref=e12]
+        - generic [ref=e14]:
+          - heading "Maluar" [level=1] [ref=e15]
+          - paragraph [ref=e16]: Nail Design AI
+      - button "Novo chat" [ref=e18] [cursor=pointer]:
+        - img [ref=e19]
+        - generic [ref=e21]: Novo chat
+      - generic [ref=e22]:
+        - group [ref=e23]:
+          - generic "📋 Histórico" [ref=e24] [cursor=pointer]:
+            - generic [ref=e25]: 📋
+            - generic [ref=e26]: Histórico
+            - img [ref=e27]
+        - group [ref=e29]:
+          - generic "🎨 Criar" [ref=e30] [cursor=pointer]:
+            - generic [ref=e31]: 🎨
+            - generic [ref=e32]: Criar
+            - img [ref=e33]
+          - generic [ref=e36]:
+            - button "✍️ Criar Post" [ref=e37] [cursor=pointer]:
+              - generic [ref=e38]: ✍️
+              - generic [ref=e39]: Criar Post
+            - button "✨ Criar Imagem IA PRO" [ref=e40] [cursor=pointer]:
+              - generic [ref=e41]: ✨
+              - generic [ref=e42]: Criar Imagem IA
+              - generic [ref=e43]: PRO
+        - group [ref=e44]:
+          - generic "📚 Aprender" [ref=e45] [cursor=pointer]:
+            - generic [ref=e46]: 📚
+            - generic [ref=e47]: Aprender
+            - img [ref=e48]
+        - group [ref=e50]:
+          - generic "💼 Meu Negócio" [ref=e51] [cursor=pointer]:
+            - generic [ref=e52]: 💼
+            - generic [ref=e53]: Meu Negócio
+            - img [ref=e54]
+        - group [ref=e56]:
+          - generic "⚙️ Configurações" [ref=e57] [cursor=pointer]:
+            - generic [ref=e58]: ⚙️
+            - generic [ref=e59]: Configurações
+            - img [ref=e60]
+      - group [ref=e63]:
+        - generic "M Murilo ✨ Avançada" [ref=e64] [cursor=pointer]:
+          - generic [ref=e66]: M
+          - generic [ref=e67]:
+            - paragraph [ref=e68]: Murilo
+            - paragraph [ref=e69]: ✨ Avançada
+          - img [ref=e70]
+    - main [ref=e72]:
+      - generic [ref=e73]:
+        - generic [ref=e76]:
+          - img "Maluar" [ref=e78]
+          - generic [ref=e79]:
+            - generic [ref=e80]:
+              - generic [ref=e81]: Maluar AI
+              - button "Copiar resposta" [ref=e82] [cursor=pointer]:
+                - img [ref=e83]
+              - button "Salvar nos favoritos" [ref=e85] [cursor=pointer]:
+                - img [ref=e86]
+            - paragraph [ref=e89]: Boa tarde, Murilo! 💅 Como posso te ajudar hoje?
+            - generic [ref=e90]:
+              - button "Boa resposta" [ref=e91] [cursor=pointer]: 👍
+              - button "Pode melhorar" [ref=e92] [cursor=pointer]: 👎
+        - generic [ref=e94]:
+          - paragraph [ref=e95]: Comece por uma ocasião
+          - generic [ref=e96]:
+            - button "💍 Casamento" [ref=e97] [cursor=pointer]
+            - button "🎉 Festa" [ref=e98] [cursor=pointer]
+            - button "💼 Trabalho" [ref=e99] [cursor=pointer]
+            - button "🌴 Dia-a-dia" [ref=e100] [cursor=pointer]
+            - button "🎄 Natal/Ano Novo" [ref=e101] [cursor=pointer]
+        - generic [ref=e102]:
+          - generic [ref=e104]:
+            - generic "Enviar foto da galeria" [ref=e105] [cursor=pointer]:
+              - img [ref=e106]
+            - button "Enviar foto da galeria" [ref=e108]
+            - textbox "Pergunta qualquer coisa..." [ref=e109]
+            - button "Enviar mensagem" [disabled] [ref=e110]:
+              - img [ref=e111]
+          - paragraph [ref=e113]: A Maluar pode cometer erros. Revise informações importantes.
+  - alert [ref=e7]

@@ -1,0 +1,109 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e8]:
+      - generic [ref=e10]:
+        - img "Maluar" [ref=e12]
+        - generic [ref=e14]:
+          - heading "Maluar" [level=1] [ref=e15]
+          - paragraph [ref=e16]: Nail Design AI
+      - button "Novo chat" [ref=e18] [cursor=pointer]:
+        - img [ref=e19]
+        - generic [ref=e21]: Novo chat
+      - generic [ref=e22]:
+        - group [ref=e195]:
+          - generic "📋 Histórico" [ref=e196] [cursor=pointer]:
+            - generic [ref=e197]: 📋
+            - generic [ref=e198]: Histórico
+            - img [ref=e199]
+        - group [ref=e201]:
+          - generic "🎨 Criar" [ref=e202] [cursor=pointer]:
+            - generic [ref=e203]: 🎨
+            - generic [ref=e204]: Criar
+            - img [ref=e205]
+          - generic [ref=e208]:
+            - button "✍️ Criar Post" [ref=e209] [cursor=pointer]:
+              - generic [ref=e210]: ✍️
+              - generic [ref=e211]: Criar Post
+            - button "✨ Criar Imagem IA PRO" [ref=e212] [cursor=pointer]:
+              - generic [ref=e213]: ✨
+              - generic [ref=e214]: Criar Imagem IA
+              - generic [ref=e215]: PRO
+        - group [ref=e216]:
+          - generic "📚 Aprender" [ref=e217] [cursor=pointer]:
+            - generic [ref=e218]: 📚
+            - generic [ref=e219]: Aprender
+            - img [ref=e220]
+        - group [ref=e222]:
+          - generic "💼 Meu Negócio" [ref=e223] [cursor=pointer]:
+            - generic [ref=e224]: 💼
+            - generic [ref=e225]: Meu Negócio
+            - img [ref=e226]
+        - group [ref=e228]:
+          - generic "⚙️ Configurações" [ref=e229] [cursor=pointer]:
+            - generic [ref=e230]: ⚙️
+            - generic [ref=e231]: Configurações
+            - img [ref=e232]
+      - group [ref=e63]:
+        - generic "M Murilo ✨ Avançada" [ref=e64] [cursor=pointer]:
+          - generic [ref=e66]: M
+          - generic [ref=e67]:
+            - paragraph [ref=e68]: Murilo
+            - paragraph [ref=e69]: ✨ Avançada
+          - img [ref=e70]
+    - main [ref=e72]:
+      - generic [ref=e183]:
+        - button "Abrir menu" [ref=e184] [cursor=pointer]:
+          - img [ref=e185]
+        - generic [ref=e187]:
+          - generic [ref=e188]: 💅
+          - generic [ref=e189]: Maluar AI
+      - navigation [ref=e190]:
+        - button "💬 Chat" [ref=e191] [cursor=pointer]
+        - button "🎨 Criar" [active] [ref=e192] [cursor=pointer]
+        - button "💼 Negócio" [ref=e193] [cursor=pointer]
+        - button "☰ Menu" [ref=e194] [cursor=pointer]
+      - generic [ref=e237]:
+        - generic [ref=e239]:
+          - heading "Criar Post" [level=2] [ref=e240]
+          - paragraph [ref=e241]: Gere legendas e conteúdo pra suas redes sociais
+        - generic [ref=e242]:
+          - generic [ref=e243]: Plataforma
+          - generic [ref=e244]:
+            - button "📸 Instagram" [ref=e245] [cursor=pointer]:
+              - generic [ref=e246]: 📸
+              - text: Instagram
+            - button "📘 Facebook" [ref=e247] [cursor=pointer]:
+              - generic [ref=e248]: 📘
+              - text: Facebook
+            - button "📱 Stories" [ref=e249] [cursor=pointer]:
+              - generic [ref=e250]: 📱
+              - text: Stories
+        - generic [ref=e251]:
+          - generic [ref=e252]: Tipo de Post
+          - generic [ref=e253]:
+            - button "Resultado / Antes e Depois" [ref=e254] [cursor=pointer]
+            - button "Dica Técnica" [ref=e255] [cursor=pointer]
+            - button "Promoção / Oferta" [ref=e256] [cursor=pointer]
+            - button "Bastidores / Processo" [ref=e257] [cursor=pointer]
+            - button "Depoimento de Cliente" [ref=e258] [cursor=pointer]
+            - button "Tendência / Inspiração" [ref=e259] [cursor=pointer]
+        - generic [ref=e260]:
+          - generic [ref=e261]: Foto (opcional)
+          - generic [ref=e262]:
+            - generic [ref=e263] [cursor=pointer]:
+              - img [ref=e264]
+              - generic [ref=e266]: Enviar foto da galeria
+            - generic [ref=e269]: ou gere com IA
+            - generic [ref=e271]:
+              - 'textbox "Ex: Unhas stiletto rosa com glitter..." [ref=e272]'
+              - button "Gerar" [disabled] [ref=e273]:
+                - img [ref=e274]
+                - text: Gerar
+          - button "Enviar foto da galeria" [ref=e276]
+        - generic [ref=e277]:
+          - generic [ref=e278]: Informação extra (opcional)
+          - 'textbox "Ex: Alongamento em gel, cliente amou, serviço durou 2h..." [ref=e279]'
+        - button "Gerar Post" [ref=e281] [cursor=pointer]:
+          - img [ref=e282]
+          - text: Gerar Post
+  - alert [ref=e7]

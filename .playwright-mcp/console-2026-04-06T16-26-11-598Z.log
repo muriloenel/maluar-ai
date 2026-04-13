@@ -1,0 +1,5 @@
+[     857ms] [WARNING] <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes"> @ https://maluar-ai.vercel.app/:0
+[22218684ms] [WARNING] [QUOTA] Fallback server-side: Supabase query timeout @ https://maluar-ai.vercel.app/_next/static/chunks/app/page-77f683c53c7acf04.js:0
+[22221689ms] [WARNING] [AUTH] getAccessToken falhou: getSession timeout — usando fallback localStorage @ https://maluar-ai.vercel.app/_next/static/chunks/app/layout-f9532aed4ffb72e3.js:0
+[22254600ms] [WARNING] [QUOTA] Fallback server-side: Supabase query timeout @ https://maluar-ai.vercel.app/_next/static/chunks/app/page-77f683c53c7acf04.js:0
+[22257603ms] [WARNING] [AUTH] getAccessToken falhou: getSession timeout — usando fallback localStorage @ https://maluar-ai.vercel.app/_next/static/chunks/app/layout-f9532aed4ffb72e3.js:0
