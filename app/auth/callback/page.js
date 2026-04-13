@@ -29,12 +29,25 @@ export default function AuthCallback() {
         return;
       }
 
-      // Trocar code por sessão (PKCE flow)
+      // Recovery check
+      if (type === 'recovery') {
+        if (code) {
+          try {
+            await supabase.auth.exchangeCodeForSession(code);
+          } catch {}
+        }
+        setMessage('Redirecionando para redefinição de senha...');
+        window.location.href = '/auth/reset-password';
+        return;
+      }
+
+      // Trocar code por sessão (PKCE flow — email confirm, OAuth, magic link)
       if (code) {
         try {
           const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
           if (exchangeError) {
-            // Se o código já foi usado, o usuário pode já estar logado
+            console.warn('[AUTH-CALLBACK] Exchange error:', exchangeError.message);
+            // detectSessionInUrl pode ter processado o code antes — verificar session
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) {
               setStatus('error');
@@ -42,24 +55,47 @@ export default function AuthCallback() {
               return;
             }
           }
-        } catch {
-          setStatus('error');
-          setMessage('Erro ao processar autenticação. Tente fazer login normalmente.');
+        } catch (err) {
+          console.error('[AUTH-CALLBACK] Exchange exception:', err);
+          // Tentar getSession como fallback
+          try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+              setStatus('error');
+              setMessage('Erro ao processar autenticação. Tente fazer login normalmente.');
+              return;
+            }
+          } catch {
+            setStatus('error');
+            setMessage('Erro ao processar autenticação. Tente fazer login normalmente.');
+            return;
+          }
+        }
+
+        // Aguardar sessão confirmar (onAuthStateChange pode levar alguns ms)
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // Confirmar sessão estabelecida antes de redirecionar
+        const { data: { session: finalSession } } = await supabase.auth.getSession();
+        if (finalSession) {
+          setStatus('success');
+          setMessage('Login realizado com sucesso! Redirecionando...');
+          setTimeout(() => { window.location.href = '/'; }, 1000);
           return;
         }
 
-        // Recovery via PKCE — redirecionar APÓS troca do code
-        if (type === 'recovery') {
-          setMessage('Redirecionando para redefinição de senha...');
-          window.location.href = '/auth/reset-password';
+        // Session não encontrada — aguardar mais um pouco (OAuth pode demorar)
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        const { data: { session: retrySession } } = await supabase.auth.getSession();
+        if (retrySession) {
+          setStatus('success');
+          setMessage('Login realizado com sucesso! Redirecionando...');
+          setTimeout(() => { window.location.href = '/'; }, 500);
           return;
         }
-      }
 
-      // Verificar se type=recovery sem code (fallback)
-      if (type === 'recovery') {
-        setMessage('Redirecionando para redefinição de senha...');
-        window.location.href = '/auth/reset-password';
+        setStatus('error');
+        setMessage('Não foi possível completar o login. Tente novamente.');
         return;
       }
 
@@ -72,16 +108,22 @@ export default function AuthCallback() {
           return;
         }
         // Para outros tipos (signup, magiclink), o detectSessionInUrl já processou
-        // Aguardar brevemente pra garantir
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 1500));
       }
 
-      // Sucesso — email verificado ou login via link
+      // Verificar se existe session (pode vir de detectSessionInUrl ou hash processing)
+      const { data: { session: existingSession } } = await supabase.auth.getSession();
+      if (existingSession) {
+        setStatus('success');
+        setMessage('Login realizado com sucesso! Redirecionando...');
+        setTimeout(() => { window.location.href = '/'; }, 1000);
+        return;
+      }
+
+      // Fallback — email confirmado sem session
       setStatus('success');
-      setMessage('Conta verificada com sucesso! Redirecionando...');
-      setTimeout(() => {
-        window.location.href = '/';
-      }, 2000);
+      setMessage('Conta verificada! Faça login para continuar.');
+      setTimeout(() => { window.location.href = '/'; }, 2000);
     };
 
     handleCallback();
