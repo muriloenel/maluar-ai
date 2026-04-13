@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { useAuth } from '../components/SupabaseAuthProvider';
 import AuthScreen from '../components/AuthScreen';
+import CompleteProfile from '../components/CompleteProfile';
 import Sidebar from '../components/Sidebar';
 import {
   dbLoadChatList,
@@ -395,6 +396,17 @@ export default function Home() {
   // Not logged in
   if (!user) {
     return <AuthScreen />;
+  }
+
+  // Profile incomplete (social login without phone) — must complete before using app
+  if (profile && !profile.phone) {
+    return (
+      <CompleteProfile
+        onComplete={async () => {
+          await refreshProfile?.();
+        }}
+      />
+    );
   }
 
   return (

@@ -6,7 +6,7 @@ import { useAuth } from './SupabaseAuthProvider';
 import { useToast } from './Toast';
 
 export default function AuthScreen() {
-  const [mode, setMode] = useState('login'); // 'login' | 'register' | 'forgot' | 'phone'
+  const [mode, setMode] = useState('login'); // 'login' | 'register' | 'forgot'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -17,9 +17,6 @@ export default function AuthScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showResendConfirm, setShowResendConfirm] = useState(false);
-  const [phoneLoginNumber, setPhoneLoginNumber] = useState('');
-  const [otpCode, setOtpCode] = useState('');
-  const [otpSent, setOtpSent] = useState(false);
   const toast = useToast();
   const { supabase } = useAuth();
 
@@ -86,44 +83,26 @@ export default function AuthScreen() {
     setLoading(false);
   };
 
-  const handlePhoneLogin = async (e) => {
-    e.preventDefault();
+  const handleGoogleLogin = async () => {
     if (!supabase) { setError('Serviço indisponível.'); return; }
-    const digits = phoneLoginNumber.replace(/\D/g, '');
-    if (digits.length < 10) { setError('Número inválido. Use DDD + número.'); return; }
     setLoading(true);
     setError('');
-
-    const phoneFormatted = '+55' + digits;
-
-    if (!otpSent) {
-      // Enviar OTP
-      const { error } = await supabase.auth.signInWithOtp({ phone: phoneFormatted });
-      if (error) {
-        const msg = error.message.toLowerCase();
-        if (msg.includes('not enabled') || msg.includes('provider')) {
-          setError('Login por SMS ainda não está disponível. Use email e senha.');
-        } else if (msg.includes('rate limit') || msg.includes('too many')) {
-          setError('Muitas tentativas. Aguarde alguns minutos.');
-        } else {
-          setError('Erro ao enviar SMS. Verifique o número e tente novamente.');
-        }
-      } else {
-        setOtpSent(true);
-        toast?.('Código SMS enviado! Verifique seu celular.');
-      }
-    } else {
-      // Verificar OTP
-      const { error } = await supabase.auth.verifyOtp({
-        phone: phoneFormatted,
-        token: otpCode,
-        type: 'sms',
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+          queryParams: { prompt: 'select_account' },
+        },
       });
       if (error) {
-        setError('Código inválido ou expirado. Tente novamente.');
+        setError('Erro ao conectar com Google. Tente novamente.');
+        setLoading(false);
       }
+    } catch {
+      setError('Erro de conexão. Verifique sua internet.');
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleRegister = async (e) => {
@@ -294,10 +273,17 @@ export default function AuthScreen() {
 
             <button
               type="button"
-              onClick={() => { setMode('phone'); setError(''); setOtpSent(false); setOtpCode(''); }}
+              onClick={handleGoogleLogin}
+              disabled={loading}
               className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-border text-sm font-medium text-text-muted hover:border-accent/30 hover:bg-accent-bg transition-all"
             >
-              📱 Entre com seu Celular
+              <svg className="w-4 h-4" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" />
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+              </svg>
+              Entrar com Google
             </button>
 
             <p className="text-center text-xs text-text-muted">
@@ -476,73 +462,7 @@ export default function AuthScreen() {
           </form>
         )}
 
-        {/* Phone/SMS login */}
-        {mode === 'phone' && (
-          <form onSubmit={handlePhoneLogin} className="space-y-4 animate-slide-up delay-200">
-            <p className="text-sm text-text-muted text-center mb-2">
-              {otpSent ? 'Digite o código que enviamos por SMS.' : 'Digite seu número de celular para receber um código de acesso.'}
-            </p>
 
-            {!otpSent ? (
-              <div>
-                <label className="block text-text text-sm font-medium mb-1.5">Celular (com DDD)</label>
-                <input
-                  type="tel"
-                  value={phoneLoginNumber}
-                  onChange={(e) => setPhoneLoginNumber(formatPhone(e.target.value))}
-                  placeholder="(11) 99999-9999"
-                  className="w-full bg-surface-card border border-border rounded-xl px-4 py-3 text-text placeholder-text-light focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all shadow-soft"
-                  required
-                />
-              </div>
-            ) : (
-              <div>
-                <label className="block text-text text-sm font-medium mb-1.5">Código SMS</label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={otpCode}
-                  onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  placeholder="000000"
-                  className="w-full bg-surface-card border border-border rounded-xl px-4 py-3 text-text text-center text-lg tracking-[0.3em] placeholder-text-light focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all shadow-soft"
-                  maxLength={6}
-                  autoFocus
-                  required
-                />
-              </div>
-            )}
-
-            {error && <p className="text-rose text-xs font-medium">{error}</p>}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3.5 rounded-xl font-semibold text-sm btn-gradient shadow-soft"
-            >
-              {loading ? (otpSent ? 'Verificando...' : 'Enviando SMS...') : (otpSent ? 'Confirmar código' : 'Enviar código por SMS')}
-            </button>
-
-            {otpSent && (
-              <button
-                type="button"
-                onClick={() => { setOtpSent(false); setOtpCode(''); setError(''); }}
-                className="w-full text-center text-xs text-text-muted hover:text-accent transition-colors"
-              >
-                Reenviar código
-              </button>
-            )}
-
-            <p className="text-center text-xs text-text-muted">
-              <button
-                type="button"
-                onClick={() => { setMode('login'); setError(''); setOtpSent(false); }}
-                className="text-accent font-semibold hover:underline"
-              >
-                ← Voltar ao login com email
-              </button>
-            </p>
-          </form>
-        )}
       </div>
 
       {/* Links LGPD — sempre abaixo do formulário */}
