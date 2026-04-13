@@ -94,6 +94,71 @@ const CATEGORY_LABELS = {
   system: '⚙️ Sistema',
 };
 
+const CATEGORY_META = {
+  quotas: {
+    icon: '📊',
+    title: 'Quotas & Limites',
+    desc: 'Controle de mensagens, imagens e rate limits por plano',
+    gradient: 'from-blue-500 to-cyan-400',
+    bg: 'bg-blue-50 dark:bg-blue-950/20',
+    border: 'border-blue-200 dark:border-blue-800/40',
+    badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+  },
+  ai: {
+    icon: '🤖',
+    title: 'IA & Bot',
+    desc: 'Modelos, tokens, temperatura e instruções personalizadas',
+    gradient: 'from-violet-500 to-purple-400',
+    bg: 'bg-violet-50 dark:bg-violet-950/20',
+    border: 'border-violet-200 dark:border-violet-800/40',
+    badge: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300',
+  },
+  business: {
+    icon: '💰',
+    title: 'Negócio',
+    desc: 'Preços e valores para cálculos de MRR',
+    gradient: 'from-amber-500 to-orange-400',
+    bg: 'bg-amber-50 dark:bg-amber-950/20',
+    border: 'border-amber-200 dark:border-amber-800/40',
+    badge: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
+  },
+  system: {
+    icon: '⚙️',
+    title: 'Sistema',
+    desc: 'Manutenção, avisos globais e controle de acesso',
+    gradient: 'from-rose-500 to-pink-400',
+    bg: 'bg-rose-50 dark:bg-rose-950/20',
+    border: 'border-rose-200 dark:border-rose-800/40',
+    badge: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300',
+  },
+};
+
+const CONFIG_DESCRIPTIONS = {
+  quota_messages_free: 'Mensagens que usuárias grátis podem enviar por dia',
+  quota_messages_pro: 'Mensagens que usuárias Pro podem enviar por dia',
+  quota_messages_premium: 'Mensagens ilimitadas para Premium (use 9999)',
+  quota_images_free: 'Geração de imagens IA por dia (0 = desabilitado)',
+  quota_images_pro: 'Imagens que Pro pode gerar por dia',
+  quota_images_premium: 'Imagens que Premium pode gerar por dia',
+  rate_limit_free: 'Máximo de requisições por minuto — Free',
+  rate_limit_pro: 'Máximo de requisições por minuto — Pro',
+  rate_limit_premium: 'Máximo de requisições por minuto — Premium',
+  ai_model_default: 'Modelo usado para perguntas simples e conversas casuais',
+  ai_model_complex: 'Modelo usado quando detecta perguntas longas/complexas',
+  ai_max_tokens_casual: 'Tamanho máximo de resposta para perguntas casuais',
+  ai_max_tokens_complex: 'Tamanho máximo de resposta para perguntas complexas',
+  ai_max_tokens_image: 'Tamanho máximo de resposta quando há imagem anexa',
+  ai_temperature: 'Criatividade das respostas (0 = precisa, 1 = criativa)',
+  ai_extra_instructions: 'Instruções que serão injetadas no prompt do bot em tempo real',
+  price_free: 'Para cálculo de MRR no dashboard',
+  price_pro: 'Preço mensal do plano Pro (R$)',
+  price_premium: 'Preço mensal do plano Premium (R$)',
+  maintenance_mode: 'Quando ativo, bloqueia todas as APIs e mostra mensagem de manutenção',
+  maintenance_message: 'Mensagem exibida quando o modo manutenção está ativo',
+  global_banner: 'Banner exibido no topo do app para todas as usuárias',
+  global_banner_type: 'Cor e estilo do banner global',
+};
+
 const colors = {
   primary: '#7C3AED',     // violet-600
   primaryLight: '#A78BFA', // violet-400
@@ -1204,132 +1269,268 @@ export default function AdminDashboard() {
         {activeTab === 'config' && (
           <>
             {configs ? (
-              <div className="space-y-6">
-                {/* Alertas de recomendação */}
-                {stats && (
-                  <Card title="💡 Recomendações">
-                    <div className="space-y-2 text-sm">
-                      {stats.aiCostMonth > 50 && (
-                        <p className="text-amber-600 dark:text-amber-400">⚠️ Custo IA alto (${stats.aiCostMonth?.toFixed(2)}/mês). Considere reduzir max_tokens casual para 200.</p>
-                      )}
-                      {stats.totalUsers > 100 && stats.conversionRate < 5 && (
-                        <p className="text-blue-600 dark:text-blue-400">📊 Taxa de conversão baixa ({stats.conversionRate?.toFixed(1)}%). Use o campo "Instruções extras" para promover planos Pro.</p>
-                      )}
-                      {!stats.aiCostMonth && stats.totalUsers < 10 && (
-                        <p className="text-green-600 dark:text-green-400">✅ App saudável. Configurações atuais estão adequadas para o volume atual.</p>
-                      )}
+              <div className="space-y-8">
+                {/* Hero header */}
+                <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-violet-600 via-purple-600 to-pink-500 p-6 sm:p-8 text-white">
+                  <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PHBhdGggZD0iTTM2IDM0djItSDI0di0yaDEyem0wLTh2Mkg2di0yaDMweiIvPjwvZz48L2c+PC9zdmc+')] opacity-30" />
+                  <div className="relative">
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center">
+                        {Icons.settings}
+                      </div>
+                      <div>
+                        <h2 className="text-xl font-bold">Configurações do App</h2>
+                        <p className="text-white/70 text-sm">Controle em tempo real — alterações refletem instantaneamente</p>
+                      </div>
                     </div>
-                  </Card>
+                    {Object.keys(configEdits).length > 0 && (
+                      <div className="mt-4 flex items-center gap-2 px-3 py-2 rounded-xl bg-white/15 backdrop-blur-sm border border-white/20 w-fit">
+                        <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                        <span className="text-sm font-medium">{Object.keys(configEdits).length} alteração{Object.keys(configEdits).length > 1 ? 'ões' : ''} não salva{Object.keys(configEdits).length > 1 ? 's' : ''}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Alertas de recomendação */}
+                {stats && (stats.aiCostMonth > 50 || (stats.totalUsers > 100 && stats.conversionRate < 5)) && (
+                  <div className="rounded-2xl border border-amber-200 dark:border-amber-800/40 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/20 dark:to-orange-950/20 p-5">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center shrink-0">
+                        <span className="text-lg">💡</span>
+                      </div>
+                      <div className="space-y-1.5">
+                        <h3 className="text-sm font-bold text-amber-800 dark:text-amber-300">Recomendações Inteligentes</h3>
+                        {stats.aiCostMonth > 50 && (
+                          <p className="text-sm text-amber-700 dark:text-amber-400">
+                            Custo IA alto (${stats.aiCostMonth?.toFixed(2)}/mês). Reduza <code className="px-1.5 py-0.5 rounded bg-amber-200/60 dark:bg-amber-800/40 text-xs font-mono">max_tokens_casual</code> para 200.
+                          </p>
+                        )}
+                        {stats.totalUsers > 100 && stats.conversionRate < 5 && (
+                          <p className="text-sm text-amber-700 dark:text-amber-400">
+                            Conversão baixa ({stats.conversionRate?.toFixed(1)}%). Use o campo &ldquo;Instruções extras&rdquo; para promover planos Pro.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 )}
 
                 {/* Categorias */}
-                {Object.entries(CATEGORY_LABELS).map(([catKey, catLabel]) => {
+                {Object.entries(CATEGORY_META).map(([catKey, meta]) => {
                   const items = configs[catKey];
                   if (!items || items.length === 0) return null;
+                  const editedCount = items.filter(i => configEdits[i.key] !== undefined).length;
+
                   return (
-                    <Card key={catKey} title={catLabel}>
-                      <div className="space-y-4">
+                    <div key={catKey} className={`rounded-2xl border ${meta.border} ${meta.bg} overflow-hidden`}>
+                      {/* Category header */}
+                      <div className="px-5 sm:px-6 pt-5 pb-4 border-b border-gray-200/50 dark:border-gray-700/30">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${meta.gradient} flex items-center justify-center text-white shadow-sm`}>
+                              <span className="text-lg">{meta.icon}</span>
+                            </div>
+                            <div>
+                              <h3 className="text-sm font-bold text-gray-800 dark:text-white">{meta.title}</h3>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">{meta.desc}</p>
+                            </div>
+                          </div>
+                          {editedCount > 0 && (
+                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${meta.badge}`}>
+                              {editedCount} editado{editedCount > 1 ? 's' : ''}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Config items */}
+                      <div className="divide-y divide-gray-200/40 dark:divide-gray-700/20">
                         {items.map((item) => {
                           const editValue = configEdits[item.key] !== undefined ? configEdits[item.key] : item.value;
                           const isEdited = configEdits[item.key] !== undefined;
                           const isBoolean = item.key === 'maintenance_mode';
                           const isTextArea = item.key === 'ai_extra_instructions' || item.key === 'maintenance_message' || item.key === 'global_banner';
                           const isSelect = item.key === 'global_banner_type';
+                          const description = CONFIG_DESCRIPTIONS[item.key] || '';
 
                           return (
-                            <div key={item.key} className="flex flex-col sm:flex-row sm:items-start gap-2">
-                              <div className="flex-1 min-w-0">
-                                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-1">
-                                  {item.label || item.key}
-                                  {isEdited && <span className="ml-2 text-xs text-amber-500 font-normal">• editado</span>}
-                                </label>
-                                {isBoolean ? (
-                                  <button
-                                    onClick={() => {
-                                      const current = editValue === true || editValue === 'true';
-                                      setConfigEdits(prev => ({ ...prev, [item.key]: (!current).toString() }));
-                                    }}
-                                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
-                                      (editValue === true || editValue === 'true')
-                                        ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                                        : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                                    }`}
-                                  >
-                                    {(editValue === true || editValue === 'true') ? '🔴 ATIVO — App bloqueado' : '🟢 Desativado — App normal'}
-                                  </button>
-                                ) : isTextArea ? (
-                                  <textarea
-                                    value={typeof editValue === 'string' ? editValue : JSON.stringify(editValue)}
-                                    onChange={(e) => setConfigEdits(prev => ({ ...prev, [item.key]: e.target.value }))}
-                                    rows={3}
-                                    className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500 transition-all resize-y"
-                                    placeholder={item.key === 'ai_extra_instructions' ? 'Ex: Hoje promova o plano Pro para iniciantes...' : ''}
-                                  />
-                                ) : isSelect ? (
-                                  <select
-                                    value={editValue}
-                                    onChange={(e) => setConfigEdits(prev => ({ ...prev, [item.key]: e.target.value }))}
-                                    className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-800 dark:text-gray-200"
-                                  >
-                                    <option value="info">ℹ️ Info (azul)</option>
-                                    <option value="warning">⚠️ Aviso (amarelo)</option>
-                                    <option value="success">✅ Sucesso (verde)</option>
-                                  </select>
-                                ) : (
-                                  <input
-                                    type={typeof configDefaults[item.key] === 'number' ? 'number' : 'text'}
-                                    value={typeof editValue === 'string' ? editValue : JSON.stringify(editValue)}
-                                    onChange={(e) => setConfigEdits(prev => ({ ...prev, [item.key]: e.target.value }))}
-                                    step={item.key === 'ai_temperature' ? '0.1' : item.key.startsWith('price_') ? '0.01' : '1'}
-                                    min={item.key === 'ai_temperature' ? '0' : '0'}
-                                    max={item.key === 'ai_temperature' ? '1' : undefined}
-                                    className={`px-3 py-2 rounded-lg border text-sm transition-all w-full sm:w-48 ${
-                                      isEdited
-                                        ? 'border-amber-400 bg-amber-50 dark:bg-amber-900/10 dark:border-amber-600'
-                                        : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900'
-                                    } text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500`}
-                                  />
-                                )}
-                                {item.updated_at && (
-                                  <p className="text-[10px] text-gray-400 mt-1">
-                                    Atualizado: {new Date(item.updated_at).toLocaleString('pt-BR')}
-                                  </p>
-                                )}
+                            <div key={item.key} className={`px-5 sm:px-6 py-4 transition-colors ${isEdited ? 'bg-amber-50/50 dark:bg-amber-900/10' : 'hover:bg-white/40 dark:hover:bg-white/[0.02]'}`}>
+                              <div className="flex flex-col lg:flex-row lg:items-start gap-3">
+                                {/* Label + description */}
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-0.5">
+                                    <label className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                                      {item.label || item.key}
+                                    </label>
+                                    {isEdited && (
+                                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/40 text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                                        EDITADO
+                                      </span>
+                                    )}
+                                  </div>
+                                  {description && (
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 lg:mb-0">{description}</p>
+                                  )}
+                                  {item.updated_at && (
+                                    <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1 flex items-center gap-1">
+                                      {Icons.clock} {new Date(item.updated_at).toLocaleString('pt-BR')}
+                                    </p>
+                                  )}
+                                </div>
+
+                                {/* Input */}
+                                <div className="lg:w-72 shrink-0">
+                                  {isBoolean ? (
+                                    <div className="flex items-center gap-3">
+                                      <button
+                                        onClick={() => {
+                                          const current = editValue === true || editValue === 'true';
+                                          setConfigEdits(prev => ({ ...prev, [item.key]: (!current).toString() }));
+                                        }}
+                                        className={`relative inline-flex h-7 w-[52px] items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                                          (editValue === true || editValue === 'true')
+                                            ? 'bg-red-500 focus:ring-red-500'
+                                            : 'bg-gray-300 dark:bg-gray-600 focus:ring-violet-500'
+                                        }`}
+                                      >
+                                        <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                                          (editValue === true || editValue === 'true') ? 'translate-x-[27px]' : 'translate-x-[3px]'
+                                        }`} />
+                                      </button>
+                                      <span className={`text-sm font-medium ${
+                                        (editValue === true || editValue === 'true')
+                                          ? 'text-red-600 dark:text-red-400'
+                                          : 'text-gray-500 dark:text-gray-400'
+                                      }`}>
+                                        {(editValue === true || editValue === 'true')
+                                          ? '🔴 ATIVO'
+                                          : '🟢 Desativado'}
+                                      </span>
+                                    </div>
+                                  ) : isTextArea ? (
+                                    <textarea
+                                      value={typeof editValue === 'string' ? editValue : JSON.stringify(editValue)}
+                                      onChange={(e) => setConfigEdits(prev => ({ ...prev, [item.key]: e.target.value }))}
+                                      rows={3}
+                                      className={`w-full px-3.5 py-2.5 rounded-xl border text-sm transition-all resize-y ${
+                                        isEdited
+                                          ? 'border-amber-400 dark:border-amber-600 bg-white dark:bg-gray-900 ring-2 ring-amber-200 dark:ring-amber-900/40'
+                                          : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900'
+                                      } text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500 placeholder-gray-400`}
+                                      placeholder={item.key === 'ai_extra_instructions' ? 'Ex: Hoje promova o plano Pro para iniciantes...' : item.key === 'global_banner' ? 'Ex: 🎉 Promoção: 50% off no plano Pro!' : ''}
+                                    />
+                                  ) : isSelect ? (
+                                    <select
+                                      value={editValue}
+                                      onChange={(e) => setConfigEdits(prev => ({ ...prev, [item.key]: e.target.value }))}
+                                      className={`px-3.5 py-2.5 rounded-xl border text-sm w-full transition-all ${
+                                        isEdited
+                                          ? 'border-amber-400 dark:border-amber-600 bg-white dark:bg-gray-900 ring-2 ring-amber-200 dark:ring-amber-900/40'
+                                          : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900'
+                                      } text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500`}
+                                    >
+                                      <option value="info">ℹ️ Info (azul)</option>
+                                      <option value="warning">⚠️ Aviso (amarelo)</option>
+                                      <option value="success">✅ Sucesso (verde)</option>
+                                    </select>
+                                  ) : (
+                                    <div className="relative">
+                                      <input
+                                        type={typeof configDefaults[item.key] === 'number' ? 'number' : 'text'}
+                                        value={typeof editValue === 'string' ? editValue : JSON.stringify(editValue)}
+                                        onChange={(e) => setConfigEdits(prev => ({ ...prev, [item.key]: e.target.value }))}
+                                        step={item.key === 'ai_temperature' ? '0.1' : item.key.startsWith('price_') ? '0.01' : '1'}
+                                        min={item.key === 'ai_temperature' ? '0' : '0'}
+                                        max={item.key === 'ai_temperature' ? '1' : undefined}
+                                        className={`w-full px-3.5 py-2.5 rounded-xl border text-sm transition-all ${
+                                          isEdited
+                                            ? 'border-amber-400 dark:border-amber-600 bg-white dark:bg-gray-900 ring-2 ring-amber-200 dark:ring-amber-900/40'
+                                            : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900'
+                                        } text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500`}
+                                      />
+                                      {item.key === 'ai_temperature' && (
+                                        <div className="mt-2">
+                                          <input
+                                            type="range"
+                                            min="0"
+                                            max="1"
+                                            step="0.1"
+                                            value={editValue}
+                                            onChange={(e) => setConfigEdits(prev => ({ ...prev, [item.key]: e.target.value }))}
+                                            className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-violet-600"
+                                          />
+                                          <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
+                                            <span>Precisa</span>
+                                            <span>Criativa</span>
+                                          </div>
+                                        </div>
+                                      )}
+                                      {item.key.startsWith('price_') && (
+                                        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-medium pointer-events-none">R$</div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           );
                         })}
                       </div>
-                    </Card>
+                    </div>
                   );
                 })}
 
-                {/* Botão salvar */}
+                {/* Botão salvar flutuante */}
                 {Object.keys(configEdits).length > 0 && (
-                  <div className="sticky bottom-4 flex justify-center">
-                    <button
-                      onClick={saveConfigs}
-                      disabled={configSaving}
-                      className="px-8 py-3 bg-violet-600 hover:bg-violet-700 disabled:bg-violet-400 text-white rounded-xl text-sm font-semibold shadow-lg transition-all flex items-center gap-2"
-                    >
-                      {configSaving ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          Salvando...
-                        </>
-                      ) : (
-                        <>
-                          💾 Salvar {Object.keys(configEdits).length} alteração{Object.keys(configEdits).length > 1 ? 'ões' : ''}
-                        </>
-                      )}
-                    </button>
+                  <div className="sticky bottom-6 flex justify-center z-30">
+                    <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl shadow-violet-500/20 border border-gray-200 dark:border-gray-700 p-2 flex items-center gap-3">
+                      <div className="pl-3 flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                        <span className="text-sm text-gray-600 dark:text-gray-300 font-medium">
+                          {Object.keys(configEdits).length} alteração{Object.keys(configEdits).length > 1 ? 'ões' : ''}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => setConfigEdits({})}
+                        className="px-4 py-2.5 text-sm font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+                      >
+                        Descartar
+                      </button>
+                      <button
+                        onClick={saveConfigs}
+                        disabled={configSaving}
+                        className="px-6 py-2.5 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 disabled:from-violet-400 disabled:to-purple-400 text-white rounded-xl text-sm font-bold shadow-lg shadow-violet-500/25 transition-all flex items-center gap-2"
+                      >
+                        {configSaving ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            Salvando...
+                          </>
+                        ) : (
+                          <>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M20 6 9 17l-5-5"/>
+                            </svg>
+                            Salvar alterações
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
             ) : (
-              <Card>
-                <EmptyState text="Não foi possível carregar as configurações. Verifique se a tabela app_config foi criada no Supabase." />
-              </Card>
+              <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-[#1a1625] p-8 text-center">
+                <div className="w-16 h-16 rounded-2xl bg-red-50 dark:bg-red-950/30 flex items-center justify-center mx-auto mb-4">
+                  <span className="text-2xl">⚠️</span>
+                </div>
+                <h3 className="text-sm font-bold text-gray-800 dark:text-white mb-1">Configurações indisponíveis</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400 max-w-sm mx-auto">
+                  Verifique se a tabela <code className="px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-[10px] font-mono">app_config</code> foi criada no Supabase.
+                </p>
+              </div>
             )}
           </>
         )}
