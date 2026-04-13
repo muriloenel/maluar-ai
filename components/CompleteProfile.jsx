@@ -38,12 +38,22 @@ export default function CompleteProfile({ onComplete }) {
     setLoading(true);
     setError('');
 
+    const timeout = (ms) => new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms));
+
     try {
-      // Atualizar profile no banco
-      const { error: dbError } = await supabase
+      // Upsert profile no banco (com timeout de 8s)
+      const dbPromise = supabase
         .from('profiles')
-        .update({ name: name.trim(), phone: phoneDigits, level })
-        .eq('id', user.id);
+        .upsert({
+          id: user.id,
+          name: name.trim(),
+          phone: phoneDigits,
+          level,
+        }, { onConflict: 'id' })
+        .select('id, phone')
+        .single();
+
+      const { data, error: dbError } = await Promise.race([dbPromise, timeout(8000)]);
 
       if (dbError) {
         console.error('CompleteProfile DB error:', dbError);
@@ -51,6 +61,8 @@ export default function CompleteProfile({ onComplete }) {
         setLoading(false);
         return;
       }
+
+      console.log('CompleteProfile saved:', data);
 
       // Atualizar user_metadata (fire-and-forget, não bloqueia)
       supabase.auth.updateUser({
@@ -61,7 +73,11 @@ export default function CompleteProfile({ onComplete }) {
       onComplete?.({ name: name.trim(), phone: phoneDigits, level });
     } catch (err) {
       console.error('CompleteProfile error:', err);
-      setError('Erro inesperado. Tente novamente.');
+      if (err.message === 'timeout') {
+        setError('Demorou demais. Verifique sua conexão e tente novamente.');
+      } else {
+        setError('Erro inesperado. Tente novamente.');
+      }
     }
     setLoading(false);
   };
