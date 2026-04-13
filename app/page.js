@@ -398,8 +398,21 @@ export default function Home() {
     return <AuthScreen />;
   }
 
-  // Profile incomplete (social login without phone) — must complete before using app
-  if (profile && !profile.phone) {
+  // Profile still loading — wait before deciding
+  if (!profile) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-surface">
+        <div className="flex flex-col items-center gap-4 animate-scale-in">
+          <img src="/logo-icon.webp" alt="Maluar" className="w-16 h-16 rounded-2xl object-contain" />
+          <p className="text-sm text-text-muted">Preparando seu perfil...</p>
+          <div className="spinner" />
+        </div>
+      </div>
+    );
+  }
+
+  // Profile incomplete (no phone) — must complete before using app
+  if (!profile.phone) {
     return (
       <CompleteProfile
         onComplete={async () => {
