@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import Message from './Message';
 import { searchKnowledge } from '../lib/knowledge-base';
 import { buildSystemPrompt } from '../lib/system-prompt';
-import { dbSaveMessage, dbUpdateChatTitle, dbSaveFavorite, dbDeleteErrorMessages, dbCheckMessageQuota, dbIncrementMessageCount } from '../lib/db';
+import { dbSaveMessage, dbUpdateChatTitle, dbSaveFavorite, dbDeleteErrorMessages, dbIncrementMessageCount } from '../lib/db';
 import { trackEvent } from './PostHogProvider';
 
 export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onPromptConsumed, chatId, initialMessages, onChatUpdated, onFavoritesChanged, onOpenSidebar, getAccessToken, onAuthExpired, onUpgrade }) {
@@ -201,15 +201,8 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
       const knowledgeContext = searchKnowledge(typeof userContent === 'string' ? userContent : text);
       const systemPrompt = buildSystemPrompt(user.name, user.level, knowledgeContext);
 
-      const [quotaResult, authToken] = await Promise.all([
-        userId ? dbCheckMessageQuota(userId, userEmail).catch(() => ({ allowed: true })) : Promise.resolve({ allowed: true }),
-        getAccessToken ? getAccessToken().catch(() => null) : Promise.resolve(null),
-      ]);
-
-      if (!quotaResult.allowed) {
-        setQuotaModal({ limit: quotaResult.limit });
-        return;
-      }
+      // Auth token (quota verificada no backend — sem query duplicada)
+      const authToken = getAccessToken ? await getAccessToken().catch(() => null) : null;
 
       const currentMessages = messagesRef.current;
       const allMessages = [

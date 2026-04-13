@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
 import { getAuthUser } from '../../../lib/admin';
 import { chatBodySchema, parseBody } from '../../../lib/validation';
-import { getQuotaMessages, getRateLimit, getAIConfig, getSystemConfig } from '../../../lib/config';
+import { getQuotaMessages, getAllConfigs } from '../../../lib/config';
 
 // Workaround para proxy corporativo — APENAS em desenvolvimento
 if (process.env.NODE_ENV !== 'production' && process.env.ALLOW_SELF_SIGNED_CERTS === '1') {
@@ -125,8 +125,7 @@ async function logUsage(userId, model, inputTokens, outputTokens, feature = 'cha
 const rateLimitMap = new Map();
 const RATE_WINDOW = 60_000;
 
-async function checkRateLimitAsync(ip, plan = 'free') {
-  const limit = await getRateLimit(plan);
+async function checkRateLimitInline(ip, limit = 15) {
   const now = Date.now();
   const entry = rateLimitMap.get(ip);
   if (!entry || now > entry.reset) {
@@ -160,10 +159,11 @@ export async function POST(req) {
       return Response.json({ error: 'Faça login para usar o chat.' }, { status: 401 });
     }
 
-    // Verificar quota server-side — em paralelo com parse do body
-    const [quota, body] = await Promise.all([
+    // PARALELO: quota + body + configs (economiza ~400-800ms vs sequencial)
+    const [quota, body, allConfigs] = await Promise.all([
       checkQuotaServer(authUser.id, authUser.email),
       bodyPromise,
+      getAllConfigs(), // Uma única query ao banco, cacheada por 30s
     ]);
 
     let userPlan = quota.plan || 'free';
@@ -183,15 +183,17 @@ export async function POST(req) {
       );
     }
 
-    // Verificar modo manutenção
-    const sysConfig = await getSystemConfig();
-    if (sysConfig.maintenanceMode) {
-      return Response.json({ error: sysConfig.maintenanceMessage }, { status: 503 });
+    // Verificar modo manutenção (usa configs já carregados em paralelo)
+    const maintenanceMode = allConfigs.maintenance_mode === true || allConfigs.maintenance_mode === 'true';
+    if (maintenanceMode) {
+      const maintenanceMessage = allConfigs.maintenance_message || 'Estamos em manutenção. Voltamos em breve!';
+      return Response.json({ error: maintenanceMessage }, { status: 503 });
     }
 
-    // Rate limiting — prioriza userId (não spoofável) sobre IP
+    // Rate limiting — usa configs já carregados
     const rateLimitKey = authUser?.id || req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'anonymous';
-    if (!(await checkRateLimitAsync(rateLimitKey, userPlan))) {
+    const rateLimit = Number(allConfigs[`rate_limit_${userPlan}`]) || 15;
+    if (!(await checkRateLimitInline(rateLimitKey, rateLimit))) {
       return Response.json(
         { error: 'Muitas requisições. Aguarde um momento antes de tentar novamente.' },
         { status: 429 }
@@ -226,16 +228,18 @@ export async function POST(req) {
         ? lastUserMsg.content.filter(b => b.type === 'text').map(b => b.text).join(' ')
         : '';
     const isComplex = imageRequest || lastText.length > 500 || /plano de ação|diagnóstico|análise|estratégia|financeiro|business|marketing|calendário|passo a passo|propaganda|post|legenda|story|stories|reels|campanha/i.test(lastText);
-    // Modelos e tokens dinâmicos via admin config
-    const aiConfig = await getAIConfig();
-    const SONNET = aiConfig.modelComplex;
-    const HAIKU = aiConfig.modelDefault;
+    // Modelos e tokens dinâmicos via configs já carregados (sem query adicional)
+    const SONNET = allConfigs.ai_model_complex || 'claude-sonnet-4-20250514';
+    const HAIKU = allConfigs.ai_model_default || 'claude-haiku-4-5';
     const FALLBACKS = [SONNET, HAIKU, 'claude-3-5-sonnet-latest'];
     let model = isComplex ? SONNET : HAIKU;
-    const maxTokens = imageRequest ? aiConfig.maxTokensImage : isComplex ? aiConfig.maxTokensComplex : aiConfig.maxTokensCasual;
+    const maxTokensCasual = Number(allConfigs.ai_max_tokens_casual) || 300;
+    const maxTokensComplex = Number(allConfigs.ai_max_tokens_complex) || 600;
+    const maxTokensImage = Number(allConfigs.ai_max_tokens_image) || 2000;
+    const maxTokens = imageRequest ? maxTokensImage : isComplex ? maxTokensComplex : maxTokensCasual;
     
     // Instruções extras do admin (injetadas no system prompt)
-    const extraInstructions = aiConfig.extraInstructions;
+    const extraInstructions = allConfigs.ai_extra_instructions || '';
     const finalSystem = extraInstructions ? `${safeSystem}\n\n[INSTRUÇÃO ADMIN]: ${extraInstructions}` : safeSystem;
     console.log(`[CHAT] Modelo: ${model}, maxTokens: ${maxTokens}, Stream: ${!!stream}, User: ${authUser?.email || 'anon'}`);
 
