@@ -155,8 +155,9 @@ function InstagramZeroLanding({ onStart }) {
 }
 
 export default function Home() {
-  const { user, profile, signOut, updateProfile, refreshProfile, getAccessToken } = useAuth();
+  const { user, profile, signOut, updateProfile, refreshProfile, getAccessToken, supabase } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [profileTimeout, setProfileTimeout] = useState(false);
   const [pendingPrompt, setPendingPrompt] = useState(null);
   const [activeTab, setActiveTab] = useState('chat');
   const [postPrompt, setPostPrompt] = useState(null);
@@ -182,6 +183,24 @@ export default function Home() {
       if (data.globalBanner) { setGlobalBanner(data.globalBanner); setGlobalBannerType(data.globalBannerType || 'info'); }
     }).catch(() => {});
   }, []);
+
+  // Safety net: se profile null por mais de 6s, tentar carregar diretamente
+  useEffect(() => {
+    if (!user || profile) { setProfileTimeout(false); return; }
+    const timer = setTimeout(async () => {
+      console.warn('[PAGE] Profile timeout — tentando refresh direto...');
+      try {
+        const result = await refreshProfile?.();
+        if (!result) {
+          console.warn('[PAGE] refreshProfile falhou — marcando timeout');
+          setProfileTimeout(true);
+        }
+      } catch {
+        setProfileTimeout(true);
+      }
+    }, 6000);
+    return () => clearTimeout(timer);
+  }, [user, profile, refreshProfile]);
 
   // Safety net: se sessionStorage tiver plano confirmado pelo checkout, usar como override
   const [confirmedPlan, setConfirmedPlan] = useState(null);
@@ -413,8 +432,27 @@ export default function Home() {
       <div className="min-h-screen flex items-center justify-center bg-surface">
         <div className="flex flex-col items-center gap-4 animate-scale-in">
           <img src="/logo-icon.webp" alt="Maluar" className="w-16 h-16 rounded-2xl object-contain" />
-          <p className="text-sm text-text-muted">Preparando seu perfil...</p>
-          <div className="spinner" />
+          <p className="text-sm text-text-muted">
+            {profileTimeout ? 'Não conseguimos carregar seu perfil.' : 'Preparando seu perfil...'}
+          </p>
+          {profileTimeout ? (
+            <div className="flex flex-col items-center gap-3">
+              <button
+                onClick={() => { setProfileTimeout(false); refreshProfile?.(); }}
+                className="px-6 py-2.5 rounded-xl text-sm font-semibold btn-gradient"
+              >
+                Tentar novamente
+              </button>
+              <button
+                onClick={() => { signOut(); }}
+                className="text-xs text-text-muted hover:text-text underline"
+              >
+                Sair e fazer login novamente
+              </button>
+            </div>
+          ) : (
+            <div className="spinner" />
+          )}
         </div>
       </div>
     );
