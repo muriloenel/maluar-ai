@@ -46,19 +46,21 @@ export default function CompleteProfile({ onComplete }) {
         .eq('id', user.id);
 
       if (dbError) {
+        console.error('CompleteProfile DB error:', dbError);
         setError('Erro ao salvar. Tente novamente.');
         setLoading(false);
         return;
       }
 
-      // Atualizar user_metadata no Supabase Auth
-      await supabase.auth.updateUser({
+      // Atualizar user_metadata (fire-and-forget, não bloqueia)
+      supabase.auth.updateUser({
         data: { name: name.trim(), phone: phoneDigits, level },
-      });
+      }).catch(() => {});
 
       toast?.('Perfil completo! Bem-vinda ao Maluar 💅');
       onComplete?.({ name: name.trim(), phone: phoneDigits, level });
-    } catch {
+    } catch (err) {
+      console.error('CompleteProfile error:', err);
       setError('Erro inesperado. Tente novamente.');
     }
     setLoading(false);
