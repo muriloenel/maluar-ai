@@ -1,5 +1,5 @@
 import './globals.css';
-import { Plus_Jakarta_Sans, Playfair_Display } from 'next/font/google';
+import { Plus_Jakarta_Sans, Playfair_Display, Great_Vibes } from 'next/font/google';
 import ClientProviders from '../components/ClientProviders';
 
 const jakarta = Plus_Jakarta_Sans({
@@ -15,6 +15,13 @@ const playfair = Playfair_Display({
   weight: ['400', '500', '700'],
   style: ['normal', 'italic'],
   variable: '--font-playfair',
+  display: 'swap',
+});
+
+const greatVibes = Great_Vibes({
+  subsets: ['latin'],
+  weight: ['400'],
+  variable: '--font-cursive',
   display: 'swap',
 });
 
@@ -62,7 +69,7 @@ export const viewport = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="pt-BR" className={`${jakarta.variable} ${playfair.variable}`} suppressHydrationWarning>
+    <html lang="pt-BR" className={`${jakarta.variable} ${playfair.variable} ${greatVibes.variable}`} suppressHydrationWarning>
       <head>
         {/* Prevenir flash de tema errado (FOUC) — roda antes do React hidratar */}
         <script dangerouslySetInnerHTML={{ __html: `(function(){try{var t=localStorage.getItem('maluar-theme');if(t==='dark'||(!t&&matchMedia('(prefers-color-scheme:dark)').matches))document.documentElement.classList.add('dark')}catch(e){}})()` }} />

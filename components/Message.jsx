@@ -11,7 +11,7 @@ function formatTime(ts) {
   return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
 
-function MessageInner({ role, content, isTyping, imagePreview, timestamp, isError, onRetry, onSaveFavorite }) {
+function MessageInner({ role, content, isTyping, imagePreview, generatedImage, isImageLoading, isUpgradeHint, timestamp, isError, onRetry, onSaveFavorite, onUpgrade }) {
   const [copied, setCopied] = useState(false);
   const [saved, setSaved] = useState(false);
   const [feedback, setFeedback] = useState(null); // 'up' | 'down' | null
@@ -195,6 +195,59 @@ function MessageInner({ role, content, isTyping, imagePreview, timestamp, isErro
           <div className="markdown-body">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
           </div>
+        )}
+        {/* Generated image from AI */}
+        {!isUser && generatedImage && (
+          <div className="mt-3">
+            <img
+              src={generatedImage}
+              alt="Imagem gerada pela IA"
+              loading="lazy"
+              className="w-full max-w-sm rounded-xl border border-border-light shadow-soft"
+            />
+            <div className="flex gap-2 mt-2">
+              <button
+                onClick={() => {
+                  const a = document.createElement('a');
+                  if (generatedImage.startsWith('data:')) {
+                    a.href = generatedImage;
+                  } else {
+                    fetch(generatedImage).then(r => r.blob()).then(b => {
+                      a.href = URL.createObjectURL(b);
+                      a.download = `maluar-design-${Date.now()}.png`;
+                      a.click();
+                      URL.revokeObjectURL(a.href);
+                    }).catch(() => window.open(generatedImage, '_blank'));
+                    return;
+                  }
+                  a.download = `maluar-design-${Date.now()}.png`;
+                  a.click();
+                }}
+                className="flex items-center gap-1.5 text-xs font-medium text-accent hover:text-accent/80 transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Baixar imagem
+              </button>
+            </div>
+          </div>
+        )}
+        {/* Image loading indicator */}
+        {!isUser && isImageLoading && (
+          <div className="mt-2 flex items-center gap-2">
+            <div className="animate-spin w-4 h-4 border-2 border-accent border-t-transparent rounded-full" />
+            <span className="text-xs text-text-muted">Isso pode levar até 30 segundos...</span>
+          </div>
+        )}
+        {/* Upgrade hint */}
+        {!isUser && isUpgradeHint && onUpgrade && (
+          <button
+            onClick={onUpgrade}
+            className="mt-2 px-4 py-1.5 rounded-full text-xs font-semibold bg-gradient-to-r from-accent to-rose text-white hover:shadow-lg transition-all"
+          >
+            Ver planos
+          </button>
         )}
         {/* Retry button on error */}
         {isError && onRetry && (

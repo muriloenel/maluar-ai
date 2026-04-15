@@ -130,8 +130,29 @@ export async function POST(req) {
         size,
       });
 
+    } else if (action === 'recreate') {
+      // ═══ RECRIAR DESIGN A PARTIR DA FOTO ═══
+      const { description } = body;
+      const userPrompt = (description || '').slice(0, 500);
+
+      const imageBuffer = Buffer.from(imageBase64, 'base64');
+      const file = new File([imageBuffer], 'photo.png', { type: 'image/png' });
+
+      const recreatePrompt = `Based on this nail design reference photo, create a NEW professional nail design photo.
+${userPrompt ? `User request: ${userPrompt}` : 'Recreate this nail design with professional studio quality.'}
+Style: ultra-realistic photograph, studio lighting, close-up of beautifully manicured nails on elegant hands.
+Quality: 4K, sharp focus, soft bokeh background, beauty photography style.
+Important: Only show hands and nails, no faces. No text, logos, or watermarks. Clean, professional aesthetic.`;
+
+      result = await getOpenAI().images.edit({
+        model: 'gpt-image-1',
+        image: file,
+        prompt: recreatePrompt,
+        size: '1024x1024',
+      });
+
     } else {
-      return Response.json({ error: 'Ação inválida. Use "enhance" ou "post-art".' }, { status: 400 });
+      return Response.json({ error: 'Ação inválida. Use "enhance", "post-art" ou "recreate".' }, { status: 400 });
     }
 
     // Extrair imagem do resultado

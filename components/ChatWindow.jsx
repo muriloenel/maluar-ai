@@ -4,10 +4,10 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import Message from './Message';
 import { searchKnowledge } from '../lib/knowledge-base';
 import { buildSystemPrompt } from '../lib/system-prompt';
-import { dbSaveMessage, dbUpdateChatTitle, dbSaveFavorite, dbDeleteErrorMessages, dbIncrementMessageCount } from '../lib/db';
+import { dbSaveMessage, dbUpdateChatTitle, dbSaveFavorite, dbDeleteErrorMessages, dbIncrementMessageCount, dbCreateChat } from '../lib/db';
 import { trackEvent } from './PostHogProvider';
 
-export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onPromptConsumed, chatId, initialMessages, onChatUpdated, onFavoritesChanged, onOpenSidebar, getAccessToken, onAuthExpired, onUpgrade }) {
+export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onPromptConsumed, chatId, initialMessages, onChatUpdated, onChatCreated, onFavoritesChanged, onOpenSidebar, getAccessToken, onAuthExpired, onUpgrade }) {
   const [messages, setMessages] = useState(initialMessages || []);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -23,11 +23,13 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
   const chatAreaRef = useRef(null);
   const recognitionRef = useRef(null);
   const titleSetRef = useRef(false);
+  const userMsgCountRef = useRef(0); // conta msgs do user pra gerar título na 2ª
   const chatIdRef = useRef(null);
   const msgIdRef = useRef(0);
   const messagesRef = useRef(messages);
   const abortRef = useRef(null);
   const busyRef = useRef(false); // ref real pra saber se está ocupado (evita stale closure)
+  const realChatIdRef = useRef(null); // ID real do chat no banco (criado na 1ª msg)
   const nextId = () => ++msgIdRef.current;
 
   // Manter ref sincronizado com state
@@ -108,6 +110,8 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
     setInput('');
     setLastFailedMsg(null);
     msgIdRef.current = 0; // Resetar IDs ao trocar de conversa
+    // Resetar referência do chat real — se chatId é um ID persistido, usar direto
+    realChatIdRef.current = (chatId && !chatId.startsWith('new-') && !chatId.startsWith('local-')) ? chatId : null;
 
     if (initialMessages && initialMessages.length > 0) {
       setMessages(initialMessages);
@@ -115,6 +119,7 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
       return;
     }
     titleSetRef.current = false;
+    userMsgCountRef.current = 0;
     const hour = new Date().getHours();
     const greeting = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
     const firstName = (user.name || '').split(' ')[0] || 'amiga';
@@ -142,18 +147,153 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingPrompt]);
 
-  // Persist messages to Supabase (silently fails in guest mode)
+  // Persist messages to Supabase — cria chat no banco na primeira mensagem real
   const persistMessage = useCallback(
     async (msg) => {
-      if (chatId && !chatId.startsWith('local-')) {
+      // Se chatId é temporário (new-* ou local-*), criar chat real primeiro
+      if (!realChatIdRef.current) {
+        if (chatId?.startsWith('new-') && userId) {
+          try {
+            const chat = await dbCreateChat(userId);
+            if (chat) {
+              realChatIdRef.current = chat.id;
+              onChatCreated?.(chat);
+            }
+          } catch {}
+        } else if (chatId && !chatId.startsWith('local-') && !chatId.startsWith('new-')) {
+          realChatIdRef.current = chatId;
+        }
+      }
+      const targetChatId = realChatIdRef.current;
+      if (targetChatId) {
         try {
-          await dbSaveMessage(chatId, msg);
+          await dbSaveMessage(targetChatId, msg);
           onChatUpdated?.();
         } catch {}
       }
     },
-    [chatId, onChatUpdated]
+    [chatId, userId, onChatUpdated, onChatCreated]
   );
+
+  // ── Detecção de intenção quando usuária envia foto ──
+  const IMAGE_INTENT_PATTERNS = {
+    enhance: /\b(melhora|melhore|melhorar|enhance|aprimora|aprimorar|qualidade|mais bonita|mais n[ií]tida|ilumina|profissional)\b/i,
+    'post-art': /\b(post|arte|stories|story|propaganda|divulga[çr]|feed|instagram|insta|rede social|social media|marketing)\b/i,
+    recreate: /\b(gera|gerar|cria|criar|recria|recriar|recrie|faz|fazer|fa[çz]a|transforma|transformar|inspira|inspirar|como seria|cri[ae] uma?|gera uma?|faz uma?|baseada?|nova imagem|outra vers[aã]o)\b/i,
+  };
+
+  function detectImageIntent(text) {
+    if (!text || !text.trim()) return null;
+    const t = text.toLowerCase();
+    // Prioridade: enhance > post-art > recreate
+    if (IMAGE_INTENT_PATTERNS.enhance.test(t)) return 'enhance';
+    if (IMAGE_INTENT_PATTERNS['post-art'].test(t)) return 'post-art';
+    if (IMAGE_INTENT_PATTERNS.recreate.test(t)) return 'recreate';
+    return null;
+  }
+
+  // ── Handler para geração/edição de imagem via chat ──
+  const handleImageGeneration = async (imageBase64, action, userText, displayText) => {
+    const assistantId = nextId();
+    const loadingLabels = {
+      enhance: '✨ Melhorando sua foto com IA...',
+      'post-art': '🎨 Criando arte para seu post...',
+      recreate: '💅 Recriando esse design com IA...',
+    };
+
+    setMessages((prev) => [...prev, { _id: assistantId, role: 'assistant', content: loadingLabels[action] || '🎨 Gerando imagem...', isImageLoading: true, timestamp: Date.now() }]);
+
+    try {
+      const authToken = getAccessToken ? await getAccessToken().catch(() => null) : null;
+      const fetchHeaders = { 'Content-Type': 'application/json' };
+      if (authToken) fetchHeaders['Authorization'] = `Bearer ${authToken}`;
+
+      const body = { action, imageBase64 };
+      if (action === 'recreate') body.description = userText || '';
+      if (action === 'post-art') {
+        body.postData = {
+          title: userText || 'Nail Design',
+          subtitle: '',
+          location: '',
+          cta: 'Agende seu horário!',
+          style: 'feed',
+        };
+      }
+
+      const res = await fetch('/api/image/enhance', {
+        method: 'POST',
+        headers: fetchHeaders,
+        body: JSON.stringify(body),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        if (data.upgrade) {
+          setMessages((prev) => {
+            const updated = [...prev];
+            updated[updated.length - 1] = {
+              _id: assistantId, role: 'assistant',
+              content: '🔒 Essa função é exclusiva para assinantes **Pro** e **Premium**. Faça upgrade para desbloquear!',
+              isUpgradeHint: true, timestamp: Date.now(),
+            };
+            return updated;
+          });
+          return;
+        }
+        throw new Error(data.error || 'Erro ao processar imagem');
+      }
+
+      const imageUrl = data.url || (data.b64 ? `data:image/png;base64,${data.b64}` : null);
+
+      if (!imageUrl) throw new Error('Imagem não retornada');
+
+      const successLabels = {
+        enhance: '✨ Foto melhorada com sucesso! Aqui está o resultado:',
+        'post-art': '🎨 Arte do post criada! Aqui está:',
+        recreate: '💅 Design recriado! Veja como ficou:',
+      };
+
+      setMessages((prev) => {
+        const updated = [...prev];
+        updated[updated.length - 1] = {
+          _id: assistantId, role: 'assistant',
+          content: successLabels[action] || 'Imagem gerada!',
+          generatedImage: imageUrl,
+          timestamp: Date.now(),
+        };
+        return updated;
+      });
+      persistMessage({ role: 'assistant', content: `${successLabels[action]} [imagem gerada]`, generatedImage: imageUrl });
+      if (userId) dbIncrementMessageCount(userId).catch(() => {});
+      trackEvent('image_generated_chat', { action });
+
+      // Gerar título se necessário
+      const targetChatId = realChatIdRef.current;
+      if (!titleSetRef.current && targetChatId) {
+        titleSetRef.current = true;
+        const tempTitle = displayText.slice(0, 40) + (displayText.length > 40 ? '…' : '');
+        dbUpdateChatTitle(targetChatId, tempTitle).catch(() => {});
+        onChatUpdated?.();
+      }
+    } catch (err) {
+      setLastFailedMsg({ text: userText, imageBase64, mediaType: 'image/jpeg', imageDataUrl: null });
+      setMessages((prev) => {
+        const updated = [...prev];
+        updated[updated.length - 1] = {
+          _id: assistantId, role: 'assistant',
+          content: err.message || 'Erro ao gerar imagem. Tente novamente!',
+          isError: true, timestamp: Date.now(),
+        };
+        return updated;
+      });
+    } finally {
+      busyRef.current = false;
+      setIsLoading(false);
+      setIsStreaming(false);
+      setTimeout(() => inputRef.current?.focus(), 50);
+    }
+  };
 
   const sendMessage = async (text, imageBase64 = null, mediaType = 'image/jpeg', imageDataUrl = null) => {
     if ((!text.trim() && !imageBase64)) return;
@@ -171,7 +311,23 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
     setIsLoading(true);
     trackEvent('message_sent', { has_image: !!imageBase64 });
 
+    // ── Detectar intenção de gerar/editar imagem quando usuária envia foto ──
+    const imageIntent = imageBase64 ? detectImageIntent(text) : null;
+
     try {
+      // Se é um pedido de geração/edição de imagem, usar fluxo especial
+      if (imageBase64 && imageIntent) {
+        const displayText = text || (imageIntent === 'enhance' ? 'Melhora essa foto' : imageIntent === 'post-art' ? 'Gera um post com essa foto' : 'Recria esse design');
+        const newUserMsg = { _id: nextId(), role: 'user', content: displayText, imagePreview: imageDataUrl || null, timestamp: Date.now() };
+        setMessages((prev) => [...prev, newUserMsg]);
+        persistMessage({ role: 'user', content: displayText, imagePreview: imageDataUrl || null });
+        setInput('');
+        if (inputRef.current) inputRef.current.style.height = 'auto';
+
+        await handleImageGeneration(imageBase64, imageIntent, text, displayText);
+        return;
+      }
+
       const userContent = imageBase64
         ? [
             { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageBase64 } },
@@ -182,19 +338,17 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
       const userMessage = { role: 'user', content: userContent };
       const displayText = imageBase64 ? `${text || 'Foto enviada para análise'}` : text;
 
-      // Marcar que título será gerado (mas gerar via IA após primeira resposta)
-      const shouldGenerateTitle = !titleSetRef.current && chatId && !chatId.startsWith('local-');
-      if (shouldGenerateTitle) {
-        const tempTitle = displayText.slice(0, 40) + (displayText.length > 40 ? '…' : '');
-        dbUpdateChatTitle(chatId, tempTitle).catch(() => {});
-        titleSetRef.current = true;
-        onChatUpdated?.();
-      }
+      // Contar mensagens do user — título será gerado quando tiver assunto real
+      userMsgCountRef.current++;
+      const isGreeting = /^\s*(oi|ol[aá]|hey|hi|boa\s*(tarde|noite|dia)|e\s*a[ií]|tudo\s*bem|opa|eae)\s*[!?.\s]*$/i.test(text.trim());
+      // Gerar título: na 2ª msg do user OU na 1ª se NÃO for saudação
+      const shouldGenerateTitle = !titleSetRef.current && (userMsgCountRef.current >= 2 || !isGreeting);
 
       const newUserMsg = { _id: nextId(), role: 'user', content: displayText, imagePreview: imageDataUrl || null, timestamp: Date.now() };
       setMessages((prev) => [...prev, newUserMsg]);
       persistMessage({ role: 'user', content: displayText, imagePreview: imageDataUrl || null });
       setInput('');
+      if (inputRef.current) inputRef.current.style.height = 'auto';
       setLastFailedMsg(null);
 
       // Preparar tudo em paralelo (quota, auth, knowledge) para reduzir latência
@@ -306,8 +460,15 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
       persistMessage({ role: 'assistant', content: finalContent });
       if (userId) dbIncrementMessageCount(userId).catch(() => {});
 
-      // Gerar título com IA (async, não bloqueia UX)
-      if (shouldGenerateTitle && chatId) {
+      // Gerar título com IA (async, não bloqueia UX) — usa realChatIdRef
+      const targetChatId = realChatIdRef.current;
+      if (shouldGenerateTitle && targetChatId) {
+        titleSetRef.current = true;
+        const tempTitle = displayText.slice(0, 40) + (displayText.length > 40 ? '…' : '');
+        dbUpdateChatTitle(targetChatId, tempTitle).catch(() => {});
+        onChatUpdated?.();
+        // Enviar contexto da conversa (pergunta + resposta) para título mais preciso
+        const contextForTitle = `Usuária: ${displayText}\nAssistente: ${finalContent.slice(0, 300)}`;
         const authToken = getAccessToken ? await getAccessToken().catch(() => null) : null;
         fetch('/api/chat/title', {
           method: 'POST',
@@ -315,7 +476,7 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
             'Content-Type': 'application/json',
             ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}),
           },
-          body: JSON.stringify({ chatId, message: displayText }),
+          body: JSON.stringify({ chatId: targetChatId, message: contextForTitle }),
         })
           .then(() => onChatUpdated?.())
           .catch(() => {}); // fallback silencioso — título temporário permanece
@@ -529,7 +690,7 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
         {/* Floating sidebar button removed — mobile uses tab bar + header menu */}
         <div className="max-w-2xl mx-auto space-y-1">
           {messages.map((msg, i) => (
-            <Message key={msg._id || `m-${i}`} role={msg.role} content={msg.content} imagePreview={msg.imagePreview} timestamp={msg.timestamp} isError={msg.isError} onRetry={msg.isError ? handleRetry : undefined} onSaveFavorite={msg.role === 'assistant' && !msg.isError ? handleSaveFavorite : undefined} />
+            <Message key={msg._id || `m-${i}`} role={msg.role} content={msg.content} imagePreview={msg.imagePreview} generatedImage={msg.generatedImage} isImageLoading={msg.isImageLoading} isUpgradeHint={msg.isUpgradeHint} timestamp={msg.timestamp} isError={msg.isError} onRetry={msg.isError ? handleRetry : undefined} onSaveFavorite={msg.role === 'assistant' && !msg.isError ? handleSaveFavorite : undefined} onUpgrade={onUpgrade} />
           ))}
           {isLoading && <Message isTyping />}
           <div ref={messagesEndRef} />
@@ -563,7 +724,7 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
               </button>
             </div>
           )}
-          <div className="flex gap-2 items-center bg-surface border border-border rounded-2xl px-3 py-1.5 shadow-soft focus-within:ring-2 focus-within:ring-accent/20 focus-within:border-accent transition-all">
+          <div className="flex gap-2 items-end bg-surface border border-border rounded-2xl px-3 py-1.5 shadow-soft focus-within:ring-2 focus-within:ring-accent/20 focus-within:border-accent transition-all">
             <label
               htmlFor="chat-file-input"
               className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-text-light hover:text-accent hover:bg-accent-bg transition-colors cursor-pointer"
@@ -601,15 +762,30 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
                 )}
               </svg>
             </button>
-            <input
+            <textarea
               ref={inputRef}
-              type="text"
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => {
+                setInput(e.target.value);
+                // Auto-resize: ajustar altura ao conteúdo
+                e.target.style.height = 'auto';
+                e.target.style.height = Math.min(e.target.scrollHeight, 150) + 'px';
+              }}
+              onKeyDown={(e) => {
+                // Enter envia, Shift+Enter quebra linha
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  if (input.trim() || pendingFile) {
+                    handleSubmitWithFile(e);
+                  }
+                }
+              }}
               placeholder={pendingFile ? 'Escreva algo sobre a foto (opcional)...' : 'Pergunta qualquer coisa...'}
-              className="flex-1 bg-transparent py-2.5 text-text placeholder-text-light focus:outline-none text-sm"
+              className="flex-1 bg-transparent py-2.5 text-text placeholder-text-light focus:outline-none text-sm resize-none overflow-hidden"
+              style={{ minHeight: '40px', maxHeight: '150px' }}
               disabled={isLoading}
               maxLength={2000}
+              rows={1}
             />
             <button
               type="submit"

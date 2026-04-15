@@ -11,8 +11,9 @@ async function ensureFonts() {
     const montMed = new FontFace('Montserrat', 'url(https://fonts.gstatic.com/s/montserrat/v29/JTUHjIg1_i6t8kCHKm4532VJOt5-QNFgpCtZ70w-Y3tcoqK5.woff2)', { weight: '500', style: 'normal' });
     const montLight = new FontFace('Montserrat', 'url(https://fonts.gstatic.com/s/montserrat/v29/JTUHjIg1_i6t8kCHKm4532VJOt5-QNFgpCvr70w-Y3tcoqK5.woff2)', { weight: '300', style: 'normal' });
     const playfair = new FontFace('Playfair Display', 'url(https://fonts.gstatic.com/s/playfairdisplay/v37/nuFvD-vYSZviVYUb_rj3ij__anPXJzDwcbmjWBN2PKd3vXDXbtXK-F2qC0s.woff2)', { weight: '700', style: 'italic' });
-    const [f1, f2, f3, f4] = await Promise.all([montBold.load(), montMed.load(), montLight.load(), playfair.load()]);
-    document.fonts.add(f1); document.fonts.add(f2); document.fonts.add(f3); document.fonts.add(f4);
+    const greatVibes = new FontFace('Great Vibes', 'url(https://fonts.gstatic.com/s/greatvibes/v19/RWmMoKWR9v4ksMfaWd_JN9XFiaQ.woff2)', { weight: '400', style: 'normal' });
+    const [f1, f2, f3, f4, f5] = await Promise.all([montBold.load(), montMed.load(), montLight.load(), playfair.load(), greatVibes.load()]);
+    document.fonts.add(f1); document.fonts.add(f2); document.fonts.add(f3); document.fonts.add(f4); document.fonts.add(f5);
     FONTS_LOADED.current = true;
   } catch {
     FONTS_LOADED.current = true;
@@ -98,6 +99,7 @@ const F = {
   body:     (s) => `500 ${s}px "Montserrat", "Segoe UI", sans-serif`,
   light:    (s) => `300 ${s}px "Montserrat", "Segoe UI", sans-serif`,
   italic:   (s) => `italic 700 ${s}px "Playfair Display", Georgia, serif`,
+  cursive:  (s) => `400 ${s}px "Great Vibes", "Pinyon Script", cursive`,
 };
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -206,10 +208,10 @@ export default function PostImageEditor({ imageSrc, legenda, platform, structure
         y += Math.min(hlLines.length, 3) * sz * 1.05 + 10;
       }
 
-      // 5. Subtítulo em script/cursivo elegante
+      // 5. Subtítulo em script/cursivo elegante (Great Vibes)
       if (sub) {
-        const sz = 52;
-        ctx.font = F.italic(sz);
+        const sz = 56;
+        ctx.font = F.cursive(sz);
         ctx.fillStyle = `${t.accent}ee`;
         ctx.textAlign = 'left';
         const subLines = wrapText(ctx, sub, sW - pad * 2);

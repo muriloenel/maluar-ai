@@ -242,14 +242,8 @@ export default function Home() {
         setChatList(list);
         const favs = await dbLoadFavorites(user.id);
         setFavorites(favs);
-        // Sempre iniciar com chat novo (não carregar histórico antigo)
-        const chat = await dbCreateChat(user.id);
-        if (chat) {
-          setActiveChatId(chat.id);
-          setChatList(prev => [chat, ...prev.filter(c => c.id !== chat.id)]);
-        } else if (list.length > 0) {
-          setActiveChatId(list[0].id);
-        }
+        // Iniciar com chat temporário — só persiste no banco quando user enviar msg
+        setActiveChatId('new-' + Date.now());
       } catch (err) {
         console.error('Error loading data:', err);
         if (!activeChatId) {
@@ -277,21 +271,10 @@ export default function Home() {
 
   const handleNewChat = async () => {
     if (!user) return;
-    // Resetar estado imediatamente pra UI responder rápido
-    const tempId = 'new-' + Date.now();
+    // Criar chat temporário — só persiste no banco quando user enviar msg
     setChatMessages(null);
-    setActiveChatId(tempId);
+    setActiveChatId('new-' + Date.now());
     setActiveTab('chat');
-    try {
-      const chat = await dbCreateChat(user.id);
-      if (chat) {
-        setActiveChatId(chat.id);
-        refreshChatList(); // não bloqueia
-        return;
-      }
-    } catch (err) {
-      console.warn('[NEW-CHAT] Erro ao criar:', err?.message);
-    }
   };
 
   const handleSelectChat = async (chatId) => {
@@ -571,6 +554,10 @@ export default function Home() {
             chatId={activeChatId}
             initialMessages={chatMessages}
             onChatUpdated={refreshChatList}
+            onChatCreated={(chat) => {
+              setActiveChatId(chat.id);
+              setChatList(prev => [chat, ...prev.filter(c => c.id !== chat.id)]);
+            }}
             onFavoritesChanged={refreshFavorites}
             onOpenSidebar={() => setSidebarOpen(true)}
             getAccessToken={getAccessToken}
