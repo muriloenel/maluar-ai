@@ -80,10 +80,8 @@ async function checkQuotaServer(userId, userEmail) {
     clearTimeout(_quotaFailResetTimer);
     _quotaFailResetTimer = setTimeout(() => { _quotaFailCount = 0; }, QUOTA_FAIL_RESET_MS);
     // Fail-closed: bloqueia para proteger custo
-    if (_quotaFailCount >= QUOTA_FAIL_THRESHOLD) {
-      return { allowed: false, error: 'Serviço temporariamente indisponível. Tente novamente em alguns minutos.' };
-    }
-    return { allowed: true }; // primeiras falhas: fail-open (tolerância)
+    // Fail-closed SEMPRE — protege contra custo descontrolado
+    return { allowed: false, error: 'Não foi possível verificar seu limite. Tente novamente em instantes.' };
   }
 }
 
