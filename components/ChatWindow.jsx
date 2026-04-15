@@ -30,6 +30,7 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
   const abortRef = useRef(null);
   const busyRef = useRef(false); // ref real pra saber se está ocupado (evita stale closure)
   const realChatIdRef = useRef(null); // ID real do chat no banco (criado na 1ª msg)
+  const lastImageRef = useRef(null); // última imagem enviada na conversa (para follow-ups)
   const nextId = () => ++msgIdRef.current;
 
   // Manter ref sincronizado com state
@@ -177,9 +178,9 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
 
   // ── Detecção de intenção quando usuária envia foto ──
   const IMAGE_INTENT_PATTERNS = {
-    enhance: /\b(melhora|melhore|melhorar|enhance|aprimora|aprimorar|qualidade|mais bonita|mais n[ií]tida|ilumina|profissional)\b/i,
-    'post-art': /\b(post|arte|stories|story|propaganda|divulga[çr]|feed|instagram|insta|rede social|social media|marketing)\b/i,
-    recreate: /\b(gera|gerar|cria|criar|recria|recriar|recrie|faz|fazer|fa[çz]a|transforma|transformar|inspira|inspirar|como seria|cri[ae] uma?|gera uma?|faz uma?|baseada?|nova imagem|outra vers[aã]o)\b/i,
+    enhance: /\b(melhora|melhore|melhorar|enhance|aprimora|aprimorar|qualidade|mais bonita|mais n[ií]tida|ilumina|profissional|mais linda|mais clara|clarear|edita|editar|retoca|retocar|ajusta|ajustar)\b/i,
+    'post-art': /\b(post|arte|stories|story|propaganda|divulga[çr]|feed|instagram|insta|rede social|social media|marketing|an[uú]ncio|template|banner|card|cart[aã]o|promo[çc]|coloca.*texto|texto.*foto|texto.*imagem|escrev[ea].*foto|escrev[ea].*imagem)\b/i,
+    recreate: /\b(gera|gerar|cria|criar|recria|recriar|recrie|faz|fazer|fa[çz]a|transforma|transformar|inspira|inspirar|como seria|cri[ae] uma?|gera uma?|faz uma?|baseada?|nova imagem|outra vers[aã]o|diferente|modifica|modificar|muda|mudar|altera|alterar|coloca|colocar|adiciona|adicionar|bota|botar|p[oõ]e|coloqu)\b/i,
   };
 
   function detectImageIntent(text) {
@@ -311,20 +312,28 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
     setIsLoading(true);
     trackEvent('message_sent', { has_image: !!imageBase64 });
 
-    // ── Detectar intenção de gerar/editar imagem quando usuária envia foto ──
-    const imageIntent = imageBase64 ? detectImageIntent(text) : null;
+    // ── Salvar última imagem para follow-ups ──
+    if (imageBase64) {
+      lastImageRef.current = { base64: imageBase64, mediaType, dataUrl: imageDataUrl, timestamp: Date.now() };
+    }
+
+    // ── Detectar intenção de gerar/editar imagem ──
+    const imageIntent = detectImageIntent(text);
+    // Usar imagem atual OU última imagem da conversa (para follow-ups tipo "cria um anúncio")
+    const imageForGeneration = imageBase64 || (imageIntent && lastImageRef.current?.base64) || null;
+    const imageDataUrlForGen = imageDataUrl || (imageIntent && lastImageRef.current?.dataUrl) || null;
 
     try {
-      // Se é um pedido de geração/edição de imagem, usar fluxo especial
-      if (imageBase64 && imageIntent) {
+      // Se é um pedido de geração/edição de imagem E temos uma imagem, usar fluxo especial
+      if (imageForGeneration && imageIntent) {
         const displayText = text || (imageIntent === 'enhance' ? 'Melhora essa foto' : imageIntent === 'post-art' ? 'Gera um post com essa foto' : 'Recria esse design');
-        const newUserMsg = { _id: nextId(), role: 'user', content: displayText, imagePreview: imageDataUrl || null, timestamp: Date.now() };
+        const newUserMsg = { _id: nextId(), role: 'user', content: displayText, imagePreview: imageDataUrlForGen || null, timestamp: Date.now() };
         setMessages((prev) => [...prev, newUserMsg]);
-        persistMessage({ role: 'user', content: displayText, imagePreview: imageDataUrl || null });
+        persistMessage({ role: 'user', content: displayText, imagePreview: imageDataUrlForGen || null });
         setInput('');
         if (inputRef.current) inputRef.current.style.height = 'auto';
 
-        await handleImageGeneration(imageBase64, imageIntent, text, displayText);
+        await handleImageGeneration(imageForGeneration, imageIntent, text, displayText);
         return;
       }
 
