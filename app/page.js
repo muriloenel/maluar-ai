@@ -23,6 +23,7 @@ const FavoritesGallery = dynamic(() => import('../components/FavoritesGallery'),
 const PricingCalculator = dynamic(() => import('../components/PricingCalculator'), { ssr: false, loading: () => <TabSpinner /> });
 const BusinessHub = dynamic(() => import('../components/BusinessHub'), { ssr: false, loading: () => <TabSpinner /> });
 const PricingPlans = dynamic(() => import('../components/PricingPlans'), { ssr: false, loading: () => <TabSpinner /> });
+const DigitalMenu = dynamic(() => import('../components/DigitalMenu'), { ssr: false, loading: () => <TabSpinner /> });
 
 // Spinner para transição entre abas
 function TabSpinner() {
@@ -576,6 +577,8 @@ export default function Home() {
               />
             ) : activeTab === 'pricing' ? (
               <PricingCalculator />
+            ) : activeTab === 'digital-menu' ? (
+              <DigitalMenu plan={effectiveProfile.plan || 'free'} onUpgrade={handleUpgrade} />
             ) : activeTab === 'plans' ? (
               <PricingPlans
                 currentPlan={effectiveProfile.plan || 'free'}
