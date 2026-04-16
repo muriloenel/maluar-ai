@@ -94,8 +94,8 @@ export default function DigitalMenu({ plan = 'free', onUpgrade }) {
           ...(token && { Authorization: `Bearer ${token}` }),
         },
         body: JSON.stringify({
-          messages: [{ role: 'user', content: `Gere uma descrição curta e profissional (máximo 15 palavras cada) para cada serviço do meu cardápio de nail design. Responda APENAS no formato JSON array: [{"name": "Nome", "description": "Descrição"}]. Serviços:\n${serviceList}` }],
-          system: 'Você gera descrições curtas e elegantes para cardápios de nail design. Responda APENAS JSON válido, sem markdown, sem explicações.',
+          messages: [{ role: 'user', content: `Gere uma descrição curta e profissional (máximo 15 palavras cada) para cada serviço do meu catálogo de nail design. Responda APENAS no formato JSON array: [{"name": "Nome", "description": "Descrição"}]. Serviços:\n${serviceList}` }],
+          system: 'Você gera descrições curtas e elegantes para catálogos de nail design. Responda APENAS JSON válido, sem markdown, sem explicações.',
         }),
       });
       if (!res.ok) throw new Error('Erro na IA');
@@ -133,7 +133,7 @@ export default function DigitalMenu({ plan = 'free', onUpgrade }) {
     }
   };
 
-  // Gerar imagem do cardápio via Canvas
+  // Gerar imagem do catálogo via Canvas
   const generateMenuImage = useCallback(() => {
     if (services.length === 0) return;
     setGenerating(true);
@@ -189,7 +189,7 @@ export default function DigitalMenu({ plan = 'free', onUpgrade }) {
     ctx.font = '600 14px "Segoe UI", sans-serif';
     ctx.textAlign = 'center';
     ctx.letterSpacing = '4px';
-    ctx.fillText('✦  C A R D Á P I O  ✦', W / 2, 90);
+    ctx.fillText('✦  C A T Á L O G O  ✦', W / 2, 90);
 
     ctx.fillStyle = theme.text;
     ctx.font = '700 42px "Segoe UI", sans-serif';
@@ -292,14 +292,14 @@ export default function DigitalMenu({ plan = 'free', onUpgrade }) {
     const dataUrl = canvas.toDataURL('image/png');
     setGeneratedImage(dataUrl);
     setGenerating(false);
-    toast?.('Cardápio gerado!');
+    toast?.('Catálogo gerado!');
   }, [services, businessName, businessPhone, businessInsta, selectedTheme, toast]);
 
   const handleDownload = () => {
     if (!generatedImage) return;
     const a = document.createElement('a');
     a.href = generatedImage;
-    a.download = `cardapio-${(businessName || 'maluar').replace(/\s+/g, '-').toLowerCase()}-${Date.now()}.png`;
+    a.download = `catalogo-${(businessName || 'maluar').replace(/\s+/g, '-').toLowerCase()}-${Date.now()}.png`;
     a.click();
     toast?.('Download iniciado!');
   };
@@ -313,9 +313,9 @@ export default function DigitalMenu({ plan = 'free', onUpgrade }) {
       const arr = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
       const blob = new Blob([arr], { type: mime });
-      const file = new File([blob], 'cardapio.png', { type: mime });
+      const file = new File([blob], 'catalogo.png', { type: mime });
       if (navigator.share && navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title: 'Meu Cardápio de Serviços' });
+        await navigator.share({ files: [file], title: 'Meu Catálogo de Serviços' });
       } else {
         handleDownload();
       }
@@ -332,10 +332,10 @@ export default function DigitalMenu({ plan = 'free', onUpgrade }) {
           {/* Header */}
           <div>
             <h2 className="font-display text-xl font-bold text-text flex items-center gap-2">
-              📋 Cardápio Digital
+              📋 Catálogo de Serviços
             </h2>
             <p className="text-text-muted text-sm mt-0.5">
-              Monte seu cardápio profissional e compartilhe com suas clientes
+              Monte seu catálogo profissional e compartilhe com suas clientes
             </p>
           </div>
 
@@ -517,7 +517,7 @@ export default function DigitalMenu({ plan = 'free', onUpgrade }) {
 
           {/* Tema */}
           <div className="bg-surface-card border border-border-light rounded-xl p-4 space-y-3">
-            <h3 className="text-sm font-semibold text-text">Tema do cardápio</h3>
+            <h3 className="text-sm font-semibold text-text">Tema do catálogo</h3>
             <div className="flex flex-wrap gap-2">
               {THEMES.map(theme => (
                 <button
@@ -547,17 +547,17 @@ export default function DigitalMenu({ plan = 'free', onUpgrade }) {
                 Gerando...
               </>
             ) : (
-              <>📋 Gerar Cardápio</>
+              <>📋 Gerar Catálogo</>
             )}
           </button>
 
           {/* Preview / Resultado */}
           {generatedImage && (
             <div className="bg-surface-card border border-border-light rounded-xl p-4 space-y-3">
-              <h3 className="text-sm font-semibold text-text">Seu cardápio</h3>
+              <h3 className="text-sm font-semibold text-text">Seu catálogo</h3>
               <img
                 src={generatedImage}
-                alt="Cardápio Digital"
+                alt="Catálogo de Serviços"
                 className="w-full rounded-lg border border-border-light shadow-soft"
               />
               <div className="flex gap-2">
