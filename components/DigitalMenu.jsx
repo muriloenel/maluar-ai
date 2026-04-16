@@ -307,8 +307,13 @@ export default function DigitalMenu({ plan = 'free', onUpgrade }) {
   const handleShare = async () => {
     if (!generatedImage) return;
     try {
-      const blob = await (await fetch(generatedImage)).blob();
-      const file = new File([blob], 'cardapio.png', { type: 'image/png' });
+      const [header, b64] = generatedImage.split(',');
+      const mime = header.match(/:(.*?);/)?.[1] || 'image/png';
+      const bin = atob(b64);
+      const arr = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      const blob = new Blob([arr], { type: mime });
+      const file = new File([blob], 'cardapio.png', { type: mime });
       if (navigator.share && navigator.canShare?.({ files: [file] })) {
         await navigator.share({ files: [file], title: 'Meu Cardápio de Serviços' });
       } else {
