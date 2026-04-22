@@ -327,6 +327,41 @@ export default function DigitalMenu({ plan = 'free', onUpgrade }) {
     }
   };
 
+  const isFree = plan === 'free' || !plan;
+
+  if (isFree) {
+    return (
+      <div className="flex flex-col h-full bg-surface">
+        <div className="flex-1 flex items-center justify-center px-4">
+          <div className="max-w-sm w-full text-center">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-accent-bg mb-4">
+              <span className="text-3xl">📋</span>
+            </div>
+            <h2 className="text-xl font-bold text-text mb-2">Catálogo de Serviços</h2>
+            <p className="text-sm text-text-muted mb-6">
+              Monte seu catálogo profissional com seus serviços, preços e compartilhe com suas clientes.
+            </p>
+            <div className="bg-surface-card border border-border-light rounded-xl p-4 mb-6 text-left space-y-2">
+              <p className="text-xs font-semibold text-text">O que você ganha:</p>
+              <div className="text-xs text-text-muted space-y-1.5">
+                <p>✅ Catálogo visual profissional</p>
+                <p>✅ Descrições geradas por IA</p>
+                <p>✅ 5 temas de cores</p>
+                <p>✅ Baixar e compartilhar no WhatsApp</p>
+              </div>
+            </div>
+            <button
+              onClick={onUpgrade}
+              className="w-full py-3 rounded-xl bg-accent text-white text-sm font-semibold hover:bg-accent-hover transition-colors shadow-soft"
+            >
+              💎 Desbloquear com Pro
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full bg-surface">
       <div className="flex-1 overflow-y-auto px-4 py-6">

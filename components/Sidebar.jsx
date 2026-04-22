@@ -424,13 +424,13 @@ export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activ
                 <span className="text-xs font-medium">Calculadora de Preço</span>
               </button>
               <button
-                onClick={() => { onTabChange('digital-menu'); onClose(); }}
+                onClick={() => { if (isFree) { onUpgrade?.(); } else { onTabChange('digital-menu'); onClose(); } }}
                 className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-colors ${
                   activeTab === 'digital-menu' ? 'bg-accent-bg text-accent' : 'text-text-muted hover:bg-surface-alt hover:text-text'
                 }`}
               >
                 <span className="text-sm">📋</span>
-                <span className="text-xs font-medium">Catálogo de Serviços</span>
+                <span className="text-xs font-medium">Catálogo de Serviços{isFree ? ' 🔒' : ''}</span>
               </button>
               <button
                 onClick={() => { onTabChange('favorites'); onClose(); }}
