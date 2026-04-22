@@ -97,10 +97,21 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
     setIsListening(true);
   }, [isListening]);
 
-  // Set welcome message only for brand new chats (no initialMessages)
+  // Set welcome state for brand new chats (no initialMessages)
+  // Em vez de criar uma mensagem de boas-vindas no chat, começamos com array vazio
+  // e mostramos uma tela de boas-vindas estilo Claude (welcome landing page)
   useEffect(() => {
     // Only reset messages when chatId actually changes
     if (chatIdRef.current === chatId && messages.length > 1) return;
+
+    // Se é apenas a transição new-* → ID real (chat recém-criado no banco),
+    // NÃO resetar — o chat já está em uso com mensagens/requests em andamento.
+    // Sem esse guard, o componente perdia toda a mensagem + imagem na 1ª interação.
+    if (chatIdRef.current?.startsWith('new-') && chatId === realChatIdRef.current) {
+      chatIdRef.current = chatId;
+      return;
+    }
+
     chatIdRef.current = chatId;
 
     // CRITICAL: abortar request em andamento e resetar estado de loading
@@ -110,6 +121,8 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
     setIsStreaming(false);
     setInput('');
     setLastFailedMsg(null);
+    setPendingFile(null);
+    lastImageRef.current = null;
     msgIdRef.current = 0; // Resetar IDs ao trocar de conversa
     // Resetar referência do chat real — se chatId é um ID persistido, usar direto
     realChatIdRef.current = (chatId && !chatId.startsWith('new-') && !chatId.startsWith('local-')) ? chatId : null;
@@ -121,14 +134,8 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
     }
     titleSetRef.current = false;
     userMsgCountRef.current = 0;
-    const hour = new Date().getHours();
-    const greeting = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
-    const firstName = (user.name || '').split(' ')[0] || 'amiga';
-    const welcome = {
-      role: 'assistant',
-      content: `${greeting}, ${firstName}! 💅 Como posso te ajudar hoje?`,
-    };
-    setMessages([welcome]);
+    // Começar com array vazio — a tela de boas-vindas será renderizada no lugar
+    setMessages([]);
   }, [chatId, initialMessages]);
 
   // Handle pendingPrompt — DEVE vir DEPOIS do chatId effect
@@ -694,9 +701,57 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
         </div>
       )}
 
-      {/* Messages */}
+      {/* Messages OR Welcome Screen */}
       <div className="flex-1 overflow-y-auto px-4 py-6 relative">
-        {/* Floating sidebar button removed — mobile uses tab bar + header menu */}
+        {messages.length === 0 && !isLoading && !isStreaming ? (
+          /* ── Welcome Landing Page (estilo Claude) ── */
+          <div className="flex flex-col items-center justify-center h-full animate-fade-in">
+            <div className="max-w-md w-full text-center px-4">
+              {/* Icon decorativo */}
+              <div className="mb-5">
+                {(() => {
+                  const hour = new Date().getHours();
+                  if (hour >= 6 && hour < 12) return <span className="text-5xl">☀️</span>;
+                  if (hour >= 12 && hour < 18) return <span className="text-5xl">🌤️</span>;
+                  return <span className="text-5xl">🌙</span>;
+                })()}
+              </div>
+              {/* Greeting */}
+              <h1 className="font-display text-2xl md:text-3xl font-bold text-text mb-2">
+                {(() => {
+                  const hour = new Date().getHours();
+                  const firstName = (user.name || '').split(' ')[0] || 'amiga';
+                  if (hour >= 6 && hour < 12) return `Bom dia, ${firstName}!`;
+                  if (hour >= 12 && hour < 18) return `Boa tarde, ${firstName}!`;
+                  if (hour >= 18 && hour < 22) return `Boa noite, ${firstName}!`;
+                  return 'Conversa ao luar? 💅';
+                })()}
+              </h1>
+              <p className="text-sm text-text-muted mb-8">
+                Como posso te ajudar hoje?
+              </p>
+              {/* Quick action suggestions */}
+              <div className="flex flex-wrap justify-center gap-2">
+                {[
+                  { icon: '💅', text: 'Analisar uma unha' },
+                  { icon: '📱', text: 'Criar post pro Instagram' },
+                  { icon: '💰', text: 'Calcular meu preço' },
+                  { icon: '💡', text: 'Dica do dia' },
+                ].map((suggestion) => (
+                  <button
+                    key={suggestion.text}
+                    onClick={() => sendMessage(suggestion.text)}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-full border border-border-light bg-surface-card text-xs text-text-muted hover:text-accent hover:border-accent/30 hover:bg-accent-bg transition-all"
+                  >
+                    <span>{suggestion.icon}</span>
+                    <span>{suggestion.text}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : (
+        /* ── Chat Messages ── */
         <div className="max-w-2xl mx-auto space-y-1">
           {messages.map((msg, i) => (
             <Message key={msg._id || `m-${i}`} role={msg.role} content={msg.content} imagePreview={msg.imagePreview} generatedImage={msg.generatedImage} isImageLoading={msg.isImageLoading} isUpgradeHint={msg.isUpgradeHint} timestamp={msg.timestamp} isError={msg.isError} onRetry={msg.isError ? handleRetry : undefined} onSaveFavorite={msg.role === 'assistant' && !msg.isError ? handleSaveFavorite : undefined} onUpgrade={onUpgrade} />
@@ -704,6 +759,7 @@ export default function ChatWindow({ user, userId, userEmail, pendingPrompt, onP
           {isLoading && <Message isTyping />}
           <div ref={messagesEndRef} />
         </div>
+        )}
       </div>
 
       {/* Input */}

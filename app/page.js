@@ -546,7 +546,6 @@ export default function Home() {
 
         {activeTab === 'chat' ? (
           <ChatWindow
-            key={activeChatId}
             user={userForComponents}
             userId={user.id}
             userEmail={user.email}
