@@ -50,6 +50,7 @@ export default function DigitalMenu({ plan = 'free', onUpgrade }) {
   const [aiSuggesting, setAiSuggesting] = useState(false);
   const [generatedImage, setGeneratedImage] = useState(null);
   const canvasRef = useRef(null);
+  const resultRef = useRef(null);
   const { getAccessToken } = useAuth();
   const toast = useToast();
 
@@ -293,6 +294,8 @@ export default function DigitalMenu({ plan = 'free', onUpgrade }) {
     setGeneratedImage(dataUrl);
     setGenerating(false);
     toast?.('Catálogo gerado!');
+    // Auto-scroll para o resultado
+    setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
   }, [services, businessName, businessPhone, businessInsta, selectedTheme, toast]);
 
   const handleDownload = () => {
@@ -555,7 +558,7 @@ export default function DigitalMenu({ plan = 'free', onUpgrade }) {
 
           {/* Preview / Resultado */}
           {generatedImage && (
-            <div className="bg-surface-card border border-border-light rounded-xl p-4 space-y-3">
+            <div ref={resultRef} className="bg-surface-card border border-border-light rounded-xl p-4 space-y-3">
               <h3 className="text-sm font-semibold text-text">Seu catálogo</h3>
               <img
                 src={generatedImage}
