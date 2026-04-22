@@ -232,7 +232,7 @@ export async function POST(req) {
     const FALLBACKS = [SONNET, HAIKU, 'claude-3-5-sonnet-latest'];
     let model = isComplex ? SONNET : HAIKU;
     const maxTokensCasual = Number(allConfigs.ai_max_tokens_casual) || 300;
-    const maxTokensComplex = Number(allConfigs.ai_max_tokens_complex) || 600;
+    const maxTokensComplex = Number(allConfigs.ai_max_tokens_complex) || 2000;
     const maxTokensImage = Number(allConfigs.ai_max_tokens_image) || 2000;
     const maxTokens = imageRequest ? maxTokensImage : isComplex ? maxTokensComplex : maxTokensCasual;
     
