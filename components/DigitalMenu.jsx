@@ -43,7 +43,7 @@ export default function DigitalMenu({ plan = 'free', onUpgrade }) {
   const [businessPhone, setBusinessPhone] = useState('');
   const [businessInsta, setBusinessInsta] = useState('');
   const [selectedTheme, setSelectedTheme] = useState('elegant');
-  const [showPresets, setShowPresets] = useState(false);
+  const [showPresets, setShowPresets] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newService, setNewService] = useState({ name: '', duration: 60, price: 0, description: '' });
   const [generating, setGenerating] = useState(false);
@@ -460,7 +460,7 @@ export default function DigitalMenu({ plan = 'free', onUpgrade }) {
             {/* Lista de serviços */}
             {services.length === 0 ? (
               <p className="text-center text-text-light text-xs py-4">
-                Adicione serviços usando os botões acima
+                👆 Toque nos serviços acima para adicioná-los ao catálogo
               </p>
             ) : (
               <div className="space-y-2">
@@ -546,8 +546,10 @@ export default function DigitalMenu({ plan = 'free', onUpgrade }) {
                 <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
                 Gerando...
               </>
+            ) : services.length === 0 ? (
+              <>👆 Selecione serviços acima para gerar</>
             ) : (
-              <>📋 Gerar Catálogo</>
+              <>📋 Gerar Catálogo ({services.length} serviços)</>
             )}
           </button>
 
