@@ -97,6 +97,13 @@ export async function POST(req) {
           break;
         }
 
+        // Boleto: payment_status será 'unpaid' (cliente ainda não pagou)
+        // Cartão: payment_status será 'paid' (pagamento instantâneo)
+        if (session.payment_status !== 'paid') {
+          console.log(`[WEBHOOK] checkout.session.completed com payment_status=${session.payment_status} — aguardando pagamento (boleto)`);
+          break;
+        }
+
         // Verificar se o profile existe
         const { data: existingProfile } = await supabase
           .from('profiles')
@@ -133,6 +140,58 @@ export async function POST(req) {
             sendUpgradeEmail(customerEmail, null, plan).catch(() => {});
           }
         }
+        break;
+      }
+
+      case 'checkout.session.async_payment_succeeded': {
+        // Boleto pago! Ativar plano agora
+        const asyncSession = event.data.object;
+        const asyncUserId = asyncSession.metadata?.user_id || asyncSession.client_reference_id;
+        const asyncPlan = asyncSession.metadata?.plan;
+
+        if (!asyncUserId || !asyncPlan) {
+          console.warn(`[WEBHOOK] async_payment_succeeded: userId ou plan faltando`);
+          break;
+        }
+
+        const { data: asyncProfile } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('id', asyncUserId)
+          .single();
+
+        if (!asyncProfile) {
+          console.error(`[WEBHOOK] async_payment_succeeded: Profile não encontrado para userId=${asyncUserId}`);
+          break;
+        }
+
+        const { error: asyncUpdateError } = await supabase
+          .from('profiles')
+          .update({
+            plan: asyncPlan,
+            stripe_customer_id: asyncSession.customer,
+            stripe_subscription_id: asyncSession.subscription,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', asyncUserId);
+
+        if (asyncUpdateError) {
+          console.error(`[WEBHOOK] async_payment_succeeded: Erro ao ativar plano:`, asyncUpdateError.message);
+        } else {
+          console.log(`[WEBHOOK] async_payment_succeeded: Plano ${asyncPlan} ativado para ${asyncUserId}`);
+          const asyncEmail = asyncSession.customer_email || asyncSession.customer_details?.email;
+          if (asyncEmail) {
+            sendUpgradeEmail(asyncEmail, null, asyncPlan).catch(() => {});
+          }
+        }
+        break;
+      }
+
+      case 'checkout.session.async_payment_failed': {
+        // Boleto expirou ou falhou
+        const failedSession = event.data.object;
+        const failedEmail = failedSession.customer_email || failedSession.customer_details?.email;
+        console.warn(`[WEBHOOK] async_payment_failed: Boleto expirou/falhou para ${failedEmail || 'desconhecido'}`);
         break;
       }
 

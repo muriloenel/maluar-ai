@@ -29,8 +29,13 @@ export async function GET(req) {
     });
     const session = await res.json();
 
-    if (session.error || session.payment_status !== 'paid') {
-      return Response.json({ plan: 'free', status: session.payment_status || 'unknown' });
+    if (session.error || !['paid', 'no_payment_required'].includes(session.payment_status)) {
+      // Boleto: payment_status será 'unpaid' até o cliente pagar
+      return Response.json({
+        plan: 'free',
+        status: session.payment_status || 'unknown',
+        pending_boleto: session.payment_status === 'unpaid',
+      });
     }
 
     // Validar que essa sessão pertence ao usuário logado
