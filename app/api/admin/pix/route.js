@@ -150,6 +150,18 @@ export async function POST(req) {
       return Response.json({ error: 'Dados inválidos' }, { status: 400 });
     }
 
+    // Verificar se o usuário já tem pagamento ativo
+    const { data: existingActive } = await supabase
+      .from('pix_payments')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .limit(1);
+
+    if (existingActive && existingActive.length > 0) {
+      return Response.json({ error: 'Este usuário já possui um pagamento Pix ativo' }, { status: 409 });
+    }
+
     const amount = PLAN_PRICES[plan];
     const paidDate = paidAt ? new Date(paidAt) : new Date();
     const expiresDate = new Date(paidDate);

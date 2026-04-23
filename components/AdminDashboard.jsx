@@ -2217,7 +2217,14 @@ export default function AdminDashboard() {
                             {pixSearchResults.map(u => (
                               <button
                                 key={u.id}
-                                onClick={() => { setPixSelectedUser(u); setPixSearchResults([]); setPixUserSearch(''); }}
+                                onClick={() => {
+                                  const hasActive = pixPayments?.payments?.some(p => p.user_id === u.id && p.status === 'active');
+                                  if (hasActive) {
+                                    alert('Este usuário já possui um pagamento Pix ativo.');
+                                    return;
+                                  }
+                                  setPixSelectedUser(u); setPixSearchResults([]); setPixUserSearch('');
+                                }}
                                 className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors text-left"
                               >
                                 <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-400 to-pink-400 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">{u.name?.[0]?.toUpperCase() || '?'}</div>
@@ -2226,6 +2233,9 @@ export default function AdminDashboard() {
                                   <p className="text-[10px] text-gray-400 truncate">{u.email || '—'}</p>
                                 </div>
                                 <PlanBadge plan={u.plan} />
+                                {pixPayments?.payments?.some(p => p.user_id === u.id && p.status === 'active') && (
+                                  <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30 px-1.5 py-0.5 rounded-full ml-auto">PIX ATIVO</span>
+                                )}
                               </button>
                             ))}
                           </div>
