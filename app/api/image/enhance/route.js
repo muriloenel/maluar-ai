@@ -80,15 +80,30 @@ export async function POST(req) {
       result = await getOpenAI().images.edit({
         model: 'gpt-image-1',
         image: file,
-        prompt: `Enhance this nail design photograph to professional studio quality.
-- Improve lighting: soft, even studio lighting with subtle highlights on the nails
-- Enhance sharpness and clarity of the nail details
-- Make colors more vibrant yet natural
-- Clean up the background to a soft, elegant bokeh or clean surface
-- Keep the EXACT same nails, hands and nail design - only improve photography quality
-- The result should look like a professional beauty/nail salon photoshoot
-- Do NOT add any text, logos, or watermarks`,
+        prompt: `You are a professional beauty photographer. Enhance this nail design photograph to absolute studio quality.
+
+LIGHTING:
+- Apply soft, diffused studio lighting with natural-looking highlights on the nails
+- Add subtle rim light to make the nail edges pop
+- Remove any harsh shadows or uneven lighting
+
+COLOR & DETAIL:
+- Make nail colors more vibrant, saturated, and true-to-life
+- Enhance the sharpness and fine details of the nail art/design
+- Ensure skin tones look natural and healthy (not orange or grey)
+
+BACKGROUND:
+- Clean up or replace the background with a soft, elegant out-of-focus (bokeh) surface
+- If the background is already nice, just soften it slightly to draw focus to the nails
+
+CRITICAL RULES:
+- Keep the EXACT same nail design, shape, and art — only improve photography quality
+- Do NOT change the nail color, pattern, or style
+- Do NOT add any text, logos, watermarks, or decorative elements
+- Do NOT modify the hand pose or composition
+- The result must look like a professional beauty salon photoshoot`,
         size: '1024x1024',
+        quality: 'high',
       });
 
     } else if (action === 'post-art') {
@@ -97,30 +112,69 @@ export async function POST(req) {
         return Response.json({ error: 'Dados do post não fornecidos' }, { status: 400 });
       }
 
-      const { title, subtitle, location, cta, style } = postData;
+      const { title, subtitle, location, cta, style, visualStyle } = postData;
       const isStories = style === 'stories';
       const size = isStories ? '1024x1536' : '1024x1024';
 
       const imageBuffer = Buffer.from(imageBase64, 'base64');
       const file = new File([imageBuffer], 'photo.png', { type: 'image/png' });
 
+      // Estilos visuais pré-definidos com prompts otimizados
+      const VISUAL_STYLES = {
+        luxury: {
+          name: 'Luxo Elegante',
+          prompt: `Dark luxury aesthetic. Black/dark background with gold, champagne, or rose-gold metallic accents. Elegant serif typography. Subtle sparkle and shimmer effects. Think: high-end jewelry brand aesthetic.`,
+        },
+        modern: {
+          name: 'Moderno Clean',
+          prompt: `Modern minimalist design. Clean white or very light background. Bold sans-serif typography in black. Accent color: soft blush pink or lavender. Geometric shapes and clean lines. Think: Apple/Glossier brand aesthetic.`,
+        },
+        neon: {
+          name: 'Neon Vibrante',
+          prompt: `Vibrant neon aesthetic. Dark background (deep purple or black) with glowing neon pink, purple, and cyan accents. Neon light effects on text. Energetic, youthful. Think: nightlife beauty brand.`,
+        },
+        romantic: {
+          name: 'Romântico Floral',
+          prompt: `Romantic botanical aesthetic. Soft pastel tones (blush, cream, sage green). Delicate watercolor flower decorations around the edges. Elegant script typography. Think: wedding invitation style, feminine and dreamy.`,
+        },
+        editorial: {
+          name: 'Editorial Fashion',
+          prompt: `High-fashion editorial style. Bold contrasting layout. Magazine-quality typography with large impactful headlines. Black & white with one accent color. Think: Vogue beauty editorial page.`,
+        },
+        tropical: {
+          name: 'Tropical Chic',
+          prompt: `Tropical paradise aesthetic. Warm golden tones, turquoise accents, palm leaf silhouettes. Sunset gradient backgrounds. Fun, vibrant, summer vibes. Think: Brazilian beach resort brand.`,
+        },
+      };
+
+      const selectedStyle = VISUAL_STYLES[visualStyle] || VISUAL_STYLES.luxury;
+
       const promptParts = [
-        `Create a professional, elegant Instagram ${isStories ? 'story (vertical 9:16)' : 'post (square 1:1)'} design for a nail designer's social media.`,
-        `Use the provided nail photo as the MAIN visual element — it should be prominently featured and recognizable.`,
-        title ? `Main title text: "${title}"` : '',
-        subtitle ? `Subtitle or description: "${subtitle}"` : '',
-        location ? `Location info: 📍 ${location}` : '',
-        cta ? `Call-to-action button text: "${cta}"` : '',
-        `Design style requirements:`,
-        `- Luxurious, sophisticated aesthetic with dark or elegant tones`,
-        `- Professional typography: large bold title, elegant script or italic for subtitle`,
-        `- Subtle design elements: sparkles, gold accents, soft gradients`,
-        `- The nail photo should be the hero/focal point of the design`,
-        `- Include a CTA button at the bottom if CTA text is provided`,
-        `- Overall look: like a high-end beauty brand social media post`,
-        `- All text must be in Portuguese (Brazilian)`,
-        `- Do NOT include any WhatsApp or phone icons unless specifically in the CTA`,
-        `- Make text READABLE with good contrast against the background`,
+        `You are a world-class graphic designer. Create a stunning, professional Instagram ${isStories ? 'story (vertical 9:16 ratio)' : 'post (square 1:1 ratio)'} for a nail designer / nail artist.`,
+        ``,
+        `PHOTO INSTRUCTIONS:`,
+        `- The provided nail photo MUST be the HERO element, prominently displayed and clearly visible`,
+        `- Frame the photo beautifully — it should occupy at least 40-50% of the design`,
+        `- Do NOT crop or distort the nail photo`,
+        ``,
+        `VISUAL STYLE:`,
+        selectedStyle.prompt,
+        ``,
+        `TEXT CONTENT (all text in Portuguese/Brazilian):`,
+        title ? `- MAIN HEADLINE (large, bold, impactful): "${title}"` : '',
+        subtitle ? `- SUBTITLE (smaller, elegant): "${subtitle}"` : '',
+        location ? `- LOCATION with pin icon: "📍 ${location}"` : '',
+        cta ? `- CALL-TO-ACTION BUTTON at bottom (rounded pill shape, high contrast): "${cta}"` : '',
+        ``,
+        `DESIGN RULES:`,
+        `- Typography must be SHARP, READABLE with excellent contrast`,
+        `- Text hierarchy: headline largest, subtitle medium, CTA button prominent`,
+        `- Use professional layout with balanced whitespace`,
+        `- Add subtle design elements: thin lines, dots, small decorative accents that match the style`,
+        `- The overall result should look like it was made by a professional agency`,
+        `- Do NOT add any WhatsApp icons, phone icons, or emoji unless in the CTA text`,
+        `- Do NOT add random watermarks or logos`,
+        `- Keep the design CLEAN — less is more`,
       ].filter(Boolean).join('\n');
 
       result = await getOpenAI().images.edit({
@@ -128,6 +182,7 @@ export async function POST(req) {
         image: file,
         prompt: promptParts,
         size,
+        quality: 'high',
       });
 
     } else if (action === 'recreate') {
@@ -138,17 +193,30 @@ export async function POST(req) {
       const imageBuffer = Buffer.from(imageBase64, 'base64');
       const file = new File([imageBuffer], 'photo.png', { type: 'image/png' });
 
-      const recreatePrompt = `Based on this nail design reference photo, create a NEW professional nail design photo.
-${userPrompt ? `User request: ${userPrompt}` : 'Recreate this nail design with professional studio quality.'}
-Style: ultra-realistic photograph, studio lighting, close-up of beautifully manicured nails on elegant hands.
-Quality: 4K, sharp focus, soft bokeh background, beauty photography style.
-Important: Only show hands and nails, no faces. No text, logos, or watermarks. Clean, professional aesthetic.`;
+      const recreatePrompt = `You are a professional nail art photographer. Based on this reference photo, create a NEW stunning nail design photograph.
+
+${userPrompt ? `CLIENT REQUEST: ${userPrompt}` : 'Recreate this nail design with enhanced professional quality.'}
+
+PHOTOGRAPHY STYLE:
+- Ultra-realistic photograph, NOT illustration or digital art
+- Professional studio lighting: soft key light with subtle fill
+- Close-up composition showing beautifully manicured nails on elegant, natural-looking hands
+- Sharp focus on nails with soft bokeh background
+- Magazine-quality beauty photography
+
+RULES:
+- Only show hands and nails — NO faces, NO full body
+- NO text, logos, watermarks, or any overlay
+- Background should be clean, elegant (marble, silk, soft gradient, or bokeh)
+- Skin must look natural and healthy
+- Nails must look realistic and physically accurate`;
 
       result = await getOpenAI().images.edit({
         model: 'gpt-image-1',
         image: file,
         prompt: recreatePrompt,
         size: '1024x1024',
+        quality: 'high',
       });
 
     } else {

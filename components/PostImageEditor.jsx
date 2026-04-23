@@ -112,6 +112,7 @@ export default function PostImageEditor({ imageSrc, legenda, platform, structure
   const imgRef = useRef(null);
   const [generatingArt, setGeneratingArt] = useState(false);
   const [aiArtResult, setAiArtResult] = useState(null);
+  const [aiVisualStyle, setAiVisualStyle] = useState('luxury');
 
   const [headline, setHeadline] = useState('');
   const [subtitle, setSubtitle] = useState('');
@@ -832,6 +833,7 @@ export default function PostImageEditor({ imageSrc, legenda, platform, structure
             location: location || '',
             cta: ctaText || '',
             style: platform === 'stories' ? 'stories' : 'square',
+            visualStyle: aiVisualStyle,
           },
         }),
       });
@@ -972,10 +974,32 @@ export default function PostImageEditor({ imageSrc, legenda, platform, structure
       {/* Botão Gerar Arte Pro com IA */}
       {!aiArtResult && (
         <div className="border-t border-border pt-4">
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center gap-2 mb-3">
             <span className="text-[10px] font-bold text-text-light uppercase tracking-wider">ou</span>
             <div className="flex-1 h-px bg-border" />
           </div>
+
+          {/* Estilo Visual IA */}
+          <div className="mb-3">
+            <label className="block text-text text-[10px] font-medium mb-1.5 uppercase tracking-wider">Estilo Visual da IA</label>
+            <div className="grid grid-cols-3 gap-1.5">
+              {[
+                { id: 'luxury', label: '✨ Luxo', color: '#c9a96e' },
+                { id: 'modern', label: '🤍 Clean', color: '#94a3b8' },
+                { id: 'neon', label: '💜 Neon', color: '#a855f7' },
+                { id: 'romantic', label: '🌸 Romântico', color: '#f9a8d4' },
+                { id: 'editorial', label: '📰 Editorial', color: '#1e293b' },
+                { id: 'tropical', label: '🌴 Tropical', color: '#f59e0b' },
+              ].map((s) => (
+                <button key={s.id} onClick={() => setAiVisualStyle(s.id)}
+                  className={`flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-[11px] font-medium transition-all border ${aiVisualStyle === s.id ? 'border-accent bg-accent-light text-text shadow-soft ring-1 ring-accent/30' : 'border-border bg-surface-card text-text-muted hover:border-accent/40'}`}>
+                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: s.color }} />
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {plan && plan !== 'free' ? (
             <button
               onClick={generateAiArt}
