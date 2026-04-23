@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTheme } from './ThemeProvider';
 import { UpgradeInlineBadge } from './UpgradePrompt';
+import { getSupabase } from '../lib/supabase';
 
 const LEVEL_LABELS = {
   iniciante: { label: 'Iniciante', icon: '🌱' },
@@ -213,8 +214,51 @@ export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activ
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [historySearch, setHistorySearch] = useState('');
   const [openSections, setOpenSections] = useState({});
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [showNewPw, setShowNewPw] = useState(false);
+  const [showConfirmPw, setShowConfirmPw] = useState(false);
   const userMenuRef = useRef(null);
   const { theme, toggle: toggleTheme } = useTheme();
+
+  const handleChangePassword = async () => {
+    setPasswordError('');
+    if (newPassword.length < 6) {
+      setPasswordError('A senha deve ter no mínimo 6 caracteres.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError('As senhas não coincidem.');
+      return;
+    }
+    setPasswordLoading(true);
+    try {
+      const supabase = getSupabase();
+      if (!supabase) { setPasswordError('Serviço indisponível.'); setPasswordLoading(false); return; }
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) {
+        const msg = error.message.toLowerCase();
+        if (msg.includes('same') || msg.includes('different')) {
+          setPasswordError('A nova senha deve ser diferente da atual.');
+        } else if (msg.includes('rate limit') || msg.includes('too many')) {
+          setPasswordError('Muitas tentativas. Aguarde alguns minutos.');
+        } else {
+          setPasswordError('Erro ao alterar senha. Tente novamente.');
+        }
+      } else {
+        setPasswordSuccess(true);
+        setNewPassword('');
+        setConfirmPassword('');
+      }
+    } catch {
+      setPasswordError('Erro de conexão. Verifique sua internet.');
+    }
+    setPasswordLoading(false);
+  };
 
   // Fechar menu do usuário ao clicar fora
   useEffect(() => {
@@ -568,6 +612,12 @@ export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activ
                   📦 Exportar meus dados
                 </a>
                 <button
+                  onClick={() => { setShowChangePassword(true); setShowUserMenu(false); setPasswordError(''); setPasswordSuccess(false); setNewPassword(''); setConfirmPassword(''); }}
+                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-md text-text-muted hover:text-accent hover:bg-accent-bg transition-colors w-full text-left"
+                >
+                  🔑 Trocar senha
+                </button>
+                <button
                   onClick={async () => {
                     if (!confirm('Tem certeza? TODOS os seus dados serão excluídos permanentemente. Essa ação não pode ser desfeita.')) return;
                     if (!confirm('Última chance: realmente deseja excluir sua conta?')) return;
@@ -607,6 +657,94 @@ export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activ
             </div>
           )}
         </div>
+
+        {/* Modal Trocar Senha */}
+        {showChangePassword && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) setShowChangePassword(false); }}>
+            <div className="bg-surface-card border border-border rounded-2xl p-6 max-w-sm w-full mx-4 shadow-elevated animate-scale-in">
+              {passwordSuccess ? (
+                <>
+                  <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-950/30 flex items-center justify-center mx-auto mb-4">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-emerald-500"><path d="M20 6 9 17l-5-5"/></svg>
+                  </div>
+                  <h3 className="text-center font-bold text-text mb-1">Senha alterada!</h3>
+                  <p className="text-center text-sm text-text-muted mb-4">Sua senha foi atualizada com sucesso.</p>
+                  <button onClick={() => setShowChangePassword(false)} className="w-full py-2.5 rounded-xl font-semibold text-sm btn-gradient">
+                    Fechar
+                  </button>
+                </>
+              ) : (
+                <>
+                  <h3 className="text-center font-bold text-text mb-1">Trocar Senha</h3>
+                  <p className="text-center text-sm text-text-muted mb-5">Digite sua nova senha (mínimo 6 caracteres).</p>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-xs text-text-muted font-semibold mb-1 block">Nova senha</label>
+                      <div className="relative">
+                        <input
+                          type={showNewPw ? 'text' : 'password'}
+                          value={newPassword}
+                          onChange={(e) => { setNewPassword(e.target.value); setPasswordError(''); }}
+                          placeholder="Mínimo 6 caracteres"
+                          className="w-full bg-surface border border-border rounded-xl px-4 py-2.5 pr-10 text-sm text-text placeholder-text-light focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all"
+                          autoFocus
+                        />
+                        <button type="button" onClick={() => setShowNewPw(!showNewPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-light hover:text-text transition-colors">
+                          {showNewPw ? (
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" /></svg>
+                          ) : (
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                          )}
+                        </button>
+                      </div>
+                      {newPassword.length > 0 && newPassword.length < 6 && (
+                        <p className="text-[10px] text-rose mt-1">A senha precisa ter pelo menos 6 caracteres ({6 - newPassword.length} faltando)</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="text-xs text-text-muted font-semibold mb-1 block">Confirmar nova senha</label>
+                      <div className="relative">
+                        <input
+                          type={showConfirmPw ? 'text' : 'password'}
+                          value={confirmPassword}
+                          onChange={(e) => { setConfirmPassword(e.target.value); setPasswordError(''); }}
+                          placeholder="Repita a nova senha"
+                          className="w-full bg-surface border border-border rounded-xl px-4 py-2.5 pr-10 text-sm text-text placeholder-text-light focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-all"
+                        />
+                        <button type="button" onClick={() => setShowConfirmPw(!showConfirmPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-light hover:text-text transition-colors">
+                          {showConfirmPw ? (
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" /></svg>
+                          ) : (
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                          )}
+                        </button>
+                      </div>
+                      {confirmPassword.length > 0 && newPassword !== confirmPassword && (
+                        <p className="text-[10px] text-rose mt-1">As senhas não coincidem</p>
+                      )}
+                    </div>
+                  </div>
+                  {passwordError && <p className="text-rose text-xs font-medium mt-3">{passwordError}</p>}
+                  <div className="flex gap-3 mt-5">
+                    <button
+                      onClick={() => setShowChangePassword(false)}
+                      className="flex-1 px-4 py-2.5 text-sm font-semibold bg-surface-alt text-text-muted rounded-xl hover:bg-border-light transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={handleChangePassword}
+                      disabled={passwordLoading || newPassword.length < 6 || newPassword !== confirmPassword}
+                      className="flex-1 px-4 py-2.5 text-sm font-semibold btn-gradient rounded-xl disabled:opacity-50 transition-colors"
+                    >
+                      {passwordLoading ? 'Alterando...' : 'Alterar Senha'}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
       </aside>
     </>
   );
