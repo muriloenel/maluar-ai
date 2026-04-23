@@ -1,4 +1,4 @@
-const CACHE_NAME = 'maluar-ai-v7';
+const CACHE_NAME = 'maluar-ai-v8';
 const STATIC_ASSETS = [];
 
 self.addEventListener('install', (event) => {

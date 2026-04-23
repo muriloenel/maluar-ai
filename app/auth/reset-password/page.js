@@ -16,26 +16,39 @@ export default function ResetPassword() {
     const supabase = getSupabase();
     if (!supabase) return;
 
-    const checkSession = async () => {
-      // Tentar várias vezes com intervalo — o token pode demorar a ser processado
-      for (let attempt = 0; attempt < 8; attempt++) {
-        await new Promise(resolve => setTimeout(resolve, attempt === 0 ? 500 : 1000));
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
-          setSessionReady(true);
-          return;
-        }
-      }
-      // Após 8 tentativas (~8.5s), considerar expirado
-      setError('Sessão expirada ou link inválido. Solicite um novo link de recuperação de senha na tela de login.');
+    let resolved = false;
+
+    const markReady = () => {
+      if (resolved) return;
+      resolved = true;
+      setSessionReady(true);
     };
 
-    // Também escutar eventos de auth (mais confiável)
+    // Escutar eventos de auth (mais confiável que polling)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && session)) {
-        setSessionReady(true);
+      if (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        if (session) markReady();
+      }
+      if (event === 'INITIAL_SESSION' && session) {
+        markReady();
       }
     });
+
+    // Polling como fallback (max 6s)
+    const checkSession = async () => {
+      for (let attempt = 0; attempt < 5; attempt++) {
+        if (resolved) return;
+        await new Promise(resolve => setTimeout(resolve, attempt === 0 ? 500 : 1200));
+        if (resolved) return;
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session) { markReady(); return; }
+        } catch {}
+      }
+      if (!resolved) {
+        setError('Sessão expirada ou link inválido. Solicite um novo link de recuperação na tela de login.');
+      }
+    };
 
     checkSession();
 

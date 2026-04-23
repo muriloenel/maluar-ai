@@ -290,7 +290,7 @@ export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activ
         </div>
 
         {/* Header - New Chat button */}
-        <div className="px-3 pb-2 pt-2">
+        <div className="px-3 pb-2 pt-2 space-y-2">
           <button
             onClick={() => {
               onSendPrompt(null);
@@ -303,6 +303,23 @@ export default function Sidebar({ user, onSendPrompt, onOpenPostGenerator, activ
             </svg>
             <span className="text-[13px] font-semibold text-text flex-1 text-left">Novo chat</span>
           </button>
+
+          {/* Banner de upgrade — só para plano free */}
+          {isFree && (
+            <button
+              onClick={() => { onUpgrade?.(); onClose(); }}
+              className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-gradient-to-r from-accent/10 to-rose/10 border border-accent/20 hover:border-accent/40 transition-all group"
+            >
+              <span className="text-base">✨</span>
+              <div className="flex-1 text-left">
+                <p className="text-xs font-bold text-accent">Upgrade Pro</p>
+                <p className="text-[10px] text-text-muted">Mais mensagens, posts e recursos</p>
+              </div>
+              <svg className="w-4 h-4 text-accent group-hover:translate-x-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          )}
         </div>
 
         {/* Scrollable sections — min-h-0 obrigatório em flex para overflow funcionar */}

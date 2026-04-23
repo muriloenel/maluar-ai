@@ -1,132 +1,175 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { getSupabase } from '../../../lib/supabase';
 
 export default function AuthCallback() {
   const [status, setStatus] = useState('processing'); // 'processing' | 'success' | 'error'
   const [message, setMessage] = useState('Verificando...');
+  const resolvedRef = useRef(false);
+
+  const redirectTo = (url, msg, delay = 800) => {
+    if (resolvedRef.current) return;
+    resolvedRef.current = true;
+    setStatus('success');
+    setMessage(msg);
+    setTimeout(() => { window.location.href = url; }, delay);
+  };
+
+  const showError = (msg) => {
+    if (resolvedRef.current) return;
+    resolvedRef.current = true;
+    setStatus('error');
+    setMessage(msg);
+  };
 
   useEffect(() => {
-    const handleCallback = async () => {
-      const supabase = getSupabase();
-      if (!supabase) {
-        setStatus('error');
-        setMessage('Serviço indisponível. Tente novamente.');
+    const supabase = getSupabase();
+    if (!supabase) {
+      showError('Serviço indisponível. Tente novamente.');
+      return;
+    }
+
+    const url = new URL(window.location.href);
+    const code = url.searchParams.get('code');
+    const type = url.searchParams.get('type');
+    const urlError = url.searchParams.get('error');
+    const errorDescription = url.searchParams.get('error_description');
+
+    // Erro vindo do Supabase (link expirado, etc.)
+    if (urlError) {
+      showError(errorDescription || 'Link inválido ou expirado. Tente novamente.');
+      return;
+    }
+
+    const isRecovery = type === 'recovery';
+
+    // === TIMEOUT GLOBAL (12s) — evita "Verificando..." eterno ===
+    const globalTimeout = setTimeout(() => {
+      if (resolvedRef.current) return;
+      console.warn('[AUTH-CALLBACK] Timeout global (12s)');
+      if (isRecovery) {
+        // Para recovery, redirecionar mesmo sem sessão — a página de reset mostrará erro
+        redirectTo('/auth/reset-password', 'Redirecionando...', 300);
+      } else {
+        showError('A verificação está demorando. Verifique sua conexão e tente novamente.');
+      }
+    }, 12000);
+
+    // ================================================================
+    // ESTRATÉGIA: detectSessionInUrl (habilitado no client) já faz o
+    // exchangeCodeForSession automaticamente. NÃO chamamos manualmente.
+    // Ouvimos onAuthStateChange como fonte primária de resolução.
+    // Fallback: verificar session manualmente após 5s.
+    // ================================================================
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (resolvedRef.current) return;
+      console.log('[AUTH-CALLBACK] Event:', event, '| session:', !!session?.user);
+
+      // Recovery (reset de senha)
+      if (event === 'PASSWORD_RECOVERY') {
+        redirectTo('/auth/reset-password', 'Redirecionando para redefinição de senha...', 300);
         return;
       }
 
-      const url = new URL(window.location.href);
-      const code = url.searchParams.get('code');
-      const type = url.searchParams.get('type');
-      const error = url.searchParams.get('error');
-      const errorDescription = url.searchParams.get('error_description');
-
-      // Erro vindo do Supabase (link expirado, etc.)
-      if (error) {
-        setStatus('error');
-        setMessage(errorDescription || 'Link inválido ou expirado. Tente novamente.');
-        return;
-      }
-
-      // Recovery check
-      if (type === 'recovery') {
-        if (code) {
-          try {
-            await supabase.auth.exchangeCodeForSession(code);
-          } catch {}
+      // Sessão criada — verificar se é recovery antes de redirecionar para home
+      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
+        if (isRecovery) {
+          // Recovery dispara SIGNED_IN antes de PASSWORD_RECOVERY — redirecionar para reset
+          redirectTo('/auth/reset-password', 'Redirecionando para redefinição de senha...', 300);
+        } else {
+          redirectTo('/', 'Login realizado com sucesso! Redirecionando...', 800);
         }
-        setMessage('Redirecionando para redefinição de senha...');
-        window.location.href = '/auth/reset-password';
         return;
       }
 
-      // Trocar code por sessão (PKCE flow — email confirm, OAuth, magic link)
+      // INITIAL_SESSION com sessão existente (detectSessionInUrl já processou)
+      if (event === 'INITIAL_SESSION' && session?.user) {
+        if (isRecovery) {
+          redirectTo('/auth/reset-password', 'Redirecionando para redefinição de senha...', 300);
+        } else {
+          redirectTo('/', 'Login realizado com sucesso! Redirecionando...', 800);
+        }
+        return;
+      }
+    });
+
+    // === FALLBACK (5s): se onAuthStateChange não resolveu, tentar manualmente ===
+    const fallbackTimeout = setTimeout(async () => {
+      if (resolvedRef.current) return;
+      console.log('[AUTH-CALLBACK] Fallback — tentando exchange manual');
+
+      // Se temos code, tentar exchange manual com timeout
       if (code) {
         try {
-          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-          if (exchangeError) {
-            console.warn('[AUTH-CALLBACK] Exchange error:', exchangeError.message);
-            // detectSessionInUrl pode ter processado o code antes — verificar session
+          const exchangePromise = supabase.auth.exchangeCodeForSession(code);
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('exchange timeout')), 5000)
+          );
+          const { error: exchangeError } = await Promise.race([exchangePromise, timeoutPromise]);
+          if (resolvedRef.current) return;
+
+          if (!exchangeError) {
+            // Exchange OK — onAuthStateChange vai disparar, mas resolver direto por segurança
             const { data: { session } } = await supabase.auth.getSession();
-            if (!session) {
-              setStatus('error');
-              setMessage('Link expirado ou já utilizado. Faça login normalmente.');
+            if (session?.user) {
+              if (isRecovery) {
+                redirectTo('/auth/reset-password', 'Redirecionando para redefinição de senha...', 300);
+              } else {
+                redirectTo('/', 'Login realizado com sucesso! Redirecionando...', 500);
+              }
               return;
             }
           }
         } catch (err) {
-          console.error('[AUTH-CALLBACK] Exchange exception:', err);
-          // Tentar getSession como fallback
-          try {
-            const { data: { session } } = await supabase.auth.getSession();
-            if (!session) {
-              setStatus('error');
-              setMessage('Erro ao processar autenticação. Tente fazer login normalmente.');
-              return;
-            }
-          } catch {
-            setStatus('error');
-            setMessage('Erro ao processar autenticação. Tente fazer login normalmente.');
-            return;
+          console.warn('[AUTH-CALLBACK] Fallback exchange failed:', err.message);
+        }
+      }
+
+      if (resolvedRef.current) return;
+
+      // Checar se session já existe (detectSessionInUrl pode ter criado)
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (resolvedRef.current) return;
+        if (session?.user) {
+          if (isRecovery) {
+            redirectTo('/auth/reset-password', 'Redirecionando para redefinição de senha...', 300);
+          } else {
+            redirectTo('/', 'Login realizado com sucesso! Redirecionando...', 500);
           }
-        }
-
-        // Aguardar sessão confirmar (onAuthStateChange pode levar alguns ms)
-        await new Promise(resolve => setTimeout(resolve, 500));
-
-        // Confirmar sessão estabelecida antes de redirecionar
-        const { data: { session: finalSession } } = await supabase.auth.getSession();
-        if (finalSession) {
-          setStatus('success');
-          setMessage('Login realizado com sucesso! Redirecionando...');
-          setTimeout(() => { window.location.href = '/'; }, 1000);
           return;
         }
+      } catch {}
 
-        // Session não encontrada — aguardar mais um pouco (OAuth pode demorar)
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        const { data: { session: retrySession } } = await supabase.auth.getSession();
-        if (retrySession) {
-          setStatus('success');
-          setMessage('Login realizado com sucesso! Redirecionando...');
-          setTimeout(() => { window.location.href = '/'; }, 500);
-          return;
-        }
-
-        setStatus('error');
-        setMessage('Não foi possível completar o login. Tente novamente.');
+      // Nenhuma sessão — se é recovery, redirecionar mesmo assim
+      if (isRecovery) {
+        redirectTo('/auth/reset-password', 'Redirecionando...', 300);
         return;
       }
 
-      // Verificar se hash contém tokens (implicit flow / fallback)
-      if (window.location.hash) {
-        const hashParams = new URLSearchParams(window.location.hash.substring(1));
-        const hashType = hashParams.get('type');
-        if (hashType === 'recovery') {
-          window.location.href = '/auth/reset-password';
-          return;
-        }
-        // Para outros tipos (signup, magiclink), o detectSessionInUrl já processou
-        await new Promise(resolve => setTimeout(resolve, 1500));
+      // Sem code e sem sessão
+      if (!code && !window.location.hash) {
+        showError('Sessão não encontrada. Faça login novamente.');
       }
+    }, 5000);
 
-      // Verificar se existe session (pode vir de detectSessionInUrl ou hash processing)
-      const { data: { session: existingSession } } = await supabase.auth.getSession();
-      if (existingSession) {
-        setStatus('success');
-        setMessage('Login realizado com sucesso! Redirecionando...');
-        setTimeout(() => { window.location.href = '/'; }, 1000);
-        return;
+    // === HASH (implicit flow / fallback legado) ===
+    if (!code && window.location.hash) {
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      const hashType = hashParams.get('type');
+      if (hashType === 'recovery') {
+        // detectSessionInUrl vai processar o hash — esperar via onAuthStateChange
+        // Se não resolver, o fallback timeout cuida
       }
+    }
 
-      // Fallback — email confirmado sem session
-      setStatus('success');
-      setMessage('Conta verificada! Faça login para continuar.');
-      setTimeout(() => { window.location.href = '/'; }, 2000);
+    return () => {
+      clearTimeout(globalTimeout);
+      clearTimeout(fallbackTimeout);
+      subscription?.unsubscribe();
     };
-
-    handleCallback();
   }, []);
 
   return (
@@ -164,12 +207,20 @@ export default function AuthCallback() {
             </div>
             <h2 className="font-display text-lg font-bold text-text">Ops!</h2>
             <p className="text-sm text-text-muted">{message}</p>
-            <a
-              href="/"
-              className="inline-block px-6 py-3 rounded-xl bg-accent text-white font-semibold text-sm hover:bg-accent-hover shadow-soft transition-all"
-            >
-              Ir para o login
-            </a>
+            <div className="flex flex-col items-center gap-3">
+              <button
+                onClick={() => window.location.reload()}
+                className="px-6 py-3 rounded-xl bg-accent text-white font-semibold text-sm hover:bg-accent-hover shadow-soft transition-all"
+              >
+                Tentar novamente
+              </button>
+              <a
+                href="/"
+                className="text-xs text-text-muted hover:text-text underline"
+              >
+                Ir para o login
+              </a>
+            </div>
           </div>
         )}
       </div>
