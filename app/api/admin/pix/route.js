@@ -13,11 +13,18 @@ export async function GET(req) {
 
     // Auto-expirar pagamentos vencidos e rebaixar plano
     const now = new Date().toISOString();
-    const { data: expired } = await supabase
+    const { data: expired, error: expireError } = await supabase
       .from('pix_payments')
       .select('id, user_id, plan')
       .eq('status', 'active')
       .lt('expires_at', now);
+
+    if (expireError) {
+      console.error('[PIX] Error checking expired:', expireError.message);
+      if (expireError.message?.includes('does not exist') || expireError.code === '42P01') {
+        return Response.json({ error: 'Tabela pix_payments não existe. Execute a migration SQL no Supabase.' }, { status: 500 });
+      }
+    }
 
     const expiredUsers = [];
     if (expired && expired.length > 0) {
@@ -52,10 +59,12 @@ export async function GET(req) {
             .single();
 
           // Email para o admin sobre downgrade
-          const { data: authUser } = await supabase.auth.admin.getUserById(p.user_id);
-          if (authUser?.user?.email) {
-            sendPixExpiredEmail(authUser.user.email, userProfile?.name).catch(() => {});
-          }
+          try {
+            const { data: authUser } = await supabase.auth.admin.getUserById(p.user_id);
+            if (authUser?.user?.email) {
+              sendPixExpiredEmail(authUser.user.email, userProfile?.name).catch(() => {});
+            }
+          } catch {}
 
           expiredUsers.push({ userId: p.user_id, plan: p.plan });
         }
@@ -70,6 +79,10 @@ export async function GET(req) {
 
     if (error) {
       console.error('[PIX] Error loading payments:', error.message);
+      // Se a tabela não existe, retornar mensagem clara
+      if (error.message?.includes('does not exist') || error.code === '42P01') {
+        return Response.json({ error: 'Tabela pix_payments não existe. Execute a migration SQL no Supabase.' }, { status: 500 });
+      }
       return Response.json({ error: 'Erro ao carregar dados' }, { status: 500 });
     }
 

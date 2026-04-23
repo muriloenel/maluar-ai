@@ -618,7 +618,10 @@ export default function AdminDashboard() {
           ...prev,
         ]);
       }
-    } catch {}
+    } catch (err) {
+      console.error('[PIX] Erro ao carregar:', err.message);
+      setPixPayments([]);
+    }
   }, [fetchApi]);
 
   const searchPixUsers = useCallback(async (term) => {
@@ -636,7 +639,7 @@ export default function AdminDashboard() {
     setPixSaving(true);
     try {
       const token = await getAccessToken();
-      await fetch('/api/admin/pix', {
+      const res = await fetch('/api/admin/pix', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -646,6 +649,12 @@ export default function AdminDashboard() {
           notes: pixNotes,
         }),
       });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(`Erro ao registrar: ${err.error || 'Erro desconhecido'}`);
+        setPixSaving(false);
+        return;
+      }
       // Reset form
       setPixShowForm(false);
       setPixSelectedUser(null);
@@ -654,7 +663,10 @@ export default function AdminDashboard() {
       setPixPaidAt(new Date().toISOString().split('T')[0]);
       setPixNotes('');
       await loadPix();
-    } catch {}
+    } catch (err) {
+      console.error('[PIX] Erro ao registrar:', err);
+      alert('Erro ao registrar pagamento. Verifique o console.');
+    }
     setPixSaving(false);
   }, [pixSelectedUser, pixPlan, pixPaidAt, pixNotes, getAccessToken, loadPix]);
 
