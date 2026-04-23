@@ -463,6 +463,9 @@ export default function AdminDashboard() {
   const { user, getAccessToken } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [stats, setStats] = useState(null);
+  const [registrations, setRegistrations] = useState(null);
+  const [regPeriod, setRegPeriod] = useState('day');
+  const [regChartType, setRegChartType] = useState('bar'); // bar | area | cumulative
   const [users, setUsers] = useState(null);
   const [usage, setUsage] = useState(null);
   const [insights, setInsights] = useState(null);
@@ -499,6 +502,13 @@ export default function AdminDashboard() {
       setError(err.message);
     }
   }, [fetchApi]);
+
+  const loadRegistrations = useCallback(async (period) => {
+    try {
+      const data = await fetchApi(`/api/admin/stats/registrations?period=${period || regPeriod}`);
+      setRegistrations(data);
+    } catch {}
+  }, [fetchApi, regPeriod]);
 
   const loadUsers = useCallback(async () => {
     try {
@@ -572,7 +582,7 @@ export default function AdminDashboard() {
     (async () => {
       setLoading(true);
       setError(null);
-      await Promise.all([loadStats(), loadUsage(), loadInsights()]);
+      await Promise.all([loadStats(), loadUsage(), loadInsights(), loadRegistrations()]);
       setLoading(false);
     })();
   }, [loadStats, loadUsage, loadInsights]);
@@ -719,6 +729,239 @@ export default function AdminDashboard() {
                 icon={Icons.chart} color="danger"
               />
             </div>
+
+            {/* ===== CADASTROS DE USUÁRIOS ===== */}
+            {registrations && (
+              <>
+                {/* Header com filtros */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-base font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                      {Icons.users}
+                      <span>Cadastros de Usuários</span>
+                    </h2>
+                    <p className="text-xs text-gray-400 mt-0.5">Acompanhe o crescimento da base de usuários</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {/* Filtro de período */}
+                    <div className="flex bg-white dark:bg-[#1a1625] border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden">
+                      {[
+                        { id: 'day', label: 'Dia' },
+                        { id: 'week', label: 'Semana' },
+                        { id: 'month', label: 'Mês' },
+                        { id: 'year', label: 'Ano' },
+                      ].map(p => (
+                        <button
+                          key={p.id}
+                          onClick={() => { setRegPeriod(p.id); loadRegistrations(p.id); }}
+                          className={`px-3 py-1.5 text-[11px] font-semibold transition-colors ${
+                            regPeriod === p.id
+                              ? 'bg-violet-600 text-white'
+                              : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                          }`}
+                        >
+                          {p.label}
+                        </button>
+                      ))}
+                    </div>
+                    {/* Tipo de gráfico */}
+                    <div className="flex bg-white dark:bg-[#1a1625] border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden">
+                      {[
+                        { id: 'bar', label: '▮▮' },
+                        { id: 'area', label: '📈' },
+                        { id: 'cumulative', label: '📊' },
+                      ].map(t => (
+                        <button
+                          key={t.id}
+                          onClick={() => setRegChartType(t.id)}
+                          className={`px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${
+                            regChartType === t.id
+                              ? 'bg-violet-600 text-white'
+                              : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                          }`}
+                          title={t.id === 'bar' ? 'Barras' : t.id === 'area' ? 'Área' : 'Acumulado'}
+                        >
+                          {t.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* KPIs de cadastros */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  <KPICard
+                    label="Período Visível"
+                    value={registrations.totalInPeriod}
+                    sub={`de ${registrations.total} total`}
+                    icon={Icons.users} color="primary"
+                  />
+                  <KPICard
+                    label={`Média/${regPeriod === 'day' ? 'dia' : regPeriod === 'week' ? 'sem' : regPeriod === 'month' ? 'mês' : 'ano'}`}
+                    value={registrations.avgPerPeriod}
+                    sub="por período"
+                    icon={Icons.chart} color="info"
+                  />
+                  <KPICard
+                    label="Pico"
+                    value={registrations.maxDay?.count || 0}
+                    sub={registrations.maxDay?.label || '—'}
+                    icon={Icons.arrowUp} color="success"
+                  />
+                  <KPICard
+                    label="Tendência"
+                    value={`${registrations.trend > 0 ? '+' : ''}${registrations.trend}%`}
+                    sub="2ª vs 1ª metade"
+                    icon={registrations.trend >= 0 ? Icons.arrowUp : Icons.arrowDown}
+                    color={registrations.trend >= 0 ? 'success' : 'danger'}
+                  />
+                </div>
+
+                {/* Gráfico principal */}
+                <Card title={regChartType === 'cumulative' ? 'Crescimento Acumulado' : `Novos Cadastros por ${regPeriod === 'day' ? 'Dia' : regPeriod === 'week' ? 'Semana' : regPeriod === 'month' ? 'Mês' : 'Ano'}`}>
+                  {regChartType === 'bar' && (
+                    <BarChart
+                      data={registrations.data}
+                      valueKey="count"
+                      labelKey="label"
+                      height={220}
+                      color={colors.primary}
+                    />
+                  )}
+                  {regChartType === 'area' && (
+                    <AreaChart
+                      data={registrations.data}
+                      valueKey="count"
+                      labelKey="label"
+                      height={220}
+                      color={colors.primary}
+                    />
+                  )}
+                  {regChartType === 'cumulative' && (
+                    <AreaChart
+                      data={registrations.data}
+                      valueKey="cumulative"
+                      labelKey="label"
+                      height={220}
+                      color={colors.success}
+                    />
+                  )}
+                </Card>
+
+                {/* Gráficos detalhados — breakdown */}
+                <div className="grid md:grid-cols-2 gap-4">
+                  {/* Cadastros por Plano */}
+                  <Card title="Cadastros por Plano">
+                    {registrations.data?.length > 0 ? (
+                      <div style={{ height: 200 }} className="relative w-full">
+                        <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full">
+                          {['free', 'pro', 'premium'].map((plan, planIdx) => {
+                            const planColors = { free: '#3B82F6', pro: '#7C3AED', premium: '#F59E0B' };
+                            const values = registrations.data.map(d => d.plans?.[plan] || 0);
+                            const max = Math.max(...registrations.data.map(d => Math.max(d.plans?.free || 0, d.plans?.pro || 0, d.plans?.premium || 0)), 1);
+                            const w = 100;
+                            const h = 100;
+                            const padding = 2;
+                            const points = values.map((v, i) => ({
+                              x: padding + (i / Math.max(values.length - 1, 1)) * (w - padding * 2),
+                              y: h - padding - (v / max) * (h - padding * 2),
+                            }));
+                            const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+                            return (
+                              <path key={plan} d={linePath} fill="none" stroke={planColors[plan]} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" opacity={0.8} />
+                            );
+                          })}
+                        </svg>
+                        <div className="flex justify-center gap-4 mt-2">
+                          {[
+                            { plan: 'free', label: 'Free', color: '#3B82F6' },
+                            { plan: 'pro', label: 'Pro', color: '#7C3AED' },
+                            { plan: 'premium', label: 'Premium', color: '#F59E0B' },
+                          ].map(p => (
+                            <div key={p.plan} className="flex items-center gap-1.5">
+                              <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: p.color }} />
+                              <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">{p.label}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <EmptyState text="Sem dados" />
+                    )}
+                  </Card>
+
+                  {/* Cadastros por Nível */}
+                  <Card title="Cadastros por Nível">
+                    {registrations.data?.length > 0 ? (
+                      <div style={{ height: 200 }} className="relative w-full">
+                        <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full">
+                          {['iniciante', 'intermediario', 'avancada'].map((level) => {
+                            const levelColors = { iniciante: '#10B981', intermediario: '#3B82F6', avancada: '#EC4899' };
+                            const values = registrations.data.map(d => d.levels?.[level] || 0);
+                            const max = Math.max(...registrations.data.map(d => Math.max(d.levels?.iniciante || 0, d.levels?.intermediario || 0, d.levels?.avancada || 0)), 1);
+                            const w = 100;
+                            const h = 100;
+                            const padding = 2;
+                            const points = values.map((v, i) => ({
+                              x: padding + (i / Math.max(values.length - 1, 1)) * (w - padding * 2),
+                              y: h - padding - (v / max) * (h - padding * 2),
+                            }));
+                            const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+                            return (
+                              <path key={level} d={linePath} fill="none" stroke={levelColors[level]} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" opacity={0.8} />
+                            );
+                          })}
+                        </svg>
+                        <div className="flex justify-center gap-4 mt-2">
+                          {[
+                            { level: 'iniciante', label: 'Iniciante', color: '#10B981' },
+                            { level: 'intermediario', label: 'Intermediária', color: '#3B82F6' },
+                            { level: 'avancada', label: 'Avançada', color: '#EC4899' },
+                          ].map(l => (
+                            <div key={l.level} className="flex items-center gap-1.5">
+                              <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: l.color }} />
+                              <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">{l.label}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <EmptyState text="Sem dados" />
+                    )}
+                  </Card>
+                </div>
+
+                {/* Tabela detalhada dos últimos períodos */}
+                <Card title="Detalhamento por Período" className="!p-0 overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/20">
+                          <th className="text-left px-4 py-3 text-gray-500 font-semibold uppercase tracking-wider">Período</th>
+                          <th className="text-right px-4 py-3 text-gray-500 font-semibold uppercase tracking-wider">Total</th>
+                          <th className="text-right px-4 py-3 text-gray-500 font-semibold uppercase tracking-wider">Free</th>
+                          <th className="text-right px-4 py-3 text-gray-500 font-semibold uppercase tracking-wider">Pro</th>
+                          <th className="text-right px-4 py-3 text-gray-500 font-semibold uppercase tracking-wider">Premium</th>
+                          <th className="text-right px-4 py-3 text-gray-500 font-semibold uppercase tracking-wider">Acumulado</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                        {registrations.data?.slice().reverse().map((d, i) => (
+                          <tr key={i} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors">
+                            <td className="px-4 py-2.5 font-medium text-gray-700 dark:text-gray-200">{d.label}</td>
+                            <td className="px-4 py-2.5 text-right font-bold text-gray-800 dark:text-gray-200 tabular-nums">{d.count}</td>
+                            <td className="px-4 py-2.5 text-right text-blue-600 dark:text-blue-400 tabular-nums">{d.plans?.free || 0}</td>
+                            <td className="px-4 py-2.5 text-right text-violet-600 dark:text-violet-400 tabular-nums">{d.plans?.pro || 0}</td>
+                            <td className="px-4 py-2.5 text-right text-amber-600 dark:text-amber-400 tabular-nums">{d.plans?.premium || 0}</td>
+                            <td className="px-4 py-2.5 text-right text-gray-500 tabular-nums">{d.cumulative}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </Card>
+              </>
+            )}
 
             {/* Charts row */}
             <div className="grid md:grid-cols-3 gap-4">
