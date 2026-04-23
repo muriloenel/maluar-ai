@@ -482,6 +482,15 @@ export default function AdminDashboard() {
   const [userPage, setUserPage] = useState(1);
   const [actionLoading, setActionLoading] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [filterLevel, setFilterLevel] = useState('');
+  const [filterDateFrom, setFilterDateFrom] = useState('');
+  const [filterDateTo, setFilterDateTo] = useState('');
+  const [sortField, setSortField] = useState('created_at');
+  const [sortDir, setSortDir] = useState('desc');
+  const [showCreateUser, setShowCreateUser] = useState(false);
+  const [createUserForm, setCreateUserForm] = useState({ name: '', email: '', phone: '' });
+  const [createUserLoading, setCreateUserLoading] = useState(false);
+  const [createdUserPassword, setCreatedUserPassword] = useState(null);
   const [configs, setConfigs] = useState(null);
   const [configEdits, setConfigEdits] = useState({});
   const [configSaving, setConfigSaving] = useState(false);
@@ -538,12 +547,17 @@ export default function AdminDashboard() {
       if (searchTerm) params.set('search', searchTerm);
       if (filterPlan) params.set('plan', filterPlan);
       if (filterStatus) params.set('status', filterStatus);
+      if (filterLevel) params.set('level', filterLevel);
+      if (filterDateFrom) params.set('dateFrom', filterDateFrom);
+      if (filterDateTo) params.set('dateTo', filterDateTo);
+      if (sortField) params.set('sort', sortField);
+      if (sortDir) params.set('dir', sortDir);
       const data = await fetchApi(`/api/admin/users?${params}`);
       setUsers(data);
     } catch (err) {
       setError(err.message);
     }
-  }, [fetchApi, userPage, searchTerm, filterPlan, filterStatus]);
+  }, [fetchApi, userPage, searchTerm, filterPlan, filterStatus, filterLevel, filterDateFrom, filterDateTo, sortField, sortDir]);
 
   const loadUsage = useCallback(async () => {
     try {
@@ -712,6 +726,39 @@ export default function AdminDashboard() {
       if (activeTab === 'dashboard') await loadStats();
     } catch {}
     setActionLoading(null);
+  };
+
+  const handleCreateUser = async () => {
+    const { name, email, phone } = createUserForm;
+    if (!name.trim() || !email.trim()) return alert('Nome e email são obrigatórios');
+    setCreateUserLoading(true);
+    try {
+      const token = await getAccessToken();
+      const res = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), email: email.trim(), phone: phone.replace(/\D/g, '') }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(`Erro: ${data.error || 'Erro desconhecido'}`);
+      } else {
+        setCreatedUserPassword(data.password);
+        setCreateUserForm({ name: '', email: '', phone: '' });
+        await loadUsers();
+      }
+    } catch (err) {
+      alert('Erro ao criar usuário: ' + err.message);
+    }
+    setCreateUserLoading(false);
+  };
+
+  const formatPhoneDisplay = (p) => {
+    if (!p) return '—';
+    const d = String(p).replace(/\D/g, '');
+    if (d.length === 11) return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`;
+    if (d.length === 10) return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`;
+    return p;
   };
 
   // Donut data for plans
@@ -1156,38 +1203,115 @@ export default function AdminDashboard() {
         {/* ===== USUÁRIOS ===== */}
         {activeTab === 'users' && (
           <>
-            {/* Filtros */}
-            <div className="flex flex-wrap gap-3">
-              <div className="relative flex-1 min-w-[200px]">
-                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">{Icons.search}</div>
-                <input
-                  type="text"
-                  placeholder="Buscar por nome ou email..."
-                  value={searchTerm}
-                  onChange={(e) => { setSearchTerm(e.target.value); setUserPage(1); }}
-                  className="w-full pl-10 pr-4 py-2.5 text-sm bg-white dark:bg-[#1a1625] border border-gray-200 dark:border-gray-800 rounded-xl focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500 outline-none text-gray-700 dark:text-gray-200 transition-all"
-                />
+            {/* Cabeçalho + Botão Criar */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-gray-800 dark:text-white">Usuários</h2>
+                <p className="text-xs text-gray-400">{users?.total || 0} usuários encontrados</p>
               </div>
-              <select
-                value={filterPlan}
-                onChange={(e) => { setFilterPlan(e.target.value); setUserPage(1); }}
-                className="px-4 py-2.5 text-xs bg-white dark:bg-[#1a1625] border border-gray-200 dark:border-gray-800 rounded-xl text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500 outline-none transition-all"
+              <button
+                onClick={() => { setShowCreateUser(true); setCreatedUserPassword(null); }}
+                className="px-4 py-2.5 text-xs font-semibold bg-violet-600 text-white rounded-xl hover:bg-violet-700 transition-colors flex items-center gap-2"
               >
-                <option value="">Todos planos</option>
-                <option value="free">Grátis</option>
-                <option value="pro">Pro</option>
-                <option value="premium">Premium</option>
-              </select>
-              <select
-                value={filterStatus}
-                onChange={(e) => { setFilterStatus(e.target.value); setUserPage(1); }}
-                className="px-4 py-2.5 text-xs bg-white dark:bg-[#1a1625] border border-gray-200 dark:border-gray-800 rounded-xl text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500 outline-none transition-all"
-              >
-                <option value="">Todos status</option>
-                <option value="active">Ativos</option>
-                <option value="inactive">Inativos</option>
-              </select>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+                Cadastrar Usuário
+              </button>
             </div>
+
+            {/* Filtros */}
+            <Card className="!p-4">
+              <div className="flex flex-wrap gap-3 items-end">
+                <div className="relative flex-1 min-w-[200px]">
+                  <label className="text-[10px] text-gray-400 font-semibold uppercase mb-1 block">Busca</label>
+                  <div className="absolute left-3 bottom-2.5 text-gray-400">{Icons.search}</div>
+                  <input
+                    type="text"
+                    placeholder="Nome, email ou telefone..."
+                    value={searchTerm}
+                    onChange={(e) => { setSearchTerm(e.target.value); setUserPage(1); }}
+                    className="w-full pl-10 pr-4 py-2.5 text-sm bg-white dark:bg-[#1a1625] border border-gray-200 dark:border-gray-800 rounded-xl focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500 outline-none text-gray-700 dark:text-gray-200 transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-gray-400 font-semibold uppercase mb-1 block">Plano</label>
+                  <select
+                    value={filterPlan}
+                    onChange={(e) => { setFilterPlan(e.target.value); setUserPage(1); }}
+                    className="px-4 py-2.5 text-xs bg-white dark:bg-[#1a1625] border border-gray-200 dark:border-gray-800 rounded-xl text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500 outline-none transition-all"
+                  >
+                    <option value="">Todos</option>
+                    <option value="free">Grátis</option>
+                    <option value="pro">Pro</option>
+                    <option value="premium">Premium</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] text-gray-400 font-semibold uppercase mb-1 block">Status</label>
+                  <select
+                    value={filterStatus}
+                    onChange={(e) => { setFilterStatus(e.target.value); setUserPage(1); }}
+                    className="px-4 py-2.5 text-xs bg-white dark:bg-[#1a1625] border border-gray-200 dark:border-gray-800 rounded-xl text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500 outline-none transition-all"
+                  >
+                    <option value="">Todos</option>
+                    <option value="active">Ativos</option>
+                    <option value="inactive">Inativos</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] text-gray-400 font-semibold uppercase mb-1 block">Nível</label>
+                  <select
+                    value={filterLevel}
+                    onChange={(e) => { setFilterLevel(e.target.value); setUserPage(1); }}
+                    className="px-4 py-2.5 text-xs bg-white dark:bg-[#1a1625] border border-gray-200 dark:border-gray-800 rounded-xl text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500 outline-none transition-all"
+                  >
+                    <option value="">Todos</option>
+                    <option value="iniciante">Iniciante</option>
+                    <option value="intermediario">Intermediária</option>
+                    <option value="avancada">Avançada</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] text-gray-400 font-semibold uppercase mb-1 block">De</label>
+                  <input
+                    type="date"
+                    value={filterDateFrom}
+                    onChange={(e) => { setFilterDateFrom(e.target.value); setUserPage(1); }}
+                    className="px-3 py-2.5 text-xs bg-white dark:bg-[#1a1625] border border-gray-200 dark:border-gray-800 rounded-xl text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-violet-500/30 outline-none transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-gray-400 font-semibold uppercase mb-1 block">Até</label>
+                  <input
+                    type="date"
+                    value={filterDateTo}
+                    onChange={(e) => { setFilterDateTo(e.target.value); setUserPage(1); }}
+                    className="px-3 py-2.5 text-xs bg-white dark:bg-[#1a1625] border border-gray-200 dark:border-gray-800 rounded-xl text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-violet-500/30 outline-none transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-gray-400 font-semibold uppercase mb-1 block">Ordenar</label>
+                  <select
+                    value={`${sortField}_${sortDir}`}
+                    onChange={(e) => { const [f, d] = e.target.value.split('_'); setSortField(f); setSortDir(d); setUserPage(1); }}
+                    className="px-4 py-2.5 text-xs bg-white dark:bg-[#1a1625] border border-gray-200 dark:border-gray-800 rounded-xl text-gray-700 dark:text-gray-200 focus:ring-2 focus:ring-violet-500/30 outline-none transition-all"
+                  >
+                    <option value="created_at_desc">Mais recentes</option>
+                    <option value="created_at_asc">Mais antigos</option>
+                    <option value="name_asc">Nome A-Z</option>
+                    <option value="name_desc">Nome Z-A</option>
+                    <option value="messages_today_desc">Mais mensagens hoje</option>
+                  </select>
+                </div>
+                {(filterPlan || filterStatus || filterLevel || filterDateFrom || filterDateTo || searchTerm) && (
+                  <button
+                    onClick={() => { setFilterPlan(''); setFilterStatus(''); setFilterLevel(''); setFilterDateFrom(''); setFilterDateTo(''); setSearchTerm(''); setUserPage(1); }}
+                    className="px-3 py-2.5 text-xs font-semibold text-red-500 bg-red-50 dark:bg-red-950/20 rounded-xl hover:bg-red-100 dark:hover:bg-red-950/40 transition-colors"
+                  >
+                    Limpar filtros
+                  </button>
+                )}
+              </div>
+            </Card>
 
             {/* Tabela */}
             <Card className="!p-0 overflow-hidden">
@@ -1196,7 +1320,9 @@ export default function AdminDashboard() {
                   <thead>
                     <tr className="border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/20">
                       <th className="text-left px-5 py-3.5 text-gray-500 font-semibold uppercase tracking-wider">Usuário</th>
+                      <th className="text-left px-5 py-3.5 text-gray-500 font-semibold uppercase tracking-wider">Telefone</th>
                       <th className="text-left px-5 py-3.5 text-gray-500 font-semibold uppercase tracking-wider">Plano</th>
+                      <th className="text-left px-5 py-3.5 text-gray-500 font-semibold uppercase tracking-wider">Nível</th>
                       <th className="text-left px-5 py-3.5 text-gray-500 font-semibold uppercase tracking-wider">Status</th>
                       <th className="text-left px-5 py-3.5 text-gray-500 font-semibold uppercase tracking-wider">Msgs Hoje</th>
                       <th className="text-left px-5 py-3.5 text-gray-500 font-semibold uppercase tracking-wider">Cadastro</th>
@@ -1212,12 +1338,22 @@ export default function AdminDashboard() {
                               {u.name?.[0]?.toUpperCase() || '?'}
                             </div>
                             <div>
-                              <p className="font-semibold text-gray-700 dark:text-gray-200">{u.name}</p>
+                              <p className="font-semibold text-gray-700 dark:text-gray-200">{u.name || '—'}</p>
                               <p className="text-[10px] text-gray-400">{u.email || '—'}</p>
                             </div>
                           </div>
                         </td>
+                        <td className="px-5 py-3.5 text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                          {u.phone ? (
+                            <a href={`https://wa.me/55${String(u.phone).replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="hover:text-green-500 transition-colors" title="Abrir no WhatsApp">
+                              {formatPhoneDisplay(u.phone)}
+                            </a>
+                          ) : '—'}
+                        </td>
                         <td className="px-5 py-3.5"><PlanBadge plan={u.plan} /></td>
+                        <td className="px-5 py-3.5">
+                          <span className="text-[10px] text-gray-500 dark:text-gray-400 capitalize">{u.level || '—'}</span>
+                        </td>
                         <td className="px-5 py-3.5"><StatusBadge status={u.status || 'active'} /></td>
                         <td className="px-5 py-3.5">
                           <span className="font-bold text-gray-700 dark:text-gray-300 tabular-nums">{u.messages_today || 0}</span>
@@ -1341,6 +1477,99 @@ export default function AdminDashboard() {
                       {actionLoading === confirmDelete.id ? 'Excluindo...' : 'Excluir'}
                     </button>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* Modal Cadastrar Usuário */}
+            {showCreateUser && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                <div className="bg-white dark:bg-[#1a1625] rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl border border-gray-200 dark:border-gray-800">
+                  {createdUserPassword ? (
+                    <>
+                      <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-950/30 flex items-center justify-center mx-auto mb-4">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-emerald-500"><path d="M20 6 9 17l-5-5"/></svg>
+                      </div>
+                      <h3 className="text-center font-bold text-gray-800 dark:text-white mb-2">Usuário Criado!</h3>
+                      <p className="text-center text-sm text-gray-500 mb-4">Envie a senha abaixo para o usuário:</p>
+                      <div className="bg-gray-100 dark:bg-gray-900 rounded-xl p-4 mb-4 text-center">
+                        <p className="text-[10px] text-gray-400 uppercase font-semibold mb-1">Senha gerada</p>
+                        <p className="text-xl font-mono font-bold text-violet-600 dark:text-violet-400 select-all">{createdUserPassword}</p>
+                      </div>
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => { navigator.clipboard.writeText(createdUserPassword); }}
+                          className="flex-1 px-4 py-2.5 text-sm font-semibold bg-violet-600 text-white rounded-xl hover:bg-violet-700 transition-colors"
+                        >
+                          Copiar Senha
+                        </button>
+                        <button
+                          onClick={() => { setShowCreateUser(false); setCreatedUserPassword(null); }}
+                          className="flex-1 px-4 py-2.5 text-sm font-semibold bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                        >
+                          Fechar
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <h3 className="text-center font-bold text-gray-800 dark:text-white mb-1">Cadastrar Usuário</h3>
+                      <p className="text-center text-sm text-gray-500 mb-5">Uma senha aleatória será gerada automaticamente.</p>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="text-xs text-gray-500 font-semibold mb-1 block">Nome *</label>
+                          <input
+                            type="text"
+                            value={createUserForm.name}
+                            onChange={(e) => setCreateUserForm(f => ({ ...f, name: e.target.value }))}
+                            placeholder="Nome completo"
+                            className="w-full px-4 py-2.5 text-sm bg-white dark:bg-[#0f0b1a] border border-gray-200 dark:border-gray-800 rounded-xl focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500 outline-none text-gray-700 dark:text-gray-200"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500 font-semibold mb-1 block">Email *</label>
+                          <input
+                            type="email"
+                            value={createUserForm.email}
+                            onChange={(e) => setCreateUserForm(f => ({ ...f, email: e.target.value }))}
+                            placeholder="email@exemplo.com"
+                            className="w-full px-4 py-2.5 text-sm bg-white dark:bg-[#0f0b1a] border border-gray-200 dark:border-gray-800 rounded-xl focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500 outline-none text-gray-700 dark:text-gray-200"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500 font-semibold mb-1 block">Telefone</label>
+                          <input
+                            type="tel"
+                            value={createUserForm.phone}
+                            onChange={(e) => {
+                              const digits = e.target.value.replace(/\D/g, '').slice(0, 11);
+                              let formatted = digits;
+                              if (digits.length > 2) formatted = `(${digits.slice(0,2)}) ${digits.slice(2)}`;
+                              if (digits.length > 7) formatted = `(${digits.slice(0,2)}) ${digits.slice(2,7)}-${digits.slice(7)}`;
+                              setCreateUserForm(f => ({ ...f, phone: formatted }));
+                            }}
+                            placeholder="(11) 99999-9999"
+                            className="w-full px-4 py-2.5 text-sm bg-white dark:bg-[#0f0b1a] border border-gray-200 dark:border-gray-800 rounded-xl focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500 outline-none text-gray-700 dark:text-gray-200"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex gap-3 mt-6">
+                        <button
+                          onClick={() => { setShowCreateUser(false); setCreateUserForm({ name: '', email: '', phone: '' }); }}
+                          className="flex-1 px-4 py-2.5 text-sm font-semibold bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          onClick={handleCreateUser}
+                          disabled={createUserLoading || !createUserForm.name.trim() || !createUserForm.email.trim()}
+                          className="flex-1 px-4 py-2.5 text-sm font-semibold bg-violet-600 text-white rounded-xl hover:bg-violet-700 disabled:opacity-50 transition-colors"
+                        >
+                          {createUserLoading ? 'Criando...' : 'Criar Usuário'}
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             )}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import { useAuth } from './SupabaseAuthProvider';
 import { useToast } from './Toast';
@@ -18,8 +18,34 @@ export default function AuthScreen() {
   const [error, setError] = useState('');
   const [showResendConfirm, setShowResendConfirm] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [rateLimitSeconds, setRateLimitSeconds] = useState(0);
+  const lastSubmitRef = useRef(0);
   const toast = useToast();
   const { supabase } = useAuth();
+
+  // Countdown timer para rate limit
+  useEffect(() => {
+    if (rateLimitSeconds <= 0) return;
+    const timer = setInterval(() => {
+      setRateLimitSeconds(s => {
+        if (s <= 1) { clearInterval(timer); return 0; }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [rateLimitSeconds]);
+
+  // Debounce: evita cliques duplos (mínimo 2s entre submits)
+  const canSubmit = useCallback(() => {
+    const now = Date.now();
+    if (now - lastSubmitRef.current < 2000) return false;
+    lastSubmitRef.current = now;
+    return true;
+  }, []);
+
+  const triggerRateLimit = useCallback(() => {
+    setRateLimitSeconds(120); // 2 minutos de cooldown
+  }, []);
 
   const levels = [
     { id: 'iniciante', label: 'Iniciante', desc: 'Tô começando do zero', icon: '🌱' },
@@ -40,6 +66,8 @@ export default function AuthScreen() {
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    if (!canSubmit()) return;
+    if (rateLimitSeconds > 0) { setError(`Aguarde ${rateLimitSeconds}s antes de tentar novamente.`); return; }
     if (!supabase) { setError('Serviço indisponível. Tente novamente.'); return; }
     setLoading(true);
     setError('');
@@ -52,8 +80,9 @@ export default function AuthScreen() {
       } else if (msg.includes('email not confirmed') || msg.includes('email_not_confirmed')) {
         setError('Você precisa confirmar seu email antes de entrar.');
         setShowResendConfirm(true);
-      } else if (msg.includes('rate limit') || msg.includes('too many')) {
-        setError('Muitas tentativas. Aguarde alguns minutos.');
+      } else if (msg.includes('rate limit') || msg.includes('too many') || msg.includes('request this after')) {
+        triggerRateLimit();
+        setError('Muitas tentativas. Aguarde o tempo abaixo antes de tentar novamente.');
       } else if (msg.includes('network') || msg.includes('fetch')) {
         setError('Erro de conexão. Verifique sua internet e tente novamente.');
       } else {
@@ -108,6 +137,8 @@ export default function AuthScreen() {
 
   const handleRegister = async (e) => {
     e.preventDefault();
+    if (!canSubmit()) return;
+    if (rateLimitSeconds > 0) { setError(`Aguarde ${rateLimitSeconds}s antes de tentar novamente.`); return; }
     if (!name.trim() || !level) {
       setError('Preencha seu nome e nível');
       return;
@@ -144,8 +175,9 @@ export default function AuthScreen() {
         const msg = error.message.toLowerCase();
         if (msg.includes('already registered') || msg.includes('already been registered')) {
           setError('Este email já está cadastrado. Tente fazer login.');
-        } else if (msg.includes('rate limit') || msg.includes('request this after')) {
-          setError('Muitas tentativas. Aguarde alguns minutos e tente novamente.');
+        } else if (msg.includes('rate limit') || msg.includes('request this after') || msg.includes('too many')) {
+          triggerRateLimit();
+          setError('Muitas tentativas de cadastro. Aguarde o tempo abaixo antes de tentar novamente.');
         } else if (msg.includes('not authorized') || msg.includes('signup is disabled')) {
           setError('Cadastro temporariamente indisponível. Tente mais tarde.');
         } else if (msg.includes('invalid') && msg.includes('email')) {
@@ -170,6 +202,8 @@ export default function AuthScreen() {
 
   const handleForgotPassword = async (e) => {
     e.preventDefault();
+    if (!canSubmit()) return;
+    if (rateLimitSeconds > 0) { setError(`Aguarde ${rateLimitSeconds}s antes de tentar novamente.`); return; }
     if (!email) {
       setError('Digite seu email');
       return;
@@ -181,7 +215,13 @@ export default function AuthScreen() {
       redirectTo: `${window.location.origin}/auth/callback?type=recovery`,
     });
     if (error) {
-      setError('Erro ao enviar email de recuperação');
+      const msg = error.message.toLowerCase();
+      if (msg.includes('rate limit') || msg.includes('too many') || msg.includes('request this after')) {
+        triggerRateLimit();
+        setError('Muitas tentativas. Aguarde o tempo abaixo antes de tentar novamente.');
+      } else {
+        setError('Erro ao enviar email de recuperação');
+      }
     } else {
       toast?.('Email de recuperação enviado! Verifique sua caixa.');
       setMode('login');
@@ -253,6 +293,13 @@ export default function AuthScreen() {
 
             {error && <p className="text-rose text-xs font-medium">{error}</p>}
 
+            {rateLimitSeconds > 0 && (
+              <div className="flex items-center justify-center gap-2 py-2.5 px-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/40 rounded-xl">
+                <svg className="w-4 h-4 text-amber-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><circle cx="12" cy="12" r="10" strokeWidth="2"/><polyline points="12 6 12 12 16 14" strokeWidth="2"/></svg>
+                <span className="text-xs text-amber-700 dark:text-amber-300 font-medium">Tente novamente em <strong>{Math.floor(rateLimitSeconds / 60)}:{String(rateLimitSeconds % 60).padStart(2, '0')}</strong></span>
+              </div>
+            )}
+
             {showResendConfirm && (
               <button
                 type="button"
@@ -266,10 +313,10 @@ export default function AuthScreen() {
 
             <button
               type="submit"
-              disabled={loading}
-              className="w-full py-3.5 rounded-xl font-semibold text-sm btn-gradient shadow-soft"
+              disabled={loading || rateLimitSeconds > 0}
+              className="w-full py-3.5 rounded-xl font-semibold text-sm btn-gradient shadow-soft disabled:opacity-50"
             >
-              {loading ? 'Entrando...' : 'Entrar'}
+              {loading ? 'Entrando...' : rateLimitSeconds > 0 ? `Aguarde ${rateLimitSeconds}s...` : 'Entrar'}
             </button>
 
             <button
@@ -404,6 +451,13 @@ export default function AuthScreen() {
 
             {error && <p className="text-rose text-xs font-medium">{error}</p>}
 
+            {rateLimitSeconds > 0 && (
+              <div className="flex items-center justify-center gap-2 py-2.5 px-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/40 rounded-xl">
+                <svg className="w-4 h-4 text-amber-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><circle cx="12" cy="12" r="10" strokeWidth="2"/><polyline points="12 6 12 12 16 14" strokeWidth="2"/></svg>
+                <span className="text-xs text-amber-700 dark:text-amber-300 font-medium">Tente novamente em <strong>{Math.floor(rateLimitSeconds / 60)}:{String(rateLimitSeconds % 60).padStart(2, '0')}</strong></span>
+              </div>
+            )}
+
             {/* LGPD: Consentimento obrigatório */}
             <label className="flex items-start gap-2 cursor-pointer">
               <input
@@ -432,10 +486,10 @@ export default function AuthScreen() {
 
             <button
               type="submit"
-              disabled={loading || !name.trim() || !level || !phone.replace(/\D/g, '') || !acceptTerms}
-              className="w-full py-3.5 rounded-xl font-semibold text-sm btn-gradient shadow-soft"
+              disabled={loading || rateLimitSeconds > 0 || !name.trim() || !level || !phone.replace(/\D/g, '') || !acceptTerms}
+              className="w-full py-3.5 rounded-xl font-semibold text-sm btn-gradient shadow-soft disabled:opacity-50"
             >
-              {loading ? 'Criando conta...' : 'Criar conta grátis'}
+              {loading ? 'Criando conta...' : rateLimitSeconds > 0 ? `Aguarde ${rateLimitSeconds}s...` : 'Criar conta grátis'}
             </button>
 
             <p className="text-center text-xs text-text-muted">
@@ -471,12 +525,19 @@ export default function AuthScreen() {
 
             {error && <p className="text-rose text-xs font-medium">{error}</p>}
 
+            {rateLimitSeconds > 0 && (
+              <div className="flex items-center justify-center gap-2 py-2.5 px-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/40 rounded-xl">
+                <svg className="w-4 h-4 text-amber-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><circle cx="12" cy="12" r="10" strokeWidth="2"/><polyline points="12 6 12 12 16 14" strokeWidth="2"/></svg>
+                <span className="text-xs text-amber-700 dark:text-amber-300 font-medium">Tente novamente em <strong>{Math.floor(rateLimitSeconds / 60)}:{String(rateLimitSeconds % 60).padStart(2, '0')}</strong></span>
+              </div>
+            )}
+
             <button
               type="submit"
-              disabled={loading}
-              className="w-full py-3.5 rounded-xl font-semibold text-sm btn-gradient shadow-soft"
+              disabled={loading || rateLimitSeconds > 0}
+              className="w-full py-3.5 rounded-xl font-semibold text-sm btn-gradient shadow-soft disabled:opacity-50"
             >
-              {loading ? 'Enviando...' : 'Enviar link de recuperação'}
+              {loading ? 'Enviando...' : rateLimitSeconds > 0 ? `Aguarde ${rateLimitSeconds}s...` : 'Enviar link de recuperação'}
             </button>
 
             <p className="text-center text-xs text-text-muted">
