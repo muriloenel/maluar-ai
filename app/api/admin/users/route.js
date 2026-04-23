@@ -75,12 +75,24 @@ export async function GET(req) {
       email: emailMap[u.id] || null,
     }));
 
+    // Contar usuários por plano (query global, sem filtros)
+    const { data: allProfiles } = await supabase
+      .from('profiles')
+      .select('plan');
+    const planCounts = { free: 0, pro: 0, premium: 0 };
+    if (allProfiles) {
+      for (const p of allProfiles) {
+        planCounts[p.plan] = (planCounts[p.plan] || 0) + 1;
+      }
+    }
+
     return Response.json({
       users: enrichedUsers,
       total: count || 0,
       page,
       limit,
       totalPages: Math.ceil((count || 0) / limit),
+      planCounts,
     });
   } catch (err) {
     console.error('[ADMIN/USERS] Error:', err.message);

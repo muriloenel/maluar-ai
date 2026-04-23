@@ -617,9 +617,13 @@ export default function AdminDashboard() {
   // ===== Pix Functions =====
   const loadPix = useCallback(async () => {
     try {
-      const data = await fetchApi('/api/admin/pix');
+      const [data, usersData] = await Promise.all([
+        fetchApi('/api/admin/pix'),
+        fetchApi('/api/admin/users?limit=1'),
+      ]);
       setPixPayments(data.payments || []);
       setPixAlerts(data.alerts || { expiringSoon: 0, justExpired: 0 });
+      if (usersData?.planCounts) setUsers(prev => prev ? { ...prev, planCounts: usersData.planCounts } : { planCounts: usersData.planCounts });
       // Notificações de expirados agora
       if (data.expiredNow?.length > 0) {
         setPixExpiredNow(data.expiredNow);
@@ -1208,6 +1212,13 @@ export default function AdminDashboard() {
               <div>
                 <h2 className="text-lg font-bold text-gray-800 dark:text-white">Usuários</h2>
                 <p className="text-xs text-gray-400">{users?.total || 0} usuários encontrados</p>
+                {users?.planCounts && (
+                  <div className="flex items-center gap-3 mt-1.5">
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">Grátis: {users.planCounts.free || 0}</span>
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-violet-600 bg-violet-100 dark:bg-violet-900/30 dark:text-violet-400 px-2 py-0.5 rounded-full">Pro: {users.planCounts.pro || 0}</span>
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-600 bg-amber-100 dark:bg-amber-900/30 dark:text-amber-400 px-2 py-0.5 rounded-full">Premium: {users.planCounts.premium || 0}</span>
+                  </div>
+                )}
               </div>
               <button
                 onClick={() => { setShowCreateUser(true); setCreatedUserPassword(null); }}
@@ -2167,6 +2178,26 @@ export default function AdminDashboard() {
               </div>
             )}
 
+            {/* Alerta de inconsistência: mais usuários pagos que pagamentos Pix ativos */}
+            {(() => {
+              const activePixCount = Array.isArray(pixPayments) ? pixPayments.filter(p => p.status === 'active').length : 0;
+              const paidUsersCount = (users?.planCounts?.pro || 0) + (users?.planCounts?.premium || 0);
+              const diff = paidUsersCount - activePixCount;
+              if (diff > 0 && users?.planCounts) return (
+                <div className="flex items-start gap-3 px-4 py-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800/50 rounded-xl">
+                  <span className="text-lg">⚠️</span>
+                  <div>
+                    <p className="text-sm font-bold text-red-700 dark:text-red-400">Inconsistência detectada</p>
+                    <p className="text-xs text-red-600 dark:text-red-400/80 mt-0.5">
+                      Existem <strong>{paidUsersCount}</strong> usuários com plano pago (Pro: {users.planCounts.pro || 0}, Premium: {users.planCounts.premium || 0}), mas apenas <strong>{activePixCount}</strong> pagamento{activePixCount !== 1 ? 's' : ''} Pix ativo{activePixCount !== 1 ? 's' : ''}.
+                      <strong> {diff} usuário{diff !== 1 ? 's' : ''}</strong> pode{diff !== 1 ? 'm' : ''} estar sem pagamento registrado (ou pagando via Stripe).
+                    </p>
+                  </div>
+                </div>
+              );
+              return null;
+            })()}
+
             {/* Header + botão novo */}
             <div className="flex items-center justify-between">
               <div>
@@ -2218,7 +2249,7 @@ export default function AdminDashboard() {
                               <button
                                 key={u.id}
                                 onClick={() => {
-                                  const hasActive = pixPayments?.payments?.some(p => p.user_id === u.id && p.status === 'active');
+                                  const hasActive = Array.isArray(pixPayments) && pixPayments.some(p => p.user_id === u.id && p.status === 'active');
                                   if (hasActive) {
                                     alert('Este usuário já possui um pagamento Pix ativo.');
                                     return;
@@ -2233,7 +2264,7 @@ export default function AdminDashboard() {
                                   <p className="text-[10px] text-gray-400 truncate">{u.email || '—'}</p>
                                 </div>
                                 <PlanBadge plan={u.plan} />
-                                {pixPayments?.payments?.some(p => p.user_id === u.id && p.status === 'active') && (
+                                {Array.isArray(pixPayments) && pixPayments.some(p => p.user_id === u.id && p.status === 'active') && (
                                   <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30 px-1.5 py-0.5 rounded-full ml-auto">PIX ATIVO</span>
                                 )}
                               </button>
