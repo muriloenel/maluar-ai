@@ -7,6 +7,17 @@ const PLAN_LABELS = {
   premium: { name: 'Premium', icon: '✨', color: 'text-amber-500' },
 };
 
+function getToken() {
+  try {
+    const raw = localStorage.getItem('maluar-auth');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return parsed?.access_token || null;
+    }
+  } catch {}
+  return null;
+}
+
 export default function CheckoutSuccess() {
   const [plan, setPlan] = useState(null);
   const [status, setStatus] = useState('loading'); // loading | success | redirecting
@@ -14,53 +25,55 @@ export default function CheckoutSuccess() {
   useEffect(() => {
     let cancelled = false;
 
-    const checkPlan = async () => {
-      // Ler token do localStorage
-      let token = null;
-      try {
-        const raw = localStorage.getItem('maluar-auth');
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          token = parsed?.access_token || null;
-        }
-      } catch {}
+    const activate = async () => {
+      let token = getToken();
 
+      // Sem token — tentar once mais após 1s (redirect pode ter perdido)
       if (!token) {
-        // Sem token — esperar um pouco, redirect pode ter perdido a sessão
-        await new Promise(r => setTimeout(r, 2000));
+        await new Promise(r => setTimeout(r, 1000));
+        token = getToken();
+      }
+
+      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+
+      // ── PASSO 1: Verificar direto no Stripe via session_id (instantâneo) ──
+      const sessionId = new URLSearchParams(window.location.search).get('session_id');
+      if (sessionId && token) {
         try {
-          const raw = localStorage.getItem('maluar-auth');
-          if (raw) {
-            const parsed = JSON.parse(raw);
-            token = parsed?.access_token || null;
+          const res = await fetch(`/api/stripe/verify-session?session_id=${encodeURIComponent(sessionId)}`, { headers });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.plan && data.plan !== 'free') {
+              setPlan(data.plan);
+              setStatus('success');
+              try { sessionStorage.setItem('maluar-confirmed-plan', data.plan); } catch {}
+              setTimeout(() => {
+                if (!cancelled) { setStatus('redirecting'); window.location.href = '/'; }
+              }, 2500);
+              return;
+            }
           }
         } catch {}
       }
 
-      // Poll API até plano mudar
+      // ── PASSO 2: Fallback — poll /api/account/plan (caso verify-session falhe) ──
       for (let i = 0; i < 20 && !cancelled; i++) {
         try {
-          const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
           const res = await fetch('/api/account/plan', { headers });
           if (res.ok) {
             const data = await res.json();
             if (data.plan && data.plan !== 'free') {
               setPlan(data.plan);
               setStatus('success');
-              // Salvar no sessionStorage como safety net
               try { sessionStorage.setItem('maluar-confirmed-plan', data.plan); } catch {}
-              // Redirecionar após 3s
               setTimeout(() => {
-                if (!cancelled) {
-                  setStatus('redirecting');
-                  window.location.href = '/';
-                }
-              }, 3000);
+                if (!cancelled) { setStatus('redirecting'); window.location.href = '/'; }
+              }, 2500);
               return;
             }
           }
         } catch {}
-        await new Promise(r => setTimeout(r, 3000));
+        await new Promise(r => setTimeout(r, 1500));
       }
 
       // Timeout — redirecionar mesmo assim
@@ -70,9 +83,9 @@ export default function CheckoutSuccess() {
       }
     };
 
-    // Espera inicial de 2s pro webhook
-    const timer = setTimeout(checkPlan, 2000);
-    return () => { cancelled = true; clearTimeout(timer); };
+    // Iniciar imediatamente (sem delay artificial)
+    activate();
+    return () => { cancelled = true; };
   }, []);
 
   const planInfo = PLAN_LABELS[plan] || { name: plan, icon: '🎉', color: 'text-purple-600' };

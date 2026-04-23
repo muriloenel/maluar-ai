@@ -61,17 +61,63 @@ export default function SupabaseAuthProvider({ children }) {
     }
   }, [supabase]);
 
+  // Carregar profile cacheado do localStorage (instantâneo no re-login)
+  const loadCachedProfile = useCallback((userId) => {
+    try {
+      const raw = localStorage.getItem('maluar-profile');
+      if (raw) {
+        const cached = JSON.parse(raw);
+        if (cached?.id === userId) return cached;
+      }
+    } catch {}
+    return null;
+  }, []);
+
+  const saveCachedProfile = useCallback((data) => {
+    try { localStorage.setItem('maluar-profile', JSON.stringify(data)); } catch {}
+  }, []);
+
   const fetchProfile = useCallback(async (authUser) => {
     if (!supabase) return null;
+
+    // ── ESTRATÉGIA CACHE-FIRST ──
+    // 1. Se tem cache com phone → usa IMEDIATAMENTE (login instantâneo)
+    // 2. DB query roda em background para atualizar dados frescos
+    // 3. Se não tem cache → espera DB (com timeout curto de 6s)
+    const cached = loadCachedProfile(authUser.id);
+    if (cached && cached.phone) {
+      setProfile(cached);
+      // Atualizar em background (não bloqueia)
+      supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', authUser.id)
+        .single()
+        .then(({ data }) => {
+          if (data) {
+            setProfile(data);
+            saveCachedProfile(data);
+          }
+        })
+        .catch(() => {});
+      return cached;
+    }
+
+    // Sem cache válido → precisa esperar o DB (primeiro login ou cache limpo)
     try {
-      const { data, error } = await supabase
+      const dbPromise = supabase
         .from('profiles')
         .select('*')
         .eq('id', authUser.id)
         .single();
+      const dbTimeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('fetchProfile timeout')), 4000)
+      );
+      const { data, error } = await Promise.race([dbPromise, dbTimeout]);
 
       if (data) {
         setProfile(data);
+        saveCachedProfile(data);
         return data;
       }
 
@@ -90,6 +136,7 @@ export default function SupabaseAuthProvider({ children }) {
 
       if (created) {
         setProfile(created);
+        saveCachedProfile(created);
         // Enviar email de boas-vindas (async, não bloqueia)
         if (authUser.email) {
           fetch('/api/account/welcome', {
@@ -106,6 +153,7 @@ export default function SupabaseAuthProvider({ children }) {
         id: authUser.id,
         name: meta.name || meta.full_name || 'Nail Designer',
         level: meta.level || 'iniciante',
+        phone: meta.phone || null,
         plan: 'free',
         messages_today: 0,
       };
@@ -113,13 +161,21 @@ export default function SupabaseAuthProvider({ children }) {
       return fallback;
     } catch (err) {
       console.error('fetchProfile error:', err);
-      const meta = authUser.user_metadata || {};
-      setProfile({
-        id: authUser.id,
-        name: meta.name || 'Nail Designer',
-        level: meta.level || 'iniciante',
-        plan: 'free',
-        messages_today: 0,
+      // Se já tem profile válido (do cache), NÃO sobrescrever com fallback sem phone
+      // Isso evita redirecionar para CompleteProfile quando o banco está lento
+      setProfile(prev => {
+        if (prev && prev.phone) return prev;
+        const cached = loadCachedProfile(authUser.id);
+        if (cached && cached.phone) return cached;
+        const meta = authUser.user_metadata || {};
+        return {
+          id: authUser.id,
+          name: meta.name || 'Nail Designer',
+          level: meta.level || 'iniciante',
+          phone: meta.phone || null,
+          plan: 'free',
+          messages_today: 0,
+        };
       });
     }
   }, [supabase]);
@@ -130,8 +186,7 @@ export default function SupabaseAuthProvider({ children }) {
       return;
     }
 
-    // Timeout de segurança: se o Supabase não responder em 8s, assume "deslogado"
-    // (aumentado de 5s pra funcionar em redes 3G/4G lentas)
+    // Timeout de segurança: se o Supabase não responder em 5s, assume "deslogado"
     let resolved = false;
     const timeout = setTimeout(() => {
       if (!resolved) {
@@ -139,7 +194,7 @@ export default function SupabaseAuthProvider({ children }) {
         setUser(null);
         setProfile(null);
       }
-    }, 8000);
+    }, 5000);
 
     // onAuthStateChange é a FONTE PRIMÁRIA de verdade (boa prática Supabase)
     // Ele dispara INITIAL_SESSION no mount, SIGNED_IN no login, SIGNED_OUT no logout,
@@ -150,35 +205,47 @@ export default function SupabaseAuthProvider({ children }) {
         resolved = true;
         clearTimeout(timeout);
 
-        // Token expirado — tentar refresh silencioso 1x antes de deslogar
+        // Token expirado — deslogar IMEDIATAMENTE, tentar refresh em background
         if (event === 'SIGNED_OUT') {
+          // Limpar estado agora (mostra tela de login instantaneamente)
+          setUser(null);
+          setProfile(null);
+          // NÃO remover maluar-profile do localStorage aqui!
+          // O cache deve sobreviver para o caso do refresh em background funcionar.
+          // Só o signOut() explícito (clique do usuário) deve limpar o cache.
+
+          // Tentar refresh em background — se funcionar, restaura a sessão
           if (!retryingRefresh) {
             retryingRefresh = true;
             try {
-              console.log('[AUTH] SIGNED_OUT recebido — tentando refresh silencioso...');
-              const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+              console.log('[AUTH] SIGNED_OUT — tentando refresh em background...');
+              const refreshPromise = supabase.auth.refreshSession();
+              const refreshTimeout = new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('refresh timeout')), 3000)
+              );
+              const { data: refreshData, error: refreshError } = await Promise.race([refreshPromise, refreshTimeout]);
               if (refreshData?.session?.user && !refreshError) {
-                console.log('[AUTH] Refresh silencioso OK — sessão restaurada');
-                retryingRefresh = false;
-                setUser(refreshData.session.user);
-                await fetchProfile(refreshData.session.user);
-                return; // Sessão recuperada, não desloga
+                console.log('[AUTH] Refresh OK — sessão restaurada');
+                // onAuthStateChange vai disparar SIGNED_IN automaticamente
               }
-            } catch {}
+            } catch (err) {
+              console.warn('[AUTH] Refresh falhou:', err.message);
+            }
             retryingRefresh = false;
           }
-          setUser(null);
-          setProfile(null);
           return;
         }
 
         // Recovery de senha — redirecionar para formulário de nova senha
+        // (apenas se NÃO estiver na página de callback — ela já cuida disso)
         if (event === 'PASSWORD_RECOVERY') {
           if (session?.user) {
             setUser(session.user);
           }
-          // Redireciona para a página de redefinição de senha
-          window.location.href = '/auth/reset-password';
+          const isOnCallback = typeof window !== 'undefined' && window.location.pathname === '/auth/callback';
+          if (!isOnCallback) {
+            window.location.href = '/auth/reset-password';
+          }
           return;
         }
 
@@ -222,6 +289,7 @@ export default function SupabaseAuthProvider({ children }) {
     setProfile(null);
     resetPostHog();
     try { localStorage.removeItem('maluar-auth'); } catch {}
+    try { localStorage.removeItem('maluar-profile'); } catch {}
     // Tentar signOut no Supabase com timeout (não bloquear se travar)
     if (supabase) {
       try {
@@ -244,18 +312,23 @@ export default function SupabaseAuthProvider({ children }) {
         .single();
       if (data) {
         setProfile(data);
+        saveCachedProfile(data);
         return data;
       }
     } catch (err) {
       console.error('refreshProfile error:', err);
     }
     return null;
-  }, [user, supabase]);
+  }, [user, supabase, saveCachedProfile]);
 
   // Atualiza profile LOCAL (sem tocar no banco) — usado após confirmar plano via API
   const patchProfile = useCallback((updates) => {
-    setProfile(prev => prev ? { ...prev, ...updates } : null);
-  }, []);
+    setProfile(prev => {
+      const updated = prev ? { ...prev, ...updates } : null;
+      if (updated) saveCachedProfile(updated);
+      return updated;
+    });
+  }, [saveCachedProfile]);
 
   const updateProfile = useCallback(async (updates) => {
     if (!user) return;

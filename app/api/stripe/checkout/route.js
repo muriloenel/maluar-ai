@@ -45,6 +45,12 @@ export async function POST(req) {
       return Response.json({ error: 'Stripe não configurado' }, { status: 500 });
     }
 
+    // Debug: verificar que a chave não tem caracteres invisíveis
+    if (!STRIPE_SECRET.startsWith('sk_live_') && !STRIPE_SECRET.startsWith('sk_test_') && !STRIPE_SECRET.startsWith('rk_live_')) {
+      console.error('[STRIPE] Chave inválida — prefix:', JSON.stringify(STRIPE_SECRET.substring(0, 20)));
+      return Response.json({ error: 'Chave Stripe inválida' }, { status: 500 });
+    }
+
     const body = await req.json();
     const { error: validationError, data: validated } = parseBody(checkoutSchema, body);
     if (validationError) {
@@ -58,7 +64,7 @@ export async function POST(req) {
     }
 
     const appUrl = getAppUrl(req);
-    const successUrl = `${appUrl}/checkout/success`;
+    const successUrl = `${appUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`;
     const cancelUrl = `${appUrl}?checkout=cancel`;
 
     // Criar Checkout Session no Stripe
@@ -79,7 +85,7 @@ export async function POST(req) {
     });
 
     if (session.error) {
-      console.error('[STRIPE] Checkout error:', session.error.code);
+      console.error('[STRIPE] Checkout error:', JSON.stringify(session.error));
       return Response.json({ error: 'Erro ao criar sessão de pagamento' }, { status: 500 });
     }
 

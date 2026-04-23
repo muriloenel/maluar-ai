@@ -156,7 +156,7 @@ function InstagramZeroLanding({ onStart }) {
 }
 
 export default function Home() {
-  const { user, profile, signOut, updateProfile, refreshProfile, getAccessToken, supabase } = useAuth();
+  const { user, profile, signOut, updateProfile, patchProfile, refreshProfile, getAccessToken, supabase } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profileTimeout, setProfileTimeout] = useState(false);
   const [pendingPrompt, setPendingPrompt] = useState(null);
@@ -185,7 +185,7 @@ export default function Home() {
     }).catch(() => {});
   }, []);
 
-  // Safety net: se profile null por mais de 6s, tentar carregar diretamente
+  // Safety net: se profile null por mais de 3s, tentar carregar diretamente
   useEffect(() => {
     if (!user || profile) { setProfileTimeout(false); return; }
     const timer = setTimeout(async () => {
@@ -199,7 +199,7 @@ export default function Home() {
       } catch {
         setProfileTimeout(true);
       }
-    }, 6000);
+    }, 5000);
     return () => clearTimeout(timer);
   }, [user, profile, refreshProfile]);
 
@@ -446,7 +446,11 @@ export default function Home() {
   if (!profile.phone) {
     return (
       <CompleteProfile
-        onComplete={async () => {
+        onComplete={async (data) => {
+          // Atualizar profile localmente IMEDIATO (não depender só do refreshProfile)
+          if (data?.phone) {
+            patchProfile?.(data);
+          }
           await refreshProfile?.();
         }}
       />
@@ -546,7 +550,6 @@ export default function Home() {
 
         {activeTab === 'chat' ? (
           <ChatWindow
-            key={activeChatId}
             user={userForComponents}
             userId={user.id}
             userEmail={user.email}
