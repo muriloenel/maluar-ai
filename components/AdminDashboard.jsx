@@ -84,6 +84,11 @@ const Icons = {
       <circle cx="12" cy="12" r="3"/>
     </svg>
   ),
+  pix: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2v20M2 12h20M6.3 6.3l11.4 11.4M17.7 6.3L6.3 17.7"/>
+    </svg>
+  ),
 };
 
 // ===== Color Tokens =====
@@ -482,6 +487,23 @@ export default function AdminDashboard() {
   const [configSaving, setConfigSaving] = useState(false);
   const [configDefaults, setConfigDefaults] = useState({});
 
+  // Pix states
+  const [pixPayments, setPixPayments] = useState(null);
+  const [pixAlerts, setPixAlerts] = useState({ expiringSoon: 0, justExpired: 0 });
+  const [pixExpiredNow, setPixExpiredNow] = useState([]);
+  const [pixFilter, setPixFilter] = useState('all'); // all | active | expiring | expired | cancelled
+  const [pixShowForm, setPixShowForm] = useState(false);
+  const [pixUserSearch, setPixUserSearch] = useState('');
+  const [pixSearchResults, setPixSearchResults] = useState([]);
+  const [pixSelectedUser, setPixSelectedUser] = useState(null);
+  const [pixPlan, setPixPlan] = useState('pro');
+  const [pixPaidAt, setPixPaidAt] = useState(new Date().toISOString().split('T')[0]);
+  const [pixNotes, setPixNotes] = useState('');
+  const [pixSaving, setPixSaving] = useState(false);
+  const [pixActionLoading, setPixActionLoading] = useState(null);
+  const [pixNotifications, setPixNotifications] = useState([]);
+  const [pixEmailSent, setPixEmailSent] = useState(false);
+
   const fetchApi = useCallback(async (path) => {
     const token = await getAccessToken();
     const res = await fetch(path, {
@@ -578,6 +600,78 @@ export default function AdminDashboard() {
     setConfigSaving(false);
   }, [configEdits, getAccessToken, loadConfigs]);
 
+  // ===== Pix Functions =====
+  const loadPix = useCallback(async () => {
+    try {
+      const data = await fetchApi('/api/admin/pix');
+      setPixPayments(data.payments || []);
+      setPixAlerts(data.alerts || { expiringSoon: 0, justExpired: 0 });
+      // Notificações de expirados agora
+      if (data.expiredNow?.length > 0) {
+        setPixExpiredNow(data.expiredNow);
+        setPixNotifications(prev => [
+          ...data.expiredNow.map(e => ({
+            type: 'expired',
+            message: `Plano rebaixado para Free (Pix expirado)`,
+            userId: e.userId,
+          })),
+          ...prev,
+        ]);
+      }
+    } catch {}
+  }, [fetchApi]);
+
+  const searchPixUsers = useCallback(async (term) => {
+    if (!term || term.length < 2) { setPixSearchResults([]); return; }
+    try {
+      const data = await fetchApi(`/api/admin/users?search=${encodeURIComponent(term)}&limit=10`);
+      setPixSearchResults(data.users || []);
+    } catch {
+      setPixSearchResults([]);
+    }
+  }, [fetchApi]);
+
+  const createPixPayment = useCallback(async () => {
+    if (!pixSelectedUser) return;
+    setPixSaving(true);
+    try {
+      const token = await getAccessToken();
+      await fetch('/api/admin/pix', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: pixSelectedUser.id,
+          plan: pixPlan,
+          paidAt: pixPaidAt,
+          notes: pixNotes,
+        }),
+      });
+      // Reset form
+      setPixShowForm(false);
+      setPixSelectedUser(null);
+      setPixUserSearch('');
+      setPixPlan('pro');
+      setPixPaidAt(new Date().toISOString().split('T')[0]);
+      setPixNotes('');
+      await loadPix();
+    } catch {}
+    setPixSaving(false);
+  }, [pixSelectedUser, pixPlan, pixPaidAt, pixNotes, getAccessToken, loadPix]);
+
+  const handlePixAction = useCallback(async (paymentId, action) => {
+    setPixActionLoading(paymentId);
+    try {
+      const token = await getAccessToken();
+      await fetch('/api/admin/pix', {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paymentId, action }),
+      });
+      await loadPix();
+    } catch {}
+    setPixActionLoading(null);
+  }, [getAccessToken, loadPix]);
+
   useEffect(() => {
     (async () => {
       setLoading(true);
@@ -590,7 +684,8 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (activeTab === 'users') loadUsers();
     if (activeTab === 'config') loadConfigs();
-  }, [activeTab, loadUsers, loadConfigs]);
+    if (activeTab === 'pix') loadPix();
+  }, [activeTab, loadUsers, loadConfigs, loadPix]);
 
   const handleUserAction = async (userId, action, value) => {
     setActionLoading(userId);
@@ -654,6 +749,7 @@ export default function AdminDashboard() {
     { id: 'monitoring', label: 'Monitoramento', icon: Icons.chart },
     { id: 'insights', label: 'Insights', icon: Icons.brain },
     { id: 'config', label: 'Configurações', icon: Icons.settings },
+    { id: 'pix', label: 'Pix', icon: Icons.pix },
   ];
 
   return (
@@ -1773,6 +1869,336 @@ export default function AdminDashboard() {
                 <p className="text-xs text-gray-500 dark:text-gray-400 max-w-sm mx-auto">
                   Verifique se a tabela <code className="px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-[10px] font-mono">app_config</code> foi criada no Supabase.
                 </p>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ===== PIX ===== */}
+        {activeTab === 'pix' && (
+          <>
+            {/* Notificações de expirados */}
+            {pixExpiredNow.length > 0 && (
+              <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800/40 rounded-xl p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-lg">🔴</span>
+                  <span className="text-sm font-bold text-red-700 dark:text-red-400">
+                    {pixExpiredNow.length} plano(s) rebaixado(s) automaticamente
+                  </span>
+                </div>
+                <p className="text-xs text-red-600 dark:text-red-400/80">
+                  Pagamentos Pix expiraram e os planos foram revertidos para Free. Os usuários foram notificados por email.
+                </p>
+              </div>
+            )}
+
+            {/* Alerta de vencimentos próximos */}
+            {pixAlerts.expiringSoon > 0 && (
+              <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 rounded-xl p-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">⚠️</span>
+                  <div>
+                    <p className="text-sm font-bold text-amber-700 dark:text-amber-400">
+                      {pixAlerts.expiringSoon} pagamento(s) vencem nos próximos 5 dias
+                    </p>
+                    <p className="text-xs text-amber-600 dark:text-amber-400/80 mt-0.5">
+                      Entre em contato para renovação.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={async () => {
+                    try {
+                      const token = await getAccessToken();
+                      await fetch('/api/admin/pix/notify', {
+                        method: 'POST',
+                        headers: { Authorization: `Bearer ${token}` },
+                      });
+                      setPixEmailSent(true);
+                      setTimeout(() => setPixEmailSent(false), 5000);
+                    } catch {}
+                  }}
+                  disabled={pixEmailSent}
+                  className="px-3 py-1.5 text-[11px] font-semibold bg-amber-100 text-amber-700 rounded-lg hover:bg-amber-200 disabled:opacity-50 transition-colors dark:bg-amber-900/30 dark:text-amber-400 whitespace-nowrap"
+                >
+                  {pixEmailSent ? '✅ Email enviado!' : '📧 Enviar alerta por email'}
+                </button>
+              </div>
+            )}
+
+            {/* Header + botão novo */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                  {Icons.pix}
+                  <span>Controle de Pagamento Pix</span>
+                </h2>
+                <p className="text-xs text-gray-400 mt-0.5">Gerencie pagamentos recebidos via Pix manualmente</p>
+              </div>
+              <button
+                onClick={() => setPixShowForm(!pixShowForm)}
+                className="px-4 py-2 text-xs font-semibold bg-violet-600 hover:bg-violet-700 text-white rounded-xl transition-colors"
+              >
+                {pixShowForm ? 'Cancelar' : '+ Registrar Pagamento'}
+              </button>
+            </div>
+
+            {/* Formulário novo pagamento */}
+            {pixShowForm && (
+              <Card title="Registrar Pagamento Pix">
+                <div className="space-y-4">
+                  {/* Buscar usuário */}
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Usuário</label>
+                    {pixSelectedUser ? (
+                      <div className="flex items-center justify-between bg-violet-50 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-800/40 rounded-xl px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-400 to-pink-400 flex items-center justify-center text-white text-xs font-bold">{pixSelectedUser.name?.[0]?.toUpperCase() || '?'}</div>
+                          <div>
+                            <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">{pixSelectedUser.name}</p>
+                            <p className="text-[10px] text-gray-400">{pixSelectedUser.email}</p>
+                          </div>
+                        </div>
+                        <button onClick={() => { setPixSelectedUser(null); setPixUserSearch(''); }} className="text-xs text-red-500 hover:text-red-700 font-semibold">Trocar</button>
+                      </div>
+                    ) : (
+                      <div className="relative">
+                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">{Icons.search}</div>
+                        <input
+                          type="text"
+                          placeholder="Buscar por nome ou email..."
+                          value={pixUserSearch}
+                          onChange={(e) => { setPixUserSearch(e.target.value); searchPixUsers(e.target.value); }}
+                          className="w-full pl-10 pr-4 py-2.5 text-sm bg-white dark:bg-[#1a1625] border border-gray-200 dark:border-gray-800 rounded-xl focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500 outline-none text-gray-700 dark:text-gray-200"
+                        />
+                        {pixSearchResults.length > 0 && (
+                          <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-[#1a1625] border border-gray-200 dark:border-gray-800 rounded-xl shadow-xl z-50 max-h-60 overflow-y-auto">
+                            {pixSearchResults.map(u => (
+                              <button
+                                key={u.id}
+                                onClick={() => { setPixSelectedUser(u); setPixSearchResults([]); setPixUserSearch(''); }}
+                                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors text-left"
+                              >
+                                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-400 to-pink-400 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">{u.name?.[0]?.toUpperCase() || '?'}</div>
+                                <div className="min-w-0">
+                                  <p className="text-xs font-semibold text-gray-700 dark:text-gray-200 truncate">{u.name}</p>
+                                  <p className="text-[10px] text-gray-400 truncate">{u.email || '—'}</p>
+                                </div>
+                                <PlanBadge plan={u.plan} />
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Plano e Data */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Plano</label>
+                      <select
+                        value={pixPlan}
+                        onChange={(e) => setPixPlan(e.target.value)}
+                        className="w-full px-4 py-2.5 text-sm bg-white dark:bg-[#1a1625] border border-gray-200 dark:border-gray-800 rounded-xl focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500 outline-none"
+                      >
+                        <option value="pro">Pro — R$ 29,90</option>
+                        <option value="premium">Premium — R$ 59,90</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Data do pagamento</label>
+                      <input
+                        type="date"
+                        value={pixPaidAt}
+                        onChange={(e) => setPixPaidAt(e.target.value)}
+                        className="w-full px-4 py-2.5 text-sm bg-white dark:bg-[#1a1625] border border-gray-200 dark:border-gray-800 rounded-xl focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500 outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Observação */}
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">Observação (opcional)</label>
+                    <input
+                      type="text"
+                      placeholder="Ex: Pagou via Pix Nubank"
+                      value={pixNotes}
+                      onChange={(e) => setPixNotes(e.target.value)}
+                      maxLength={500}
+                      className="w-full px-4 py-2.5 text-sm bg-white dark:bg-[#1a1625] border border-gray-200 dark:border-gray-800 rounded-xl focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500 outline-none text-gray-700 dark:text-gray-200"
+                    />
+                  </div>
+
+                  {/* Info de vencimento */}
+                  {pixPaidAt && (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-950/30 rounded-lg">
+                      {Icons.clock}
+                      <span className="text-xs text-blue-700 dark:text-blue-300">
+                        Vencimento: <strong>{new Date(new Date(pixPaidAt).getTime() + 30 * 86400000).toLocaleDateString('pt-BR')}</strong> (30 dias)
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Botão salvar */}
+                  <button
+                    onClick={createPixPayment}
+                    disabled={!pixSelectedUser || pixSaving}
+                    className="w-full py-2.5 text-sm font-semibold bg-violet-600 hover:bg-violet-700 text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {pixSaving ? 'Registrando...' : `Registrar Pix — R$ ${pixPlan === 'premium' ? '59,90' : '29,90'}`}
+                  </button>
+                </div>
+              </Card>
+            )}
+
+            {/* Filtros */}
+            <div className="flex gap-2">
+              {[
+                { id: 'all', label: 'Todos' },
+                { id: 'active', label: '🟢 Ativos' },
+                { id: 'expiring', label: '🟡 Vencendo' },
+                { id: 'expired', label: '🔴 Expirados' },
+                { id: 'cancelled', label: '⬜ Cancelados' },
+              ].map(f => (
+                <button
+                  key={f.id}
+                  onClick={() => setPixFilter(f.id)}
+                  className={`px-3 py-1.5 text-[11px] font-semibold rounded-lg transition-colors ${
+                    pixFilter === f.id
+                      ? 'bg-violet-600 text-white'
+                      : 'bg-white dark:bg-[#1a1625] text-gray-500 border border-gray-200 dark:border-gray-800 hover:text-gray-700'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Tabela de pagamentos */}
+            <Card className="!p-0 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/20">
+                      <th className="text-left px-4 py-3 text-gray-500 font-semibold uppercase tracking-wider">Usuário</th>
+                      <th className="text-left px-4 py-3 text-gray-500 font-semibold uppercase tracking-wider">Plano</th>
+                      <th className="text-right px-4 py-3 text-gray-500 font-semibold uppercase tracking-wider">Valor</th>
+                      <th className="text-left px-4 py-3 text-gray-500 font-semibold uppercase tracking-wider">Pagou em</th>
+                      <th className="text-left px-4 py-3 text-gray-500 font-semibold uppercase tracking-wider">Vence em</th>
+                      <th className="text-center px-4 py-3 text-gray-500 font-semibold uppercase tracking-wider">Status</th>
+                      <th className="text-left px-4 py-3 text-gray-500 font-semibold uppercase tracking-wider">Obs</th>
+                      <th className="text-right px-4 py-3 text-gray-500 font-semibold uppercase tracking-wider">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                    {(pixPayments || [])
+                      .filter(p => {
+                        if (pixFilter === 'all') return true;
+                        if (pixFilter === 'expiring') {
+                          const daysLeft = Math.ceil((new Date(p.expires_at) - new Date()) / 86400000);
+                          return p.status === 'active' && daysLeft <= 5 && daysLeft > 0;
+                        }
+                        return p.status === pixFilter;
+                      })
+                      .map(p => {
+                        const now = new Date();
+                        const expires = new Date(p.expires_at);
+                        const daysLeft = Math.ceil((expires - now) / 86400000);
+                        let statusIcon = '🟢';
+                        let statusLabel = 'Ativo';
+                        let statusClass = 'text-emerald-600 dark:text-emerald-400';
+                        if (p.status === 'expired') { statusIcon = '🔴'; statusLabel = 'Expirado'; statusClass = 'text-red-600 dark:text-red-400'; }
+                        else if (p.status === 'cancelled') { statusIcon = '⬜'; statusLabel = 'Cancelado'; statusClass = 'text-gray-500'; }
+                        else if (daysLeft <= 0) { statusIcon = '🔴'; statusLabel = 'Expirado'; statusClass = 'text-red-600 dark:text-red-400'; }
+                        else if (daysLeft <= 5) { statusIcon = '🟡'; statusLabel = `${daysLeft}d restante${daysLeft > 1 ? 's' : ''}`; statusClass = 'text-amber-600 dark:text-amber-400'; }
+                        else { statusLabel = `${daysLeft}d restantes`; }
+
+                        return (
+                          <tr key={p.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors">
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-400 to-pink-400 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">{p.user_name?.[0]?.toUpperCase() || '?'}</div>
+                                <div>
+                                  <p className="font-semibold text-gray-700 dark:text-gray-200">{p.user_name}</p>
+                                  <p className="text-[10px] text-gray-400">{p.user_email || '—'}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3"><PlanBadge plan={p.plan} /></td>
+                            <td className="px-4 py-3 text-right font-bold text-gray-700 dark:text-gray-300 tabular-nums">R$ {Number(p.amount).toFixed(2).replace('.', ',')}</td>
+                            <td className="px-4 py-3 text-gray-500 tabular-nums">{new Date(p.paid_at).toLocaleDateString('pt-BR')}</td>
+                            <td className="px-4 py-3 text-gray-500 tabular-nums">{new Date(p.expires_at).toLocaleDateString('pt-BR')}</td>
+                            <td className="px-4 py-3 text-center">
+                              <span className={`inline-flex items-center gap-1 text-[11px] font-semibold ${statusClass}`}>
+                                {statusIcon} {statusLabel}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-gray-400 text-[10px] max-w-[120px] truncate" title={p.notes}>{p.notes || '—'}</td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center justify-end gap-1.5">
+                                {(p.status === 'active' || p.status === 'expired') && (
+                                  <button
+                                    onClick={() => handlePixAction(p.id, 'renew')}
+                                    disabled={pixActionLoading === p.id}
+                                    className="px-2.5 py-1.5 text-[10px] font-semibold bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100 disabled:opacity-50 transition-colors dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50"
+                                  >
+                                    Renovar +30d
+                                  </button>
+                                )}
+                                {p.status === 'active' && (
+                                  <button
+                                    onClick={() => { if (confirm(`Cancelar pagamento Pix de ${p.user_name}?`)) handlePixAction(p.id, 'cancel'); }}
+                                    disabled={pixActionLoading === p.id}
+                                    className="px-2.5 py-1.5 text-[10px] font-semibold bg-red-50 text-red-600 rounded-lg hover:bg-red-100 disabled:opacity-50 transition-colors dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-950/50"
+                                  >
+                                    Cancelar
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+                {(!pixPayments || pixPayments.length === 0) && (
+                  <div className="py-12 text-center">
+                    <span className="text-3xl mb-3 block">💸</span>
+                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Nenhum pagamento Pix registrado</p>
+                    <p className="text-xs text-gray-400 mt-1">Clique em &quot;Registrar Pagamento&quot; para começar</p>
+                  </div>
+                )}
+              </div>
+            </Card>
+
+            {/* Resumo */}
+            {pixPayments && pixPayments.length > 0 && (
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <KPICard
+                  label="Ativos"
+                  value={pixPayments.filter(p => p.status === 'active').length}
+                  sub="pagamentos ativos"
+                  icon={Icons.users} color="success"
+                />
+                <KPICard
+                  label="Receita Pix/mês"
+                  value={`R$ ${pixPayments.filter(p => p.status === 'active').reduce((s, p) => s + Number(p.amount), 0).toFixed(2).replace('.', ',')}`}
+                  sub="recorrente ativo"
+                  icon={Icons.wallet} color="primary"
+                />
+                <KPICard
+                  label="Vencendo"
+                  value={pixAlerts.expiringSoon}
+                  sub="próximos 5 dias"
+                  icon={Icons.clock} color="warning"
+                />
+                <KPICard
+                  label="Expirados"
+                  value={pixPayments.filter(p => p.status === 'expired').length}
+                  sub="precisam renovar"
+                  icon={Icons.arrowDown} color="danger"
+                />
               </div>
             )}
           </>
