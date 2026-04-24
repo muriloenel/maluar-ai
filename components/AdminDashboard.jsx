@@ -2546,11 +2546,6 @@ export default function AdminDashboard() {
                 />
               </div>
             )}
-                  sub="precisam renovar"
-                  icon={Icons.arrowDown} color="danger"
-                />
-              </div>
-            )}
           </>
         )}
       </main>
