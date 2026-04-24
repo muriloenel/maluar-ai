@@ -2,6 +2,100 @@ import { requireAdmin, getServiceClient } from '../../../../lib/admin';
 import { sendPixExpiringEmail, sendPixExpiredEmail } from '../../../../lib/email';
 
 const PLAN_PRICES = { pro: 29.90, premium: 59.90 };
+const STRIPE_SECRET = (process.env.STRIPE_SECRET_KEY || '').trim();
+const STRIPE_API = 'https://api.stripe.com/v1';
+
+async function stripeGet(endpoint) {
+  if (!STRIPE_SECRET) return null;
+  try {
+    const res = await fetch(`${STRIPE_API}${endpoint}`, {
+      headers: { 'Authorization': `Bearer ${STRIPE_SECRET}` },
+    });
+    if (!res.ok) return null;
+    return res.json();
+  } catch { return null; }
+}
+
+// Mapa reverso: price ID → plano
+const PRICE_TO_PLAN = {};
+if (process.env.STRIPE_PRICE_PRO) PRICE_TO_PLAN[process.env.STRIPE_PRICE_PRO.trim()] = 'pro';
+if (process.env.STRIPE_PRICE_PREMIUM) PRICE_TO_PLAN[process.env.STRIPE_PRICE_PREMIUM.trim()] = 'premium';
+
+async function getStripeSubscriptions(supabase) {
+  if (!STRIPE_SECRET) return [];
+  try {
+    // Buscar perfis com stripe_subscription_id
+    const { data: stripeProfiles } = await supabase
+      .from('profiles')
+      .select('id, name, plan, stripe_customer_id, stripe_subscription_id')
+      .not('stripe_subscription_id', 'is', null);
+
+    if (!stripeProfiles || stripeProfiles.length === 0) return [];
+
+    // Buscar emails
+    const emailMap = {};
+    for (const p of stripeProfiles) {
+      try {
+        const { data: authData } = await supabase.auth.admin.getUserById(p.id);
+        if (authData?.user?.email) emailMap[p.id] = authData.user.email;
+      } catch {}
+    }
+
+    // Buscar detalhes de cada subscription no Stripe
+    const subs = [];
+    for (const p of stripeProfiles) {
+      const sub = await stripeGet(`/subscriptions/${p.stripe_subscription_id}`);
+      if (!sub || sub.error) {
+        // Subscription não existe mais no Stripe — incluir com status desconhecido
+        subs.push({
+          id: `stripe_${p.id}`,
+          user_id: p.id,
+          user_name: p.name || 'Desconhecido',
+          user_email: emailMap[p.id] || '',
+          plan: p.plan,
+          method: 'stripe',
+          status: 'unknown',
+          amount: PLAN_PRICES[p.plan] || 0,
+          created_at: null,
+          current_period_end: null,
+          cancel_at_period_end: false,
+          stripe_status: sub?.error?.message || 'not_found',
+        });
+        continue;
+      }
+
+      // Determinar plano pelo price_id
+      const priceId = sub.items?.data?.[0]?.price?.id;
+      const stripePlan = PRICE_TO_PLAN[priceId] || p.plan;
+      const amount = sub.items?.data?.[0]?.price?.unit_amount ? sub.items.data[0].price.unit_amount / 100 : (PLAN_PRICES[stripePlan] || 0);
+
+      let status = 'active';
+      if (sub.status === 'canceled' || sub.status === 'incomplete_expired') status = 'cancelled';
+      else if (sub.status === 'past_due' || sub.status === 'unpaid') status = 'past_due';
+      else if (sub.cancel_at_period_end) status = 'cancelling';
+      else if (sub.status === 'trialing') status = 'trialing';
+
+      subs.push({
+        id: `stripe_${p.id}`,
+        user_id: p.id,
+        user_name: p.name || 'Desconhecido',
+        user_email: emailMap[p.id] || '',
+        plan: stripePlan,
+        method: 'stripe',
+        status,
+        amount,
+        created_at: sub.created ? new Date(sub.created * 1000).toISOString() : null,
+        current_period_end: sub.current_period_end ? new Date(sub.current_period_end * 1000).toISOString() : null,
+        cancel_at_period_end: sub.cancel_at_period_end || false,
+        stripe_status: sub.status,
+      });
+    }
+    return subs;
+  } catch (err) {
+    console.error('[STRIPE] Error fetching subscriptions:', err.message);
+    return [];
+  }
+}
 
 export async function GET(req) {
   try {
@@ -123,6 +217,7 @@ export async function GET(req) {
 
     return Response.json({
       payments: enriched,
+      stripeSubscriptions: await getStripeSubscriptions(supabase),
       expiredNow: expiredUsers,
       alerts: {
         expiringSoon,

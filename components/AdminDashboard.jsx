@@ -496,11 +496,12 @@ export default function AdminDashboard() {
   const [configSaving, setConfigSaving] = useState(false);
   const [configDefaults, setConfigDefaults] = useState({});
 
-  // Pix states
+  // Assinaturas states
   const [pixPayments, setPixPayments] = useState(null);
+  const [stripeSubscriptions, setStripeSubscriptions] = useState([]);
   const [pixAlerts, setPixAlerts] = useState({ expiringSoon: 0, justExpired: 0 });
   const [pixExpiredNow, setPixExpiredNow] = useState([]);
-  const [pixFilter, setPixFilter] = useState('all'); // all | active | expiring | expired | cancelled
+  const [pixFilter, setPixFilter] = useState('all'); // all | active | expiring | expired | cancelled | pix | stripe
   const [pixShowForm, setPixShowForm] = useState(false);
   const [pixUserSearch, setPixUserSearch] = useState('');
   const [pixSearchResults, setPixSearchResults] = useState([]);
@@ -622,6 +623,7 @@ export default function AdminDashboard() {
         fetchApi('/api/admin/users?limit=1'),
       ]);
       setPixPayments(data.payments || []);
+      setStripeSubscriptions(data.stripeSubscriptions || []);
       setPixAlerts(data.alerts || { expiringSoon: 0, justExpired: 0 });
       if (usersData?.planCounts) setUsers(prev => prev ? { ...prev, planCounts: usersData.planCounts } : { planCounts: usersData.planCounts });
       // Notificações de expirados agora
@@ -812,7 +814,7 @@ export default function AdminDashboard() {
     { id: 'monitoring', label: 'Monitoramento', icon: Icons.chart },
     { id: 'insights', label: 'Insights', icon: Icons.brain },
     { id: 'config', label: 'Configurações', icon: Icons.settings },
-    { id: 'pix', label: 'Pix', icon: Icons.pix },
+    { id: 'pix', label: 'Assinaturas', icon: Icons.wallet },
   ];
 
   return (
@@ -2178,19 +2180,21 @@ export default function AdminDashboard() {
               </div>
             )}
 
-            {/* Alerta de inconsistência: mais usuários pagos que pagamentos Pix ativos */}
+            {/* Alerta de inconsistência: mais usuários pagos que assinaturas ativas */}
             {(() => {
               const activePixCount = Array.isArray(pixPayments) ? pixPayments.filter(p => p.status === 'active').length : 0;
+              const activeStripeCount = stripeSubscriptions.filter(s => s.status === 'active' || s.status === 'cancelling' || s.status === 'trialing').length;
+              const totalActivePayments = activePixCount + activeStripeCount;
               const paidUsersCount = (users?.planCounts?.pro || 0) + (users?.planCounts?.premium || 0);
-              const diff = paidUsersCount - activePixCount;
+              const diff = paidUsersCount - totalActivePayments;
               if (diff > 0 && users?.planCounts) return (
                 <div className="flex items-start gap-3 px-4 py-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800/50 rounded-xl">
                   <span className="text-lg">⚠️</span>
                   <div>
                     <p className="text-sm font-bold text-red-700 dark:text-red-400">Inconsistência detectada</p>
                     <p className="text-xs text-red-600 dark:text-red-400/80 mt-0.5">
-                      Existem <strong>{paidUsersCount}</strong> usuários com plano pago (Pro: {users.planCounts.pro || 0}, Premium: {users.planCounts.premium || 0}), mas apenas <strong>{activePixCount}</strong> pagamento{activePixCount !== 1 ? 's' : ''} Pix ativo{activePixCount !== 1 ? 's' : ''}.
-                      <strong> {diff} usuário{diff !== 1 ? 's' : ''}</strong> pode{diff !== 1 ? 'm' : ''} estar sem pagamento registrado (ou pagando via Stripe).
+                      Existem <strong>{paidUsersCount}</strong> usuários com plano pago (Pro: {users.planCounts.pro || 0}, Premium: {users.planCounts.premium || 0}), mas apenas <strong>{totalActivePayments}</strong> assinatura{totalActivePayments !== 1 ? 's' : ''} ativa{totalActivePayments !== 1 ? 's' : ''} (Pix: {activePixCount}, Stripe: {activeStripeCount}).
+                      <strong> {diff} usuário{diff !== 1 ? 's' : ''}</strong> pode{diff !== 1 ? 'm' : ''} estar sem pagamento registrado.
                     </p>
                   </div>
                 </div>
@@ -2202,10 +2206,10 @@ export default function AdminDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-base font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                  {Icons.pix}
-                  <span>Controle de Pagamento Pix</span>
+                  {Icons.wallet}
+                  <span>Assinaturas</span>
                 </h2>
-                <p className="text-xs text-gray-400 mt-0.5">Gerencie pagamentos recebidos via Pix manualmente</p>
+                <p className="text-xs text-gray-400 mt-0.5">Gerencie pagamentos Pix e assinaturas Stripe</p>
               </div>
               <button
                 onClick={() => setPixShowForm(!pixShowForm)}
@@ -2335,13 +2339,15 @@ export default function AdminDashboard() {
             )}
 
             {/* Filtros */}
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {[
                 { id: 'all', label: 'Todos' },
                 { id: 'active', label: '🟢 Ativos' },
                 { id: 'expiring', label: '🟡 Vencendo' },
                 { id: 'expired', label: '🔴 Expirados' },
                 { id: 'cancelled', label: '⬜ Cancelados' },
+                { id: 'pix', label: '💰 Pix' },
+                { id: 'stripe', label: '💳 Stripe' },
               ].map(f => (
                 <button
                   key={f.id}
@@ -2357,127 +2363,189 @@ export default function AdminDashboard() {
               ))}
             </div>
 
-            {/* Tabela de pagamentos */}
+            {/* Tabela de assinaturas */}
             <Card className="!p-0 overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/20">
                       <th className="text-left px-4 py-3 text-gray-500 font-semibold uppercase tracking-wider">Usuário</th>
+                      <th className="text-center px-4 py-3 text-gray-500 font-semibold uppercase tracking-wider">Forma</th>
                       <th className="text-left px-4 py-3 text-gray-500 font-semibold uppercase tracking-wider">Plano</th>
                       <th className="text-right px-4 py-3 text-gray-500 font-semibold uppercase tracking-wider">Valor</th>
-                      <th className="text-left px-4 py-3 text-gray-500 font-semibold uppercase tracking-wider">Pagou em</th>
-                      <th className="text-left px-4 py-3 text-gray-500 font-semibold uppercase tracking-wider">Vence em</th>
+                      <th className="text-left px-4 py-3 text-gray-500 font-semibold uppercase tracking-wider">Início</th>
+                      <th className="text-left px-4 py-3 text-gray-500 font-semibold uppercase tracking-wider">Vence/Renova</th>
                       <th className="text-center px-4 py-3 text-gray-500 font-semibold uppercase tracking-wider">Status</th>
-                      <th className="text-left px-4 py-3 text-gray-500 font-semibold uppercase tracking-wider">Obs</th>
                       <th className="text-right px-4 py-3 text-gray-500 font-semibold uppercase tracking-wider">Ações</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                    {(pixPayments || [])
-                      .filter(p => {
-                        if (pixFilter === 'all') return true;
-                        if (pixFilter === 'expiring') {
-                          const daysLeft = Math.ceil((new Date(p.expires_at) - new Date()) / 86400000);
-                          return p.status === 'active' && daysLeft <= 5 && daysLeft > 0;
-                        }
-                        return p.status === pixFilter;
-                      })
-                      .map(p => {
-                        const now = new Date();
-                        const expires = new Date(p.expires_at);
-                        const daysLeft = Math.ceil((expires - now) / 86400000);
-                        let statusIcon = '🟢';
-                        let statusLabel = 'Ativo';
-                        let statusClass = 'text-emerald-600 dark:text-emerald-400';
-                        if (p.status === 'expired') { statusIcon = '🔴'; statusLabel = 'Expirado'; statusClass = 'text-red-600 dark:text-red-400'; }
-                        else if (p.status === 'cancelled') { statusIcon = '⬜'; statusLabel = 'Cancelado'; statusClass = 'text-gray-500'; }
-                        else if (daysLeft <= 0) { statusIcon = '🔴'; statusLabel = 'Expirado'; statusClass = 'text-red-600 dark:text-red-400'; }
-                        else if (daysLeft <= 5) { statusIcon = '🟡'; statusLabel = `${daysLeft}d restante${daysLeft > 1 ? 's' : ''}`; statusClass = 'text-amber-600 dark:text-amber-400'; }
-                        else { statusLabel = `${daysLeft}d restantes`; }
+                    {(() => {
+                      // Normalizar pagamentos Pix para formato unificado
+                      const pixItems = (pixPayments || []).map(p => ({
+                        ...p,
+                        method: 'pix',
+                        start_date: p.paid_at,
+                        end_date: p.expires_at,
+                      }));
+                      // Normalizar Stripe subscriptions para formato unificado
+                      const stripeItems = stripeSubscriptions.map(s => ({
+                        ...s,
+                        start_date: s.created_at,
+                        end_date: s.current_period_end,
+                      }));
+                      // Unificar e filtrar
+                      const allItems = [...pixItems, ...stripeItems];
+                      return allItems
+                        .filter(p => {
+                          if (pixFilter === 'pix') return p.method === 'pix';
+                          if (pixFilter === 'stripe') return p.method === 'stripe';
+                          if (pixFilter === 'all') return true;
+                          if (pixFilter === 'expiring') {
+                            if (p.method === 'stripe') return p.status === 'cancelling';
+                            const daysLeft = Math.ceil((new Date(p.end_date) - new Date()) / 86400000);
+                            return p.status === 'active' && daysLeft <= 5 && daysLeft > 0;
+                          }
+                          if (pixFilter === 'active') return p.status === 'active' || p.status === 'trialing';
+                          if (pixFilter === 'cancelled') return p.status === 'cancelled' || p.status === 'cancelling';
+                          return p.status === pixFilter;
+                        })
+                        .sort((a, b) => {
+                          // Ativos primeiro, depois por data
+                          const order = { active: 0, trialing: 0, cancelling: 1, past_due: 1, expiring: 1, expired: 2, cancelled: 3, unknown: 4 };
+                          const diff = (order[a.status] ?? 5) - (order[b.status] ?? 5);
+                          if (diff !== 0) return diff;
+                          return new Date(a.end_date || 0) - new Date(b.end_date || 0);
+                        })
+                        .map(p => {
+                          const now = new Date();
+                          const endDate = p.end_date ? new Date(p.end_date) : null;
+                          const daysLeft = endDate ? Math.ceil((endDate - now) / 86400000) : null;
+                          let statusIcon = '🟢';
+                          let statusLabel = 'Ativo';
+                          let statusClass = 'text-emerald-600 dark:text-emerald-400';
 
-                        return (
-                          <tr key={p.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors">
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-2">
-                                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-400 to-pink-400 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">{p.user_name?.[0]?.toUpperCase() || '?'}</div>
-                                <div>
-                                  <p className="font-semibold text-gray-700 dark:text-gray-200">{p.user_name}</p>
-                                  <p className="text-[10px] text-gray-400">{p.user_email || '—'}</p>
+                          if (p.method === 'stripe') {
+                            if (p.status === 'active') { statusIcon = '🟢'; statusLabel = daysLeft ? `Renova em ${daysLeft}d` : 'Ativo'; }
+                            else if (p.status === 'cancelling') { statusIcon = '🟡'; statusLabel = daysLeft ? `Cancela em ${daysLeft}d` : 'Cancelando'; statusClass = 'text-amber-600 dark:text-amber-400'; }
+                            else if (p.status === 'past_due') { statusIcon = '🔴'; statusLabel = 'Pagamento pendente'; statusClass = 'text-red-600 dark:text-red-400'; }
+                            else if (p.status === 'trialing') { statusIcon = '🔵'; statusLabel = 'Trial'; statusClass = 'text-blue-600 dark:text-blue-400'; }
+                            else if (p.status === 'cancelled') { statusIcon = '⬜'; statusLabel = 'Cancelado'; statusClass = 'text-gray-500'; }
+                            else { statusIcon = '❓'; statusLabel = p.stripe_status || 'Desconhecido'; statusClass = 'text-gray-400'; }
+                          } else {
+                            if (p.status === 'expired') { statusIcon = '🔴'; statusLabel = 'Expirado'; statusClass = 'text-red-600 dark:text-red-400'; }
+                            else if (p.status === 'cancelled') { statusIcon = '⬜'; statusLabel = 'Cancelado'; statusClass = 'text-gray-500'; }
+                            else if (daysLeft !== null && daysLeft <= 0) { statusIcon = '🔴'; statusLabel = 'Expirado'; statusClass = 'text-red-600 dark:text-red-400'; }
+                            else if (daysLeft !== null && daysLeft <= 5) { statusIcon = '🟡'; statusLabel = `${daysLeft}d restante${daysLeft > 1 ? 's' : ''}`; statusClass = 'text-amber-600 dark:text-amber-400'; }
+                            else if (daysLeft !== null) { statusLabel = `${daysLeft}d restantes`; }
+                          }
+
+                          return (
+                            <tr key={p.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors">
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-400 to-pink-400 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">{p.user_name?.[0]?.toUpperCase() || '?'}</div>
+                                  <div>
+                                    <p className="font-semibold text-gray-700 dark:text-gray-200">{p.user_name}</p>
+                                    <p className="text-[10px] text-gray-400">{p.user_email || '—'}</p>
+                                  </div>
                                 </div>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3"><PlanBadge plan={p.plan} /></td>
-                            <td className="px-4 py-3 text-right font-bold text-gray-700 dark:text-gray-300 tabular-nums">R$ {Number(p.amount).toFixed(2).replace('.', ',')}</td>
-                            <td className="px-4 py-3 text-gray-500 tabular-nums">{new Date(p.paid_at).toLocaleDateString('pt-BR')}</td>
-                            <td className="px-4 py-3 text-gray-500 tabular-nums">{new Date(p.expires_at).toLocaleDateString('pt-BR')}</td>
-                            <td className="px-4 py-3 text-center">
-                              <span className={`inline-flex items-center gap-1 text-[11px] font-semibold ${statusClass}`}>
-                                {statusIcon} {statusLabel}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-gray-400 text-[10px] max-w-[120px] truncate" title={p.notes}>{p.notes || '—'}</td>
-                            <td className="px-4 py-3">
-                              <div className="flex items-center justify-end gap-1.5">
-                                {(p.status === 'active' || p.status === 'expired') && (
-                                  <button
-                                    onClick={() => handlePixAction(p.id, 'renew')}
-                                    disabled={pixActionLoading === p.id}
-                                    className="px-2.5 py-1.5 text-[10px] font-semibold bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100 disabled:opacity-50 transition-colors dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50"
-                                  >
-                                    Renovar +30d
-                                  </button>
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                {p.method === 'stripe' ? (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/30 px-2 py-0.5 rounded-full">💳 Stripe</span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 px-2 py-0.5 rounded-full">💰 Pix</span>
                                 )}
-                                {p.status === 'active' && (
-                                  <button
-                                    onClick={() => { if (confirm(`Cancelar pagamento Pix de ${p.user_name}?`)) handlePixAction(p.id, 'cancel'); }}
-                                    disabled={pixActionLoading === p.id}
-                                    className="px-2.5 py-1.5 text-[10px] font-semibold bg-red-50 text-red-600 rounded-lg hover:bg-red-100 disabled:opacity-50 transition-colors dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-950/50"
-                                  >
-                                    Cancelar
-                                  </button>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
+                              </td>
+                              <td className="px-4 py-3"><PlanBadge plan={p.plan} /></td>
+                              <td className="px-4 py-3 text-right font-bold text-gray-700 dark:text-gray-300 tabular-nums">R$ {Number(p.amount || 0).toFixed(2).replace('.', ',')}</td>
+                              <td className="px-4 py-3 text-gray-500 tabular-nums">{p.start_date ? new Date(p.start_date).toLocaleDateString('pt-BR') : '—'}</td>
+                              <td className="px-4 py-3 text-gray-500 tabular-nums">{p.end_date ? new Date(p.end_date).toLocaleDateString('pt-BR') : '—'}</td>
+                              <td className="px-4 py-3 text-center">
+                                <span className={`inline-flex items-center gap-1 text-[11px] font-semibold ${statusClass}`}>
+                                  {statusIcon} {statusLabel}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center justify-end gap-1.5">
+                                  {p.method === 'pix' && (p.status === 'active' || p.status === 'expired') && (
+                                    <button
+                                      onClick={() => handlePixAction(p.id, 'renew')}
+                                      disabled={pixActionLoading === p.id}
+                                      className="px-2.5 py-1.5 text-[10px] font-semibold bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100 disabled:opacity-50 transition-colors dark:bg-emerald-950/30 dark:text-emerald-400 dark:hover:bg-emerald-950/50"
+                                    >
+                                      Renovar +30d
+                                    </button>
+                                  )}
+                                  {p.method === 'pix' && p.status === 'active' && (
+                                    <button
+                                      onClick={() => { if (confirm(`Cancelar pagamento Pix de ${p.user_name}?`)) handlePixAction(p.id, 'cancel'); }}
+                                      disabled={pixActionLoading === p.id}
+                                      className="px-2.5 py-1.5 text-[10px] font-semibold bg-red-50 text-red-600 rounded-lg hover:bg-red-100 disabled:opacity-50 transition-colors dark:bg-red-950/30 dark:text-red-400 dark:hover:bg-red-950/50"
+                                    >
+                                      Cancelar
+                                    </button>
+                                  )}
+                                  {p.method === 'stripe' && (
+                                    <span className="text-[10px] text-gray-400 italic">Gerenciado pelo Stripe</span>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        });
+                    })()}
                   </tbody>
                 </table>
-                {(!pixPayments || pixPayments.length === 0) && (
+                {(!pixPayments || pixPayments.length === 0) && stripeSubscriptions.length === 0 && (
                   <div className="py-12 text-center">
                     <span className="text-3xl mb-3 block">💸</span>
-                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Nenhum pagamento Pix registrado</p>
-                    <p className="text-xs text-gray-400 mt-1">Clique em &quot;Registrar Pagamento&quot; para começar</p>
+                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Nenhuma assinatura encontrada</p>
+                    <p className="text-xs text-gray-400 mt-1">Clique em &quot;Registrar Pagamento&quot; para adicionar um pagamento Pix</p>
                   </div>
                 )}
               </div>
             </Card>
 
             {/* Resumo */}
-            {pixPayments && pixPayments.length > 0 && (
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {((pixPayments && pixPayments.length > 0) || stripeSubscriptions.length > 0) && (
+              <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
                 <KPICard
-                  label="Ativos"
-                  value={pixPayments.filter(p => p.status === 'active').length}
-                  sub="pagamentos ativos"
+                  label="Total Ativos"
+                  value={
+                    (Array.isArray(pixPayments) ? pixPayments.filter(p => p.status === 'active').length : 0) +
+                    stripeSubscriptions.filter(s => s.status === 'active' || s.status === 'cancelling' || s.status === 'trialing').length
+                  }
+                  sub="assinaturas ativas"
                   icon={Icons.users} color="success"
                 />
                 <KPICard
-                  label="Receita Pix/mês"
-                  value={`R$ ${pixPayments.filter(p => p.status === 'active').reduce((s, p) => s + Number(p.amount), 0).toFixed(2).replace('.', ',')}`}
-                  sub="recorrente ativo"
+                  label="💰 Pix Ativos"
+                  value={Array.isArray(pixPayments) ? pixPayments.filter(p => p.status === 'active').length : 0}
+                  sub={`R$ ${(Array.isArray(pixPayments) ? pixPayments.filter(p => p.status === 'active').reduce((s, p) => s + Number(p.amount), 0) : 0).toFixed(2).replace('.', ',')}/mês`}
                   icon={Icons.wallet} color="primary"
                 />
                 <KPICard
+                  label="💳 Stripe Ativos"
+                  value={stripeSubscriptions.filter(s => s.status === 'active' || s.status === 'trialing').length}
+                  sub={`R$ ${stripeSubscriptions.filter(s => s.status === 'active' || s.status === 'trialing').reduce((s, p) => s + Number(p.amount || 0), 0).toFixed(2).replace('.', ',')}/mês`}
+                  icon={Icons.chart} color="info"
+                />
+                <KPICard
                   label="Vencendo"
-                  value={pixAlerts.expiringSoon}
+                  value={pixAlerts.expiringSoon + stripeSubscriptions.filter(s => s.status === 'cancelling').length}
                   sub="próximos 5 dias"
                   icon={Icons.clock} color="warning"
                 />
                 <KPICard
                   label="Expirados"
-                  value={pixPayments.filter(p => p.status === 'expired').length}
+                  value={(Array.isArray(pixPayments) ? pixPayments.filter(p => p.status === 'expired').length : 0) + stripeSubscriptions.filter(s => s.status === 'cancelled' || s.status === 'past_due').length}
+                  sub="precisam ação"
+                  icon={Icons.arrowDown} color="danger"
+                />
+              </div>
+            )}
                   sub="precisam renovar"
                   icon={Icons.arrowDown} color="danger"
                 />
