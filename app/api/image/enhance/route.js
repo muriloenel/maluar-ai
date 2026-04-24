@@ -80,28 +80,24 @@ export async function POST(req) {
       result = await getOpenAI().images.edit({
         model: 'gpt-image-1',
         image: file,
-        prompt: `You are a professional beauty photographer. Enhance this nail design photograph to absolute studio quality.
+        prompt: `IMPORTANT: This is a REAL photograph. Your #1 priority is to PRESERVE the natural, authentic look of the photo.
 
-LIGHTING:
-- Apply soft, diffused studio lighting with natural-looking highlights on the nails
-- Add subtle rim light to make the nail edges pop
-- Remove any harsh shadows or uneven lighting
+MINIMAL RETOUCHING ONLY:
+- Slightly improve brightness and white balance so the image looks well-lit
+- Gently sharpen the focus on the nails/nail art
+- If the background is messy, softly blur it (natural bokeh) to draw attention to the nails
+- Subtly even out skin tone if it looks off due to bad lighting
 
-COLOR & DETAIL:
-- Make nail colors more vibrant, saturated, and true-to-life
-- Enhance the sharpness and fine details of the nail art/design
-- Ensure skin tones look natural and healthy (not orange or grey)
-
-BACKGROUND:
-- Clean up or replace the background with a soft, elegant out-of-focus (bokeh) surface
-- If the background is already nice, just soften it slightly to draw focus to the nails
-
-CRITICAL RULES:
-- Keep the EXACT same nail design, shape, and art — only improve photography quality
-- Do NOT change the nail color, pattern, or style
-- Do NOT add any text, logos, watermarks, or decorative elements
-- Do NOT modify the hand pose or composition
-- The result must look like a professional beauty salon photoshoot`,
+ABSOLUTE RULES — DO NOT VIOLATE:
+- Do NOT smooth or airbrush the skin — keep all natural skin texture, pores, and fine lines
+- Do NOT change skin color or make it look plasticky/filtered
+- Do NOT alter the nail design, color, shape, or art in ANY way
+- Do NOT add any glow, sparkle, shimmer, or special effects
+- Do NOT add text, logos, borders, frames, or any overlay
+- Do NOT change the hand pose, angle, or composition
+- Do NOT make it look like a render, illustration, or AI-generated image
+- The final result must be INDISTINGUISHABLE from a real phone photo taken in good lighting
+- Think of this as a subtle Lightroom edit, NOT Photoshop manipulation`,
         size: '1024x1024',
         quality: 'high',
       });
@@ -123,58 +119,60 @@ CRITICAL RULES:
       const VISUAL_STYLES = {
         luxury: {
           name: 'Luxo Elegante',
-          prompt: `Dark luxury aesthetic. Black/dark background with gold, champagne, or rose-gold metallic accents. Elegant serif typography. Subtle sparkle and shimmer effects. Think: high-end jewelry brand aesthetic.`,
+          prompt: `Dark background (black or charcoal) around the photo. Gold or champagne-colored text. Thin gold border or line accents. Elegant serif font for headline. Minimalist luxury feel.`,
         },
         modern: {
           name: 'Moderno Clean',
-          prompt: `Modern minimalist design. Clean white or very light background. Bold sans-serif typography in black. Accent color: soft blush pink or lavender. Geometric shapes and clean lines. Think: Apple/Glossier brand aesthetic.`,
+          prompt: `Clean white or very light grey background around the photo. Black text in modern sans-serif font. One accent color: soft blush pink. Simple geometric lines. Minimalist, airy layout.`,
         },
         neon: {
           name: 'Neon Vibrante',
-          prompt: `Vibrant neon aesthetic. Dark background (deep purple or black) with glowing neon pink, purple, and cyan accents. Neon light effects on text. Energetic, youthful. Think: nightlife beauty brand.`,
+          prompt: `Dark purple or black background around the photo. Neon pink and cyan colored text with subtle glow effect. Bold modern font. Energetic, youthful feel.`,
         },
         romantic: {
           name: 'Romântico Floral',
-          prompt: `Romantic botanical aesthetic. Soft pastel tones (blush, cream, sage green). Delicate watercolor flower decorations around the edges. Elegant script typography. Think: wedding invitation style, feminine and dreamy.`,
+          prompt: `Soft pastel background (blush pink, cream) around the photo. Small delicate watercolor flowers as corner decorations. Elegant script font for headline. Feminine and dreamy.`,
         },
         editorial: {
           name: 'Editorial Fashion',
-          prompt: `High-fashion editorial style. Bold contrasting layout. Magazine-quality typography with large impactful headlines. Black & white with one accent color. Think: Vogue beauty editorial page.`,
+          prompt: `White background with bold black typography around the photo. One strong accent color. Large impactful headline text. High-contrast, magazine-style layout.`,
         },
         tropical: {
           name: 'Tropical Chic',
-          prompt: `Tropical paradise aesthetic. Warm golden tones, turquoise accents, palm leaf silhouettes. Sunset gradient backgrounds. Fun, vibrant, summer vibes. Think: Brazilian beach resort brand.`,
+          prompt: `Warm background with golden/sunset gradient around the photo. Turquoise accent color for text. Optional subtle palm leaf silhouette in corner. Summer vibes, fun and vibrant.`,
         },
       };
 
       const selectedStyle = VISUAL_STYLES[visualStyle] || VISUAL_STYLES.luxury;
 
       const promptParts = [
-        `You are a world-class graphic designer. Create a stunning, professional Instagram ${isStories ? 'story (vertical 9:16 ratio)' : 'post (square 1:1 ratio)'} for a nail designer / nail artist.`,
+        `You are a professional social media designer. Create a ${isStories ? 'vertical story (9:16)' : 'square post (1:1)'} ad for a nail artist's Instagram/WhatsApp.`,
         ``,
-        `PHOTO INSTRUCTIONS:`,
-        `- The provided nail photo MUST be the HERO element, prominently displayed and clearly visible`,
-        `- Frame the photo beautifully — it should occupy at least 40-50% of the design`,
-        `- Do NOT crop or distort the nail photo`,
+        `CRITICAL — PHOTO PRESERVATION:`,
+        `- The provided photograph is REAL and must remain 100% UNTOUCHED and UNMODIFIED`,
+        `- Do NOT redraw, repaint, filter, smooth, recolor, or alter the photo in ANY way`,
+        `- Do NOT change skin texture, nail colors, lighting, or any detail of the original photo`,
+        `- The photo must look EXACTLY as it was taken — a real, authentic photograph`,
+        `- Place the original photo as-is, occupying 50-60% of the design area`,
+        `- Frame it cleanly: simple border, rounded corners, or a subtle drop shadow is fine`,
         ``,
-        `VISUAL STYLE:`,
+        `DESIGN AROUND THE PHOTO (not on top of it):`,
         selectedStyle.prompt,
         ``,
-        `TEXT CONTENT (all text in Portuguese/Brazilian):`,
-        title ? `- MAIN HEADLINE (large, bold, impactful): "${title}"` : '',
-        subtitle ? `- SUBTITLE (smaller, elegant): "${subtitle}"` : '',
-        location ? `- LOCATION with pin icon: "📍 ${location}"` : '',
-        cta ? `- CALL-TO-ACTION BUTTON at bottom (rounded pill shape, high contrast): "${cta}"` : '',
+        `TEXT (in Portuguese/Brazilian):`,
+        title ? `- HEADLINE: "${title}" — bold, clear, easy to read` : '',
+        subtitle ? `- SUBTITLE: "${subtitle}" — smaller, secondary` : '',
+        location ? `- LOCATION: "📍 ${location}"` : '',
+        cta ? `- CTA BUTTON (pill shape at bottom): "${cta}"` : '',
         ``,
-        `DESIGN RULES:`,
-        `- Typography must be SHARP, READABLE with excellent contrast`,
-        `- Text hierarchy: headline largest, subtitle medium, CTA button prominent`,
-        `- Use professional layout with balanced whitespace`,
-        `- Add subtle design elements: thin lines, dots, small decorative accents that match the style`,
-        `- The overall result should look like it was made by a professional agency`,
-        `- Do NOT add any WhatsApp icons, phone icons, or emoji unless in the CTA text`,
-        `- Do NOT add random watermarks or logos`,
-        `- Keep the design CLEAN — less is more`,
+        `LAYOUT RULES:`,
+        `- Text and design elements go AROUND the photo, not overlaid on it`,
+        `- Keep generous whitespace / breathing room`,
+        `- Typography must be sharp, legible, and properly contrasted`,
+        `- The design should look professional but simple — like a real salon's Instagram`,
+        `- Do NOT add fake phone mockups, device frames, or UI elements`,
+        `- Do NOT add random decorative emojis or clip art`,
+        `- The overall result should look like a clean, modern social media ad`,
       ].filter(Boolean).join('\n');
 
       result = await getOpenAI().images.edit({
@@ -193,23 +191,22 @@ CRITICAL RULES:
       const imageBuffer = Buffer.from(imageBase64, 'base64');
       const file = new File([imageBuffer], 'photo.png', { type: 'image/png' });
 
-      const recreatePrompt = `You are a professional nail art photographer. Based on this reference photo, create a NEW stunning nail design photograph.
+      const recreatePrompt = `Recreate this nail design as a realistic photograph taken with a good smartphone camera.
 
-${userPrompt ? `CLIENT REQUEST: ${userPrompt}` : 'Recreate this nail design with enhanced professional quality.'}
+${userPrompt ? `CLIENT REQUEST: ${userPrompt}` : 'Recreate this nail design with better lighting and angle.'}
 
-PHOTOGRAPHY STYLE:
-- Ultra-realistic photograph, NOT illustration or digital art
-- Professional studio lighting: soft key light with subtle fill
-- Close-up composition showing beautifully manicured nails on elegant, natural-looking hands
-- Sharp focus on nails with soft bokeh background
-- Magazine-quality beauty photography
+REALISM IS MANDATORY:
+- This must look like a REAL photo taken by a person, NOT a render or illustration
+- Natural skin texture with visible pores, fine lines, and natural imperfections — do NOT smooth
+- Natural nail cuticles and nail bed — nails should look physically real, not plastic
+- Real-world lighting: natural daylight or warm indoor light, with natural shadows
+- Slight natural imperfections are OK and desirable (makes it look authentic)
 
-RULES:
-- Only show hands and nails — NO faces, NO full body
-- NO text, logos, watermarks, or any overlay
-- Background should be clean, elegant (marble, silk, soft gradient, or bokeh)
-- Skin must look natural and healthy
-- Nails must look realistic and physically accurate`;
+COMPOSITION:
+- Close-up of hands showing the nail design clearly
+- Clean, simple background (table, marble surface, or natural bokeh)
+- No text, logos, frames, or any overlay
+- Only hands and nails — no face or body`;
 
       result = await getOpenAI().images.edit({
         model: 'gpt-image-1',
