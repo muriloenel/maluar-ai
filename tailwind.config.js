@@ -1,4 +1,10 @@
 /** @type {import('tailwindcss').Config} */
+/*
+  Maluar AI — Tailwind config (Soft Feminino Refinado)
+  Substitua o arquivo inteiro. Mantém os mesmos nomes de classes usados
+  hoje no projeto — bg-surface, text-text-muted, text-accent, btn-gradient,
+  etc — só muda os valores subjacentes.
+*/
 module.exports = {
   content: [
     './app/**/*.{js,jsx}',
@@ -11,32 +17,46 @@ module.exports = {
         surface: 'var(--color-surface)',
         'surface-alt': 'var(--color-surface-alt)',
         'surface-card': 'var(--color-surface-card)',
+        'surface-2': 'var(--color-surface-2)',
+
         border: 'var(--color-border)',
         'border-light': 'var(--color-border-light)',
+
         text: 'var(--color-text)',
         'text-muted': 'var(--color-text-muted)',
         'text-light': 'var(--color-text-light)',
-        accent: '#7F77DD',
-        'accent-hover': '#534AB7',
+
+        accent: 'var(--color-accent)',
+        'accent-hover': 'var(--color-accent-hover)',
         'accent-light': 'var(--color-accent-light)',
         'accent-bg': 'var(--color-accent-bg)',
-        rose: '#D4537E',
-        'rose-light': '#FBEAF0',
+        mauve: 'var(--color-mauve)',
+        rosegold: 'var(--color-rosegold)',
+
+        rose: 'var(--color-rose)',
+        'rose-light': 'var(--color-rose-light)',
       },
       fontFamily: {
-        sans: ['var(--font-jakarta)', 'Plus Jakarta Sans', 'system-ui', 'sans-serif'],
-        display: ['var(--font-playfair)', 'Playfair Display', 'Georgia', 'serif'],
+        sans: ['var(--font-manrope)', 'Manrope', 'system-ui', 'sans-serif'],
+        display: ['var(--font-dm-serif)', '"DM Serif Display"', 'Georgia', 'serif'],
+        italic: ['var(--font-cormorant)', '"Cormorant Garamond"', 'Georgia', 'serif'],
       },
       borderRadius: {
-        '2xl': '1rem',
+        'xl': '0.875rem',
+        '2xl': '1.125rem',
         '3xl': '1.5rem',
+        '4xl': '2rem',
       },
       boxShadow: {
-        'soft': '0 1px 2px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.02)',
-        'card': '0 2px 12px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.02)',
-        'elevated': '0 8px 30px rgba(0,0,0,0.06), 0 2px 8px rgba(0,0,0,0.03)',
-        'glow': '0 0 20px rgba(127,119,221,0.15), 0 0 3px rgba(127,119,221,0.1)',
-        'glow-rose': '0 0 20px rgba(212,83,126,0.15), 0 0 3px rgba(212,83,126,0.1)',
+        'soft': 'var(--shadow-soft)',
+        'card': 'var(--shadow-card)',
+        'elevated': 'var(--shadow-elevated)',
+        'glow': 'var(--shadow-glow)',
+        'glow-rose': '0 12px 28px -8px rgba(168, 83, 106, 0.45)',
+      },
+      backgroundImage: {
+        'mesh-rose': 'var(--mesh-rose)',
+        'gradient-brand': 'linear-gradient(135deg, var(--color-accent-hover), var(--color-accent) 50%, var(--color-mauve))',
       },
     },
   },
