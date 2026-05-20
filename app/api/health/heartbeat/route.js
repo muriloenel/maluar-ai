@@ -1,4 +1,4 @@
-import { getAuthUser, getServiceClient } from '../../../lib/admin';
+import { getAuthUser, getServiceClient } from '../../../../lib/admin';
 
 export async function POST(req) {
   try {
