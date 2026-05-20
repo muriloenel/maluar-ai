@@ -14,6 +14,29 @@ import { useToast } from './Toast';
 import Icon from './Icon';
 import MaluarMark from './MaluarMark';
 
+const INPUT_CLASS = "w-full bg-white/85 dark:bg-white/[0.04] border border-border-light rounded-2xl px-4 py-3.5 text-sm text-text placeholder-text-light focus:outline-none focus:ring-2 focus:ring-accent/25 focus:border-accent transition-all shadow-soft";
+
+function Field({ label, children }) {
+  return (
+    <div>
+      <label className="block text-xs font-semibold text-text mb-2 pl-1">{label}</label>
+      {children}
+    </div>
+  );
+}
+
+function RateLimitNotice({ seconds }) {
+  if (seconds <= 0) return null;
+  return (
+    <div className="flex items-center justify-center gap-2 py-2.5 px-4 bg-accent-bg border border-accent-light rounded-xl">
+      <Icon name="lock" size={14} className="text-accent" />
+      <span className="text-xs text-accent font-medium">
+        Tente novamente em <strong>{Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')}</strong>
+      </span>
+    </div>
+  );
+}
+
 export default function AuthScreen() {
   const [mode, setMode] = useState('login'); // 'login' | 'register' | 'forgot'
   const [email, setEmail] = useState('');
@@ -181,24 +204,7 @@ export default function AuthScreen() {
     setLoading(false);
   };
 
-  // ─── UI helpers ─────────────────────────────────────────────────────
-  const Field = ({ label, children }) => (
-    <div>
-      <label className="block text-xs font-semibold text-text mb-2 pl-1">{label}</label>
-      {children}
-    </div>
-  );
-
-  const inputClass = "w-full bg-white/85 dark:bg-white/[0.04] border border-border-light rounded-2xl px-4 py-3.5 text-sm text-text placeholder-text-light focus:outline-none focus:ring-2 focus:ring-accent/25 focus:border-accent transition-all shadow-soft";
-
-  const RateLimitNotice = () => rateLimitSeconds > 0 ? (
-    <div className="flex items-center justify-center gap-2 py-2.5 px-4 bg-accent-bg border border-accent-light rounded-xl">
-      <Icon name="lock" size={14} className="text-accent" />
-      <span className="text-xs text-accent font-medium">
-        Tente novamente em <strong>{Math.floor(rateLimitSeconds / 60)}:{String(rateLimitSeconds % 60).padStart(2, '0')}</strong>
-      </span>
-    </div>
-  ) : null;
+  const inputClass = INPUT_CLASS;
 
   return (
     <div className="min-h-screen w-full flex relative overflow-hidden bg-surface">
@@ -314,7 +320,7 @@ export default function AuthScreen() {
                 </Field>
 
                 {error && <p className="text-accent text-xs font-medium">{error}</p>}
-                <RateLimitNotice />
+                <RateLimitNotice seconds={rateLimitSeconds} />
 
                 {showResendConfirm && (
                   <button type="button" onClick={handleResendConfirmation} disabled={loading} className="w-full text-center text-xs text-accent font-semibold hover:underline py-1">
@@ -394,7 +400,7 @@ export default function AuthScreen() {
                 </Field>
 
                 {error && <p className="text-accent text-xs font-medium">{error}</p>}
-                <RateLimitNotice />
+                <RateLimitNotice seconds={rateLimitSeconds} />
 
                 <label className="flex items-start gap-2.5 cursor-pointer">
                   <input type="checkbox" checked={acceptTerms} onChange={(e) => setAcceptTerms(e.target.checked)} className="mt-0.5 accent-[var(--color-accent)] w-4 h-4 rounded" />
@@ -430,7 +436,7 @@ export default function AuthScreen() {
                 </Field>
 
                 {error && <p className="text-accent text-xs font-medium">{error}</p>}
-                <RateLimitNotice />
+                <RateLimitNotice seconds={rateLimitSeconds} />
 
                 <button type="submit" disabled={loading || rateLimitSeconds > 0} className="w-full py-3.5 rounded-2xl text-sm btn-gradient flex items-center justify-center gap-2.5 disabled:opacity-50">
                   {loading ? 'Enviando…' : rateLimitSeconds > 0 ? `Aguarde ${rateLimitSeconds}s` : (<>Enviar link de recuperação <Icon name="arrowRight" size={16} /></>)}

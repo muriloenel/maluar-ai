@@ -867,11 +867,16 @@ export default function AdminDashboard() {
         {activeTab === 'dashboard' && stats && (
           <>
             {/* KPIs */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
               <KPICard
                 label="Total Usuários" value={stats.totalUsers}
                 sub={`+${stats.newUsersWeek} esta semana`}
                 icon={Icons.users} color="primary"
+              />
+              <KPICard
+                label="Online Agora" value={stats.onlineNow || 0}
+                sub={stats.onlineUsers?.length ? stats.onlineUsers.slice(0, 3).map(u => u.name?.split(' ')[0]).join(', ') + (stats.onlineUsers.length > 3 ? '…' : '') : 'Ninguém agora'}
+                icon={Icons.clock} color="success"
               />
               <KPICard
                 label="MRR" value={`R$ ${stats.revenue?.mrr?.toFixed(2)}`}

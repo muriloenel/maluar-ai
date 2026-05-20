@@ -218,7 +218,7 @@ export async function POST(req) {
 
     const imageRequest = hasImage(messages);
 
-    // Modelo dinâmico: Haiku para msgs simples (70% mais barato), Sonnet para imagens/complexo
+    // Modelo: Sonnet 4 para todas as interações (melhor qualidade de mentoria)
     const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
     const lastText = typeof lastUserMsg?.content === 'string'
       ? lastUserMsg.content
@@ -228,12 +228,12 @@ export async function POST(req) {
     const isComplex = imageRequest || lastText.length > 500 || /plano de ação|diagnóstico|análise|estratégia|financeiro|business|marketing|calendário|passo a passo|propaganda|post|legenda|story|stories|reels|campanha/i.test(lastText);
     // Modelos e tokens dinâmicos via configs já carregados (sem query adicional)
     const SONNET = allConfigs.ai_model_complex || 'claude-sonnet-4-20250514';
-    const HAIKU = allConfigs.ai_model_default || 'claude-haiku-4-5';
-    const FALLBACKS = [SONNET, HAIKU, 'claude-3-5-sonnet-latest'];
-    let model = isComplex ? SONNET : HAIKU;
-    const maxTokensCasual = Number(allConfigs.ai_max_tokens_casual) || 300;
-    const maxTokensComplex = Number(allConfigs.ai_max_tokens_complex) || 2000;
-    const maxTokensImage = Number(allConfigs.ai_max_tokens_image) || 2000;
+    const HAIKU = allConfigs.ai_model_default || 'claude-sonnet-4-20250514';
+    const FALLBACKS = [SONNET, 'claude-3-5-sonnet-latest', 'claude-haiku-4-5'];
+    let model = SONNET; // Sempre Sonnet 4 — qualidade máxima
+    const maxTokensCasual = Number(allConfigs.ai_max_tokens_casual) || 1024;
+    const maxTokensComplex = Number(allConfigs.ai_max_tokens_complex) || 4096;
+    const maxTokensImage = Number(allConfigs.ai_max_tokens_image) || 4096;
     const maxTokens = imageRequest ? maxTokensImage : isComplex ? maxTokensComplex : maxTokensCasual;
     
     // Instruções extras do admin (injetadas no system prompt)

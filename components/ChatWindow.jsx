@@ -660,7 +660,7 @@ export default function ChatWindow({
                   }
                 }}
                 placeholder={pendingFile ? 'Escreva algo sobre a foto (opcional)…' : 'Converse com a Maluar — técnica, preço, conteúdo…'}
-                className="flex-1 bg-transparent px-2 py-2.5 text-text placeholder-text-light focus:outline-none text-[15px] resize-none overflow-hidden font-italic-display italic"
+                className="flex-1 bg-transparent px-2 py-2.5 text-text placeholder-text-light focus:outline-none text-[15px] resize-none overflow-hidden"
                 style={{ minHeight: '40px', maxHeight: '160px' }}
                 disabled={isLoading}
                 maxLength={2000}

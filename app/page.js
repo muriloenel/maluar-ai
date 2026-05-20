@@ -185,6 +185,23 @@ export default function Home() {
     }).catch(() => {});
   }, []);
 
+  // Heartbeat — registra presença a cada 60s para tracking de online
+  useEffect(() => {
+    if (!user) return;
+    const ping = () => {
+      getAccessToken?.().then(token => {
+        if (!token) return;
+        fetch('/api/health/heartbeat', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        }).catch(() => {});
+      }).catch(() => {});
+    };
+    ping(); // imediato ao montar
+    const interval = setInterval(ping, 60_000);
+    return () => clearInterval(interval);
+  }, [user, getAccessToken]);
+
   // Safety net: se profile null por mais de 3s, tentar carregar diretamente
   useEffect(() => {
     if (!user || profile) { setProfileTimeout(false); return; }
@@ -392,6 +409,28 @@ export default function Home() {
     }
   }, [getAccessToken]);
 
+  const handleCancelSubscription = useCallback(async () => {
+    try {
+      const token = getAccessToken ? await getAccessToken() : null;
+      if (!token) return { error: 'Não autenticado' };
+      const res = await fetch('/api/stripe/cancel', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        return { success: true, message: data.message };
+      }
+      return { error: data.error || 'Erro ao cancelar' };
+    } catch (err) {
+      console.error('Erro ao cancelar assinatura:', err);
+      return { error: 'Erro de conexão' };
+    }
+  }, [getAccessToken]);
+
   // Loading state
   if (user === undefined) {
     return (
@@ -476,6 +515,7 @@ export default function Home() {
         currentPlan={effectiveProfile.plan || 'free'}
         onUpgrade={handleUpgrade}
         onManageSubscription={handleManageSubscription}
+        onCancelSubscription={handleCancelSubscription}
       />
 
       <main className="flex-1 flex flex-col min-w-0">

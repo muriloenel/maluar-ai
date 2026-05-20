@@ -15,9 +15,23 @@ if (process.env.STRIPE_PRICE_PREMIUM) PRICE_TO_PLAN[process.env.STRIPE_PRICE_PRE
 
 async function verifyStripeSignature(req) {
   const signature = req.headers.get('stripe-signature');
-  if (!signature || !STRIPE_WEBHOOK_SECRET) return null;
+  if (!signature) {
+    console.error('[WEBHOOK] Header stripe-signature ausente');
+    return null;
+  }
+  if (!STRIPE_WEBHOOK_SECRET) {
+    console.error('[WEBHOOK] STRIPE_WEBHOOK_SECRET não configurado');
+    return null;
+  }
 
-  const body = await req.text();
+  let body;
+  try {
+    body = await req.text();
+  } catch (e) {
+    console.error('[WEBHOOK] Erro ao ler body:', e.message);
+    return null;
+  }
+
   const parts = {};
   for (const part of signature.split(',')) {
     const [key, value] = part.split('=');
@@ -26,27 +40,47 @@ async function verifyStripeSignature(req) {
 
   const timestamp = parts['t'];
   const expectedSig = parts['v1'];
-  if (!timestamp || !expectedSig) return null;
+  if (!timestamp || !expectedSig) {
+    console.error('[WEBHOOK] Signature mal formada — falta t ou v1');
+    return null;
+  }
 
   // Verificar timestamp (tolerância de 5 min)
   const age = Math.abs(Date.now() / 1000 - parseInt(timestamp));
-  if (age > 300) return null;
+  if (age > 300) {
+    console.error(`[WEBHOOK] Timestamp expirado — age=${Math.round(age)}s`);
+    return null;
+  }
 
   // Verificar HMAC
-  const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    'raw',
-    encoder.encode(STRIPE_WEBHOOK_SECRET),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-  );
-  const payload = `${timestamp}.${body}`;
-  const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(payload));
-  const hexSig = Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
+  try {
+    const encoder = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      'raw',
+      encoder.encode(STRIPE_WEBHOOK_SECRET),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign']
+    );
+    const payload = `${timestamp}.${body}`;
+    const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(payload));
+    const hexSig = Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
 
-  if (hexSig !== expectedSig) return null;
-  return JSON.parse(body);
+    if (hexSig !== expectedSig) {
+      console.error('[WEBHOOK] HMAC não confere — webhook secret pode estar errado');
+      return null;
+    }
+  } catch (e) {
+    console.error('[WEBHOOK] Erro na verificação HMAC:', e.message);
+    return null;
+  }
+
+  try {
+    return JSON.parse(body);
+  } catch (e) {
+    console.error('[WEBHOOK] Body não é JSON válido:', e.message);
+    return null;
+  }
 }
 
 async function stripeGet(endpoint) {
@@ -58,16 +92,20 @@ async function stripeGet(endpoint) {
 
 export async function POST(req) {
   try {
+    console.log('[WEBHOOK] Requisição recebida');
+
     if (!STRIPE_SECRET || !supabaseServiceKey) {
-      console.error('[WEBHOOK] Configuração incompleta');
+      console.error('[WEBHOOK] Configuração incompleta — STRIPE_SECRET:', !!STRIPE_SECRET, 'SUPABASE_KEY:', !!supabaseServiceKey);
       return Response.json({ error: 'Configuração incompleta' }, { status: 500 });
     }
 
     const event = await verifyStripeSignature(req);
     if (!event) {
-      console.error('[WEBHOOK] Assinatura inválida');
+      console.error('[WEBHOOK] Assinatura inválida — verifique STRIPE_WEBHOOK_SECRET no Vercel');
       return Response.json({ error: 'Assinatura inválida' }, { status: 400 });
     }
+
+    console.log(`[WEBHOOK] Evento recebido: ${event.type} (${event.id})`);
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -78,12 +116,12 @@ export async function POST(req) {
         .from('webhook_events')
         .select('id')
         .eq('event_id', eventId)
-        .single();
+        .maybeSingle();
       if (existing) {
         return Response.json({ received: true, duplicate: true });
       }
       // Registrar evento como processado (ignora erro se tabela não existir)
-      await supabase.from('webhook_events').insert({ event_id: eventId }).catch(() => {});
+      try { await supabase.from('webhook_events').insert({ event_id: eventId }); } catch (_) {}
     }
 
     switch (event.type) {
@@ -196,21 +234,28 @@ export async function POST(req) {
       }
 
       case 'customer.subscription.updated': {
+        try {
         const sub = event.data.object;
         // Tentar encontrar profile por stripe_customer_id, fallback por user_id do metadata
         let profile = null;
-        const { data: byCustomer } = await supabase
+        const { data: byCustomer, error: byCustomerError } = await supabase
           .from('profiles')
           .select('id, plan')
           .eq('stripe_customer_id', sub.customer)
-          .single();
+          .maybeSingle();
+        if (byCustomerError) {
+          console.error(`[WEBHOOK] subscription.updated: Erro buscando por customer_id:`, byCustomerError.message);
+        }
         profile = byCustomer;
         if (!profile && sub.metadata?.user_id) {
-          const { data: byUserId } = await supabase
+          const { data: byUserId, error: byUserIdError } = await supabase
             .from('profiles')
             .select('id, plan')
             .eq('id', sub.metadata.user_id)
-            .single();
+            .maybeSingle();
+          if (byUserIdError) {
+            console.error(`[WEBHOOK] subscription.updated: Erro buscando por user_id:`, byUserIdError.message);
+          }
           profile = byUserId;
           // Associar customer_id para próximas buscas
           if (profile) {
@@ -218,35 +263,42 @@ export async function POST(req) {
           }
         }
 
-        if (profile) {
-          const status = sub.status;
-          if (status === 'canceled' || status === 'unpaid') {
-            // Cancelado ou impago definitivo — rebaixar imediatamente
+        if (!profile) {
+          console.warn(`[WEBHOOK] subscription.updated: Profile não encontrado para customer=${sub.customer}, metadata.user_id=${sub.metadata?.user_id}`);
+          break;
+        }
+
+        const status = sub.status;
+        console.log(`[WEBHOOK] subscription.updated: profile=${profile.id}, status=${status}, plan_atual=${profile.plan}`);
+
+        if (status === 'canceled' || status === 'unpaid') {
+          // Cancelado ou impago definitivo — rebaixar imediatamente
+          await supabase
+            .from('profiles')
+            .update({ plan: 'free', updated_at: new Date().toISOString() })
+            .eq('id', profile.id);
+        } else if (status === 'past_due') {
+          // Grace period: manter plano ativo, enviar alerta de pagamento
+          const customer = await stripeGet(`/customers/${sub.customer}`).catch(() => null);
+          if (customer?.email) {
+            sendPaymentFailedEmail(customer.email, customer.name).catch(() => {});
+          }
+          console.log(`[WEBHOOK] past_due para ${profile.id} — grace period, plano mantido`);
+        } else if (status === 'active' || status === 'trialing') {
+          // Assinatura ativa — garantir que o plano está correto no DB
+          const priceId = sub.items?.data?.[0]?.price?.id;
+          const correctPlan = sub.metadata?.plan || PRICE_TO_PLAN[priceId];
+          if (correctPlan && profile.plan !== correctPlan) {
+            console.log(`[WEBHOOK] Corrigindo plano: ${profile.plan} → ${correctPlan} para ${profile.id}`);
             await supabase
               .from('profiles')
-              .update({ plan: 'free', updated_at: new Date().toISOString() })
+              .update({ plan: correctPlan, updated_at: new Date().toISOString() })
               .eq('id', profile.id);
-          } else if (status === 'past_due') {
-            // Grace period: manter plano ativo, enviar alerta de pagamento
-            // O rebaixamento acontece apenas em 'unpaid' ou 'canceled' (Stripe escala automaticamente)
-            const customer = await stripeGet(`/customers/${sub.customer}`).catch(() => null);
-            if (customer?.email) {
-              sendPaymentFailedEmail(customer.email, customer.name).catch(() => {});
-            }
-            console.log(`[WEBHOOK] past_due para ${profile.id} — grace period, plano mantido`);
-          } else if (status === 'active' || status === 'trialing') {
-            // Assinatura ativa — garantir que o plano está correto no DB
-            // Resolve caso checkout.session.completed tenha falhado
-            const priceId = sub.items?.data?.[0]?.price?.id;
-            const correctPlan = sub.metadata?.plan || PRICE_TO_PLAN[priceId];
-            if (correctPlan && profile.plan !== correctPlan) {
-              console.log(`[WEBHOOK] Corrigindo plano: ${profile.plan} → ${correctPlan} para ${profile.id}`);
-              await supabase
-                .from('profiles')
-                .update({ plan: correctPlan, updated_at: new Date().toISOString() })
-                .eq('id', profile.id);
-            }
           }
+        }
+        } catch (subErr) {
+          console.error(`[WEBHOOK] subscription.updated erro interno:`, subErr.message, subErr.stack);
+          return Response.json({ error: 'Erro interno' }, { status: 500 });
         }
         break;
       }
@@ -258,14 +310,14 @@ export async function POST(req) {
           .from('profiles')
           .select('id')
           .eq('stripe_customer_id', sub.customer)
-          .single();
+          .maybeSingle();
         delProfile = delByCustomer;
         if (!delProfile && sub.metadata?.user_id) {
           const { data: delByUserId } = await supabase
             .from('profiles')
             .select('id')
             .eq('id', sub.metadata.user_id)
-            .single();
+            .maybeSingle();
           delProfile = delByUserId;
         }
 
@@ -299,7 +351,7 @@ export async function POST(req) {
 
     return Response.json({ received: true });
   } catch (err) {
-    console.error('[WEBHOOK] Error:', err.message);
+    console.error('[WEBHOOK] Error:', err.message, err.stack);
     return Response.json({ error: 'Erro interno' }, { status: 500 });
   }
 }

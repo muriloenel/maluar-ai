@@ -53,9 +53,11 @@ const MODULES_BY_LEVEL = {
 export default function Sidebar({
   user, onSendPrompt, onOpenPostGenerator, activeTab, onTabChange,
   onChangeLevel, isOpen, onClose, chatList, activeChatId,
-  onSelectChat, onDeleteChat, onSignOut, currentPlan, onUpgrade, onManageSubscription,
+  onSelectChat, onDeleteChat, onSignOut, currentPlan, onUpgrade, onManageSubscription, onCancelSubscription,
 }) {
   const [showLevelPicker, setShowLevelPicker] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelLoading, setCancelLoading] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [historySearch, setHistorySearch] = useState('');
   const [openSections, setOpenSections] = useState({ history: true });
@@ -401,6 +403,11 @@ export default function Sidebar({
                     <Icon name="diamond" size={14} /> Gerenciar assinatura
                   </button>
                 )}
+                {currentPlan !== 'free' && currentPlan && onCancelSubscription && (
+                  <button onClick={() => { setShowCancelModal(true); setShowUserMenu(false); }} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-text-muted hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors">
+                    <Icon name="close" size={14} /> Cancelar assinatura
+                  </button>
+                )}
                 <div className="border-t border-border-light my-1" />
                 <div className="flex gap-3 px-3 py-1.5 text-[11px] text-text-light">
                   <a href="/termos" className="hover:text-accent transition-colors">Termos</a>
@@ -483,6 +490,69 @@ export default function Sidebar({
                   </div>
                 </>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Modal Cancelar Assinatura */}
+        {showCancelModal && (
+          <div
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-md px-4"
+            onClick={() => !cancelLoading && setShowCancelModal(false)}
+          >
+            <div
+              className="glass-card rounded-2xl p-6 w-full max-w-md animate-scale-in"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="text-center mb-5">
+                <div className="w-14 h-14 mx-auto rounded-full bg-red-50 dark:bg-red-900/20 flex items-center justify-center mb-4">
+                  <Icon name="close" size={24} className="text-red-500" />
+                </div>
+                <h3 className="font-display text-2xl text-text mb-2">Cancelar assinatura</h3>
+                <p className="text-sm text-text-muted leading-relaxed">
+                  Ao cancelar, você mantém acesso ao plano <strong className="text-text">{currentPlan === 'premium' ? 'Premium' : 'Pro'}</strong> até o final do período já pago. Depois disso, volta para o plano gratuito.
+                </p>
+              </div>
+
+              <div className="bg-surface-alt rounded-xl p-4 mb-5">
+                <p className="text-xs text-text-muted mb-2 font-semibold uppercase tracking-wider">O que você perde:</p>
+                <ul className="space-y-1.5 text-sm text-text-muted">
+                  <li className="flex items-center gap-2"><Icon name="chat" size={13} className="text-accent" /> Mensagens ilimitadas de mentoria</li>
+                  <li className="flex items-center gap-2"><Icon name="image" size={13} className="text-accent" /> Geração de imagens com IA</li>
+                  <li className="flex items-center gap-2"><Icon name="briefcase" size={13} className="text-accent" /> Ferramentas de marketing e negócio</li>
+                </ul>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowCancelModal(false)}
+                  disabled={cancelLoading}
+                  className="flex-1 px-4 py-3 text-sm font-semibold btn-gradient rounded-xl"
+                >
+                  Manter plano
+                </button>
+                <button
+                  onClick={async () => {
+                    setCancelLoading(true);
+                    try {
+                      const result = await onCancelSubscription?.();
+                      if (result?.success) {
+                        setShowCancelModal(false);
+                        alert(result.message || 'Assinatura cancelada com sucesso.');
+                      } else {
+                        alert(result?.error || 'Erro ao cancelar. Tente novamente.');
+                      }
+                    } catch {
+                      alert('Erro de conexão. Tente novamente.');
+                    }
+                    setCancelLoading(false);
+                  }}
+                  disabled={cancelLoading}
+                  className="flex-1 px-4 py-3 text-sm font-semibold bg-surface-alt text-text-muted rounded-xl hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/10 transition-colors disabled:opacity-50"
+                >
+                  {cancelLoading ? 'Cancelando…' : 'Confirmar cancelamento'}
+                </button>
+              </div>
             </div>
           </div>
         )}

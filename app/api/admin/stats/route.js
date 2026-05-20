@@ -9,14 +9,17 @@ export async function GET(req) {
     if (!supabase) return Response.json({ error: 'Service key não configurada' }, { status: 500 });
 
     // Métricas agregadas
+    const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
     const [
       profilesRes,
       chatsRes,
       messagesRes,
+      onlineRes,
     ] = await Promise.all([
       supabase.from('profiles').select('id, name, plan, level, messages_today, created_at', { count: 'exact' }),
       supabase.from('chats').select('id', { count: 'exact', head: true }),
       supabase.from('messages').select('id', { count: 'exact', head: true }),
+      supabase.from('profiles').select('id, name, plan', { count: 'exact' }).gte('last_seen_at', fiveMinAgo),
     ]);
 
     const profiles = profilesRes.data || [];
@@ -74,6 +77,8 @@ export async function GET(req) {
       totalChats: chatsRes.count || 0,
       totalMessages: messagesRes.count || 0,
       totalMessagesToday,
+      onlineNow: onlineRes.count || 0,
+      onlineUsers: (onlineRes.data || []).map(u => ({ name: u.name, plan: u.plan })),
       planCounts,
       levelCounts,
       statusCounts,
